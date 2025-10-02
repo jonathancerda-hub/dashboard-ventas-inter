@@ -441,6 +441,7 @@ class OdooManager:
             # Procesar y combinar todos los datos para las 27 columnas
             sales_lines = []
             ecommerce_reassigned = 0
+            s00791_debug_count = 0  # Contador para debug del pedido específico
             print(f"🚀 Procesando {len(sales_lines_base)} líneas con 27 columnas...")
             
             for line in sales_lines_base:
@@ -495,6 +496,12 @@ class OdooManager:
                     except:
                         mes = ''
                 
+                # DEBUG: Buscar líneas específicas del pedido S00791
+                order_name = order.get('name', '')
+                if 'S00791' in order_name:
+                    s00791_debug_count += 1
+                    print(f"🔍 DEBUG S00791 #{s00791_debug_count}: Pedido={order_name}, Factura={move.get('name', '')}, Producto={product.get('default_code', '')}, Cantidad={line.get('quantity', 0)}, Total={-line.get('balance', 0)}")
+                
                 sales_lines.append({
                     # 1. Pedido (número de orden de venta)
                     'pedido': order.get('name', ''),
@@ -544,6 +551,10 @@ class OdooManager:
                     # 16. Total
                     'total': -line.get('balance', 0) if line.get('balance') is not None else 0,
                     
+                    # DEBUG: Agregar información de factura para identificar líneas múltiples
+                    'factura': move.get('name', ''),
+                    'account_move_line_id': line.get('id'),
+                    
                     # Campos adicionales para compatibilidad con el resto del sistema
                     'payment_state': move.get('payment_state'),
                     'sales_channel_id': move.get('team_id'),
@@ -572,6 +583,7 @@ class OdooManager:
             
             print(f"✅ Procesadas {len(sales_lines)} líneas con 27 columnas completas")
             print(f"🔄 Reasignadas {ecommerce_reassigned} líneas a ECOMMERCE (usuarios específicos)")
+            print(f"🔍 DEBUG: Encontradas {s00791_debug_count} líneas del pedido S00791")
             
             # Si se solicita paginación, devolver tupla (datos, paginación)
             if page is not None and per_page is not None:
