@@ -291,13 +291,14 @@ class OdooManager:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
             
             # DEBUG: Buscar TODAS las facturas del pedido S00791 antes de filtros
+            s00791_move_ids = []
             try:
                 print("🔍 DEBUG: Buscando TODAS las facturas del pedido S00791...")
                 s00791_invoices = self.models.execute_kw(
                     self.db, self.uid, self.password, 'account.move', 'search_read',
                     [[('invoice_origin', 'ilike', 'S00791')]], 
                     {
-                        'fields': ['name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
+                        'fields': ['id', 'name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
                         'context': {'lang': 'es_PE'}
                     }
                 )
@@ -305,8 +306,39 @@ class OdooManager:
                 for inv in s00791_invoices:
                     team_name = inv.get('team_id')[1] if inv.get('team_id') and len(inv.get('team_id')) > 1 else 'SIN_CANAL'
                     print(f"   📄 {inv['name']} | Origen: {inv.get('invoice_origin', '')} | Fecha: {inv.get('invoice_date', '')} | Estado: {inv.get('state', '')} | Canal: {team_name} | Tipo: {inv.get('move_type', '')}")
+                    s00791_move_ids.append(inv['id'])
+                
+                # Buscar líneas específicas de estas facturas
+                if s00791_move_ids:
+                    print(f"🔍 DEBUG: Buscando líneas de account.move.line para las facturas S00791...")
+                    s00791_lines = self.models.execute_kw(
+                        self.db, self.uid, self.password, 'account.move.line', 'search_read',
+                        [[('move_id', 'in', s00791_move_ids), ('product_id', '!=', False)]],
+                        {
+                            'fields': ['id', 'move_id', 'product_id', 'quantity', 'balance', 'move_name'],
+                            'context': {'lang': 'es_PE'}
+                        }
+                    )
+                    print(f"🔍 DEBUG: Encontradas {len(s00791_lines)} líneas de productos para S00791:")
+                    for line in s00791_lines:
+                        move_name = line.get('move_name', '')
+                        product_id = line.get('product_id', [0, ''])[0] if line.get('product_id') else 0
+                        print(f"   📋 Línea ID: {line['id']} | Factura: {move_name} | Producto ID: {product_id} | Cantidad: {line.get('quantity', 0)} | Balance: {line.get('balance', 0)}")
+                        
             except Exception as e:
                 print(f"⚠️ Error en debug de facturas S00791: {e}")
+            
+            # DEBUG: Si estamos buscando S00791, incluir específicamente esas facturas
+            if search and 'S00791' in search and s00791_move_ids:
+                print(f"🔍 DEBUG: Incluyendo específicamente facturas de S00791 en la consulta: {s00791_move_ids}")
+                # Modificar dominio para incluir solo las facturas específicas de S00791
+                domain = [
+                    ('move_id', 'in', s00791_move_ids),
+                    ('product_id.default_code', '!=', False)  # Solo productos con código
+                ]
+                # Aumentar límite para asegurar que se obtengan todas las líneas
+                if limit:
+                    limit = max(limit, 10000)
             
             # Obtener líneas base con todos los campos necesarios
             query_options = {
