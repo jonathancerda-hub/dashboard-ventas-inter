@@ -150,6 +150,57 @@ class OdooManager:
             # En caso de error de conexión, no se puede autenticar
             return None
 
+    def get_international_clients(self):
+        """Obtener clientes específicos del canal de ventas internacionales"""
+        try:
+            # Buscar órdenes de venta del equipo/canal internacional
+            order_domain = [
+                ('team_id.name', 'ilike', 'INTERNACIONAL'),
+                ('state', 'in', ['sale', 'done'])  # Solo órdenes confirmadas
+            ]
+            
+            orders = self.models.execute_kw(
+                self.db, self.uid, self.password, 'sale.order', 'search_read',
+                [order_domain],
+                {'fields': ['partner_id'], 'limit': 1000}
+            )
+            
+            # Extraer IDs únicos de clientes internacionales
+            partner_ids = list(set([order['partner_id'][0] for order in orders if order.get('partner_id')]))
+            
+            if not partner_ids:
+                print("DEBUG: No se encontraron clientes del canal internacional")
+                return []
+            
+            # Obtener información completa de estos clientes
+            international_partners = self.models.execute_kw(
+                self.db, self.uid, self.password, 'res.partner', 'search_read',
+                [[('id', 'in', partner_ids)]],
+                {'fields': ['id', 'name', 'country_id'], 'limit': len(partner_ids)}
+            )
+            
+            # Formatear y ordenar clientes
+            clientes_internacionales = []
+            for partner in international_partners:
+                country_name = ""
+                if partner.get('country_id') and isinstance(partner['country_id'], list):
+                    country_name = f" ({partner['country_id'][1]})"
+                
+                clientes_internacionales.append([
+                    partner['id'], 
+                    f"{partner['name']}{country_name}"
+                ])
+            
+            # Ordenar alfabéticamente
+            clientes_internacionales.sort(key=lambda x: x[1])
+            
+            print(f"DEBUG: Encontrados {len(clientes_internacionales)} clientes internacionales")
+            return clientes_internacionales
+            
+        except Exception as e:
+            print(f"Error al obtener clientes internacionales: {e}")
+            return []
+
     def get_sales_filter_options(self):
         """Obtener opciones para filtros de ventas"""
         try:
@@ -183,24 +234,17 @@ class OdooManager:
             # Para compatibilidad con diferentes templates
             commercial_lines = lineas
             
-            # Obtener clientes
-            partners = self.models.execute_kw(
-                self.db, self.uid, self.password, 'res.partner', 'search_read',
-                [[('customer_rank', '>', 0)]],
-                {'fields': ['id', 'name'], 'limit': 100}
-            )
+            # Obtener clientes internacionales específicos
+            clientes_internacionales = self.get_international_clients()
             
-            # Formatear clientes
-            clientes = [
-                {'id': p['id'], 'display_name': p['name']}
-                for p in partners
-            ]
+            # Mantener compatibilidad con el formato anterior
+            partners = [{'id': cliente[0], 'name': cliente[1]} for cliente in clientes_internacionales]
             
             return {
                 'commercial_lines': commercial_lines,
                 'lineas': lineas,  # Para compatibilidad con meta.html
                 'partners': partners,
-                'clientes': clientes  # Para compatibilidad
+                'clientes': clientes_internacionales  # Lista de [id, nombre] para el template
             }
             
         except Exception as e:
@@ -1137,174 +1181,6 @@ class OdooManager:
             
         except Exception as e:
             print(f"Error obteniendo datos del dashboard: {e}")
-            return self._get_empty_dashboard_data()
-
-    def get_sales_dashboard_data_international(self, date_from=None, date_to=None, linea_id=None, partner_id=None):
-        """Obtener datos para el dashboard de ventas internacionales"""
-        try:
-            # Obtener líneas de venta
-            sales_lines = self.get_sales_lines(
-                date_from=date_from,
-                date_to=date_to,
-                partner_id=partner_id,
-                linea_id=linea_id,
-                limit=5000
-            )
-            
-            # Filtrar para incluir SOLO VENTA INTERNACIONAL (exportaciones)
-            sales_lines_filtered = []
-            for line in sales_lines:
-                is_international = False
-                # Revisar por línea comercial
-                linea_comercial = line.get('commercial_line_national_id')
-                if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
-                    nombre_linea = linea_comercial[1].upper()
-                    if 'VENTA INTERNACIONAL' in nombre_linea:
-                        is_international = True
-                
-                # Revisar por canal de ventas si no se ha marcado ya
-                if not is_international:
-                    canal_ventas = line.get('sales_channel_id')
-                    if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
-                        nombre_canal = canal_ventas[1].upper()
-                        if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                            is_international = True
-                
-                if is_international:
-                    sales_lines_filtered.append(line)
-            
-            sales_lines = sales_lines_filtered  # Usar los datos filtrados
-            
-            if not sales_lines:
-                return self._get_empty_dashboard_data()
-            
-            # Calcular métricas básicas
-            total_sales = sum([abs(line.get('balance', 0)) for line in sales_lines])
-            total_quantity = sum([line.get('quantity', 0) for line in sales_lines])
-            total_lines = len(sales_lines)
-            
-            # Métricas por cliente
-            clients_data = {}
-            for line in sales_lines:
-                client_name = line.get('partner_name', 'Sin Cliente')
-                if client_name not in clients_data:
-                    clients_data[client_name] = {'sales': 0, 'quantity': 0}
-                clients_data[client_name]['sales'] += abs(line.get('balance', 0))
-                clients_data[client_name]['quantity'] += line.get('quantity', 0)
-            
-            # Top clientes
-            top_clients = sorted(clients_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
-            
-            # Métricas por producto
-            products_data = {}
-            for line in sales_lines:
-                product_name = line.get('name', 'Sin Producto')
-                if product_name not in products_data:
-                    products_data[product_name] = {'sales': 0, 'quantity': 0}
-                products_data[product_name]['sales'] += abs(line.get('balance', 0))
-                products_data[product_name]['quantity'] += line.get('quantity', 0)
-            
-            # Top productos
-            top_products = sorted(products_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
-            
-            # Métricas por canal
-            channels_data = {}
-            for line in sales_lines:
-                channel = line.get('sales_channel_id')
-                channel_name = channel[1] if channel and len(channel) > 1 else 'Sin Canal'
-                if channel_name not in channels_data:
-                    channels_data[channel_name] = {'sales': 0, 'quantity': 0}
-                channels_data[channel_name]['sales'] += abs(line.get('balance', 0))
-                channels_data[channel_name]['quantity'] += line.get('quantity', 0)
-            
-            sales_by_channel = list(channels_data.items())
-            
-            # Métricas por línea comercial (NUEVO)
-            commercial_lines_data = {}
-            for line in sales_lines:
-                commercial_line = line.get('commercial_line_national_id')
-                if commercial_line:
-                    line_name = commercial_line[1] if commercial_line and len(commercial_line) > 1 else 'Sin Línea'
-                else:
-                    line_name = 'Sin Línea Comercial'
-                
-                if line_name not in commercial_lines_data:
-                    commercial_lines_data[line_name] = {'sales': 0, 'quantity': 0}
-                commercial_lines_data[line_name]['sales'] += abs(line.get('balance', 0))
-                commercial_lines_data[line_name]['quantity'] += line.get('quantity', 0)
-            
-            # Preparar datos de líneas comerciales para el gráfico
-            commercial_lines_sorted = sorted(commercial_lines_data.items(), key=lambda x: x[1]['sales'], reverse=True)
-            commercial_lines = [
-                {
-                    'name': line_name,
-                    'amount': data['sales'],
-                    'quantity': data['quantity']
-                } 
-                for line_name, data in commercial_lines_sorted
-            ]
-            
-            # Estadísticas de líneas comerciales
-            commercial_lines_stats = {
-                'total_lines': len(commercial_lines),
-                'top_line_name': commercial_lines[0]['name'] if commercial_lines else 'N/A',
-                'top_line_amount': commercial_lines[0]['amount'] if commercial_lines else 0
-            }
-            
-            # Métricas por vendedor (NUEVO)
-            sellers_data = {}
-            for line in sales_lines:
-                seller = line.get('invoice_user_id')
-                if seller:
-                    seller_name = seller[1] if seller and len(seller) > 1 else 'Sin Vendedor'
-                else:
-                    seller_name = 'Sin Vendedor Asignado'
-                
-                if seller_name not in sellers_data:
-                    sellers_data[seller_name] = {'sales': 0, 'quantity': 0}
-                sellers_data[seller_name]['sales'] += abs(line.get('balance', 0))
-                sellers_data[seller_name]['quantity'] += line.get('quantity', 0)
-            
-            # Preparar datos de vendedores para el gráfico (Top 8 vendedores)
-            sellers_sorted = sorted(sellers_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:8]
-            sellers = [
-                {
-                    'name': seller_name,
-                    'amount': data['sales'],
-                    'quantity': data['quantity']
-                } 
-                for seller_name, data in sellers_sorted
-            ]
-            
-            # Estadísticas de vendedores
-            sellers_stats = {
-                'total_sellers': len(sellers_data),
-                'top_seller_name': sellers[0]['name'] if sellers else 'N/A',
-                'top_seller_amount': sellers[0]['amount'] if sellers else 0
-            }
-            
-            return {
-                'total_sales': total_sales,
-                'total_quantity': total_quantity,
-                'total_lines': total_lines,
-                'top_clients': top_clients,
-                'top_products': top_products,
-                'sales_by_month': [],  # Puede implementarse después
-                'sales_by_channel': sales_by_channel,
-                # Datos específicos para líneas comerciales
-                'commercial_lines': commercial_lines,
-                'commercial_lines_stats': commercial_lines_stats,
-                # Datos específicos para vendedores
-                'sellers': sellers,
-                'sellers_stats': sellers_stats,
-                # Campos KPI para el template
-                'kpi_total_sales': total_sales,
-                'kpi_total_invoices': total_lines,
-                'kpi_total_quantity': total_quantity
-            }
-            
-        except Exception as e:
-            print(f"Error obteniendo datos del dashboard internacional: {e}")
             return self._get_empty_dashboard_data()
 
     def _get_empty_dashboard_data(self):

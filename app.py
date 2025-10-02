@@ -337,15 +337,18 @@ def dashboard():
         # Obtener opciones de filtro básicas
         filter_options = data_manager.get_filter_options()
         
+        # Obtener filtros del formulario o de los parámetros GET
         if request.method == 'POST':
             selected_filters = {
                 'date_from': request.form.get('date_from'),
-                'date_to': request.form.get('date_to')
+                'date_to': request.form.get('date_to'),
+                'cliente_id': request.form.get('cliente_id')
             }
         else:
             selected_filters = {
-                'date_from': None,
-                'date_to': None
+                'date_from': request.args.get('date_from'),
+                'date_to': request.args.get('date_to'),
+                'cliente_id': request.args.get('cliente_id')
             }
 
         # Limpiar filtros para la consulta
@@ -354,15 +357,48 @@ def dashboard():
             if not value:
                 query_filters[key] = None
         
-        # Obtener datos básicos de ventas
+        # Convertir cliente_id a entero si existe
+        partner_id = None
+        if query_filters.get('cliente_id'):
+            try:
+                partner_id = int(query_filters['cliente_id'])
+            except ValueError:
+                partner_id = None
+        
+        print(f"DEBUG: Filtros aplicados - Fecha desde: {query_filters.get('date_from')}, "
+              f"Fecha hasta: {query_filters.get('date_to')}, Cliente ID: {partner_id}")
+        
+        # Obtener datos básicos de ventas para KPIs (con filtros de fecha y cliente)
         sales_data_raw = data_manager.get_sales_lines(
             date_from=query_filters.get('date_from'),
             date_to=query_filters.get('date_to'),
+            partner_id=partner_id,
             limit=1000
         )
         
-        # Filtrar para mostrar SOLO ventas internacionales
+        # Obtener datos del año completo para el gráfico de líneas comerciales
+        year_start = f"{datetime.now().year}-01-01"
+        year_end = f"{datetime.now().year}-12-31"
+        
+        sales_data_year = data_manager.get_sales_lines(
+            date_from=year_start,
+            date_to=year_end,
+            partner_id=partner_id,  # Aplicar filtro de cliente también al año completo
+            limit=5000  # Más datos para todo el año
+        )
+        
+        print(f"DEBUG: KPIs - Consultando ventas con filtros: {query_filters}")
+        print(f"DEBUG: KPIs - Datos obtenidos: {len(sales_data_raw)} registros")
+        print(f"DEBUG: Gráfico - Consultando ventas del {year_start} al {year_end}")
+        print(f"DEBUG: Gráfico - Datos del año obtenidos: {len(sales_data_year)} registros")
+        
+        # Filtrar para mostrar SOLO ventas internacionales (para KPIs)
         sales_data = []
+        
+        # Filtrar ventas internacionales del año completo (para gráfico)
+        sales_data_international = []
+        
+        # Procesar ventas del período filtrado (para KPIs)
         for sale in sales_data_raw:
             is_international = False
             
@@ -381,10 +417,104 @@ def dashboard():
             if is_international:
                 sales_data.append(sale)
         
-        # KPIs básicos
+        # Procesar ventas del año completo (para gráfico de líneas comerciales)
+        for sale in sales_data_year:
+            is_international = False
+            
+            # Verificar por línea comercial
+            linea_comercial = sale.get('linea_comercial', '')
+            if 'VENTA INTERNACIONAL' in linea_comercial.upper():
+                is_international = True
+            
+            # Verificar por canal de ventas usando el campo compatible
+            canal_ventas = sale.get('sales_channel_id')
+            if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
+                nombre_canal = canal_ventas[1].upper()
+                if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
+                    is_international = True
+            
+            if is_international:
+                sales_data_international.append(sale)
+        
+        print(f"DEBUG: KPIs - Ventas internacionales del período: {len(sales_data)}")
+        print(f"DEBUG: Gráfico - Ventas internacionales del año: {len(sales_data_international)}")
+        
+        # KPIs básicos (basados en ventas internacionales filtradas)
         total_sales = sum([abs(sale.get('total', 0)) for sale in sales_data])
         total_quantity = sum([sale.get('cantidad_facturada', 0) for sale in sales_data])
         total_lines = len(sales_data)
+        
+        # Procesar datos por línea comercial para gráfico (usando ventas internacionales del período)
+        ventas_por_linea = {}
+        total_sales_period = 0
+        
+        print(f"DEBUG: Procesando {len(sales_data_international)} ventas internacionales del período...")
+        
+        for sale in sales_data_international:
+            linea_comercial = sale.get('commercial_line_national_id')
+            if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
+                nombre_linea = linea_comercial[1]
+            else:
+                nombre_linea = 'Sin Línea Comercial'
+            
+            venta_amount = abs(sale.get('total', 0))
+            if venta_amount > 0:  # Solo procesar ventas con monto
+                ventas_por_linea[nombre_linea] = ventas_por_linea.get(nombre_linea, 0) + venta_amount
+                total_sales_period += venta_amount
+        
+        print(f"DEBUG: Total ventas internacionales del período: S/ {total_sales_period:,.0f}")
+        print(f"DEBUG: Líneas comerciales encontradas: {len(ventas_por_linea)}")
+        
+        # Generar datos para el gráfico (ordenado por venta descendente)
+        datos_lineas = []
+        for nombre_linea, venta in sorted(ventas_por_linea.items(), key=lambda x: x[1], reverse=True):
+            if venta > 0:  # Solo incluir líneas con ventas
+                datos_lineas.append({
+                    'nombre': nombre_linea,
+                    'venta': venta,
+                    'meta': 0  # Por ahora sin metas
+                })
+        
+        print(f"DEBUG: Datos líneas generados: {len(datos_lineas)} líneas comerciales")
+        for i, linea in enumerate(datos_lineas[:5]):  # Mostrar las primeras 5
+            print(f"  {i+1}. {linea['nombre']}: S/ {linea['venta']:,.0f}")
+        
+        # Procesar datos por producto para gráfico (usando ventas internacionales del año)
+        ventas_por_producto = {}
+        
+        for sale in sales_data_international:
+            # Usar el campo "name" directamente para el nombre del producto
+            nombre_producto = sale.get('name', 'Producto Sin Nombre')
+            
+            venta_amount = abs(sale.get('total', 0))
+            if venta_amount > 0:  # Solo procesar ventas con monto
+                ventas_por_producto[nombre_producto] = ventas_por_producto.get(nombre_producto, 0) + venta_amount
+        
+        # Generar datos para el gráfico de productos (Top 7)
+        productos_ordenados = sorted(ventas_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
+        datos_productos = []
+        for nombre_producto, venta in productos_ordenados:
+            if venta > 0:
+                datos_productos.append({
+                    'nombre': nombre_producto,
+                    'venta': venta
+                })
+        
+        print(f"DEBUG: Productos generados: {len(datos_productos)} productos")
+        for i, producto in enumerate(datos_productos):
+            print(f"  {i+1}. {producto['nombre']}: S/ {producto['venta']:,.0f}")
+        
+        # Para la tabla (agregar datos adicionales si es necesario)
+        datos_lineas_tabla = datos_lineas.copy()
+        for linea in datos_lineas_tabla:
+            linea.update({
+                'porcentaje_total': 0,
+                'porcentaje_sobre_total': (linea['venta'] / total_sales_period * 100) if total_sales_period > 0 else 0,
+                'meta_pn': 0,
+                'venta_pn': 0,
+                'porcentaje_pn': 0,
+                'vencimiento_6_meses': 0
+            })
         
         # KPIs básicos con todos los campos que el template espera
         kpis = {
@@ -423,9 +553,9 @@ def dashboard():
                              # Variables adicionales que el template pueda necesitar
                              meses_disponibles=[],
                              mes_seleccionado=fecha_actual.strftime('%Y-%m'),
-                             datos_lineas=[],
-                             datos_lineas_tabla=[],
-                             datos_productos=[],
+                             datos_lineas=datos_lineas,
+                             datos_lineas_tabla=datos_lineas_tabla,
+                             datos_productos=datos_productos,
                              datos_ciclo_vida=[],
                              datos_forma_farmaceutica=[],
                              drilldown_data={},
@@ -483,59 +613,6 @@ def dashboard():
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
                              faltante_meta_ipn=0)
-
-@app.route('/dashboard/international', methods=['GET', 'POST'])
-def dashboard_international():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    
-    try:
-        # Get filter options for the dropdowns
-        filter_options = data_manager.get_filter_options()
-        
-        # Get date filters from form or defaults
-        if request.method == 'POST':
-            date_from = request.form.get('date_from')
-            date_to = request.form.get('date_to')
-            linea_id = request.form.get('linea_id')
-            partner_id = request.form.get('partner_id')
-        else:
-            # Default to no filters on GET request
-            date_from = None
-            date_to = None
-            linea_id = None
-            partner_id = None
-
-        # Prepare selected filters to re-populate the form
-        selected_filters = {
-            'date_from': date_from,
-            'date_to': date_to,
-            'linea_id': linea_id,
-            'partner_id': partner_id
-        }
-
-        # Fetch processed data for the international dashboard
-        dashboard_data = data_manager.get_sales_dashboard_data_international(
-            date_from=date_from,
-            date_to=date_to,
-            linea_id=int(linea_id) if linea_id else None,
-            partner_id=int(partner_id) if partner_id else None
-        )
-        
-        return render_template('dashboard_international.html', 
-                             dashboard_data=dashboard_data,
-                             filter_options=filter_options,
-                             selected_filters=selected_filters,
-                             fecha_actual=datetime.now())
-    
-    except Exception as e:
-        flash(f'Error al obtener datos del dashboard internacional: {str(e)}', 'danger')
-        return render_template('dashboard_international.html', 
-                             dashboard_data=data_manager._get_empty_dashboard_data(),
-                             filter_options=data_manager.get_filter_options(),
-                             selected_filters={},
-                             fecha_actual=datetime.now())
-
 
 @app.route('/dashboard_linea')
 def dashboard_linea():

@@ -36,7 +36,6 @@
         </select>
         <a href="{{ url_for('sales') }}" class="btn-nav"><i class="bi bi-table"></i> Ventas</a>
         <a href="{{ url_for('pending') }}" class="btn-nav"><i class="bi bi-clock"></i> Pendientes</a>
-        <a href="{{ url_for('dashboard_international') }}" class="btn-nav"><i class="bi bi-globe"></i> Ventas Inter.</a>
         <a href="{{ url_for('meta') }}" class="btn-nav"><i class="bi bi-bullseye"></i> Metas</a>
         <a href="{{ url_for('metas_vendedor') }}" class="btn-nav"><i class="bi bi-people"></i> Metas Vendedor</a>
         <a href="{{ url_for('logout') }}" class="btn-salir"><i class="bi bi-box-arrow-right"></i> Salir</a>
@@ -79,127 +78,108 @@
         <!-- Proyección lineal y faltante movidas a Avance Diario (ver más abajo) -->
     </div>
     
-    <!-- Avance diario -->
-    <div class="avance-diario-grid">
-        <!-- FILA 1 -->
-        <div class="avance-card">
-            <div class="avance-label">Avance Diario</div>
-            <div class="avance-value">{{ "{:.1f} %".format(kpis.avance_diario_total) }}</div>
-        </div>
-        
-        <div class="avance-card">
-            <div class="avance-label">Avance Diario Acumulado</div>
-            <div class="avance-value">{% if avance_lineal_pct is defined and avance_lineal_pct > 0 %}{{ "{:.1f} %".format(avance_lineal_pct) }}{% else %}-{% endif %}</div>
-        </div>
-
-        {% if mes_seleccionado == fecha_actual.strftime('%Y-%m') %}
-        <div class="avance-card avance-requerido">
-            <div class="avance-label">Ritmo Diario Requerido de Venta (L-S)</div>
-            <div class="avance-value">{{ "{:.1f} %".format(kpis.ritmo_diario_requerido) }}</div>
-        </div>
-        {% else %}
-        <div class="avance-card-placeholder"></div>
-        {% endif %}
-
-        <div class="avance-card">
-            <div class="avance-label">Avance Diario IPN</div>
-            <div class="avance-value">{{ "{:.1f} %".format(kpis.avance_diario_ipn) }}</div>
+    <!-- NUEVO LAYOUT CON CSS GRID 2x2 -->
+    <div class="dashboard-grid">
+        <!-- Posición 1: Filtro de Clientes (arriba izquierda) -->
+        <div class="grid-item grid-1">
+            <div class="filtro-container">
+                <h3>Filtrar por Cliente</h3>
+                <select id="filtro-cliente" class="select-filtro" onchange="cambiarCliente(this.value)">
+                    <option value="">Todos los clientes</option>
+                    {% if filter_options and filter_options.clientes %}
+                        {% for cliente in filter_options.clientes %}
+                            <option value="{{ cliente[0] }}" {% if selected_filters.cliente_id and selected_filters.cliente_id == cliente[0]|string %}selected{% endif %}>{{ cliente[1] }}</option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
         </div>
 
-        <div class="avance-card">
-            <div class="avance-label">Avance Diario IPN Acumulado</div>
-            <div class="avance-value">{% if avance_lineal_ipn_pct is defined and avance_lineal_ipn_pct > 0 %}{{ "{:.1f} %".format(avance_lineal_ipn_pct) }}{% else %}-{% endif %}</div>
-        </div>
-
-        <!-- FILA 2 -->
-        <div class="avance-card">
-            <div class="avance-label">Brecha Comercial (S/)</div>
-            <div class="avance-value">{% if faltante_meta is defined and faltante_meta > 0 %}S/ {{ "{:,.0f}".format(faltante_meta) }}{% else %}-{% endif %}</div>
-        </div>
-
-        <div class="avance-card-spacer"></div>
-        <div class="avance-card-spacer"></div>
-        <div class="avance-card-spacer"></div>
-
-        <div class="avance-card">
-            <div class="avance-label">Brecha Comercial IPN (S/)</div>
-            <div class="avance-value">{% if faltante_meta_ipn is defined and faltante_meta_ipn > 0 %}S/ {{ "{:,.0f}".format(faltante_meta_ipn) }}{% else %}-{% endif %}</div>
-        </div>
-    </div>
-    
-    <!-- FILA PRINCIPAL: TABLA (IZQUIERDA) + GRÁFICO CICLO DE VIDA (DERECHA) -->
-    <div class="main-content-row">
-        <!-- Tabla de líneas comerciales (IZQUIERDA - MÁS ANCHA) -->
-        <div class="tabla-container">
-            <div class="tabla-header">
-                <h3>Meta LC Total y Venta por Línea Comercial Local</h3>
-                <div class="tabla-header-botones">
-                    <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
-                        <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
-                    </a>
-                    <a href="{{ url_for('export_dashboard_details', mes=mes_seleccionado) }}" class="btn-export-tabla">
-                        <i class="bi bi-file-earmark-excel"></i> Exportar Detalle
-                    </a>
+        <!-- Posición 2: Estado de Facturación (arriba derecha) -->
+        <div class="grid-item grid-2">
+            <div class="opciones-container">
+                <h3>Estado de Facturación</h3>
+                <div class="opciones-grupo">
+                    <label class="opcion-item">
+                        <input type="radio" name="facturacion" value="facturado" checked>
+                        <span class="radio-custom"></span>
+                        Facturado
+                    </label>
+                    <label class="opcion-item">
+                        <input type="radio" name="facturacion" value="por_facturar">
+                        <span class="radio-custom"></span>
+                        Por Facturar
+                    </label>
                 </div>
             </div>
-            <table class="tabla-avance">
-                <thead>
-                    <tr>
-                        <th>Línea Comercial</th>
-                        <th>Meta</th>
-                        <th>Venta</th>
-                        <th>% Cump</th>
-                        <th>% Total Vta.</th>
-                        <th>Meta IPN</th>
-                        <th>Venta IPN</th>
-                        <th>% Var. IPN</th>
-                        <th>Venc &lt;6 mss</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for linea in datos_lineas_tabla %}
-                    <tr>
-                        <td>
-                            <a href="{{ url_for('dashboard_linea', linea_nombre=linea.nombre, mes=mes_seleccionado) }}" title="Ver dashboard de vendedores para {{ linea.nombre }}">
-                                {{ linea.nombre }}
-                            </a>
-                        </td>
-                        <td>{{ "{:,.0f}".format(linea.meta) }}</td>
-                        <td>{{ "{:,.0f}".format(linea.venta) }}</td>
-                        <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_total) }}</td>
-                        <td class="porcentaje">{{ "%.1f%%"|format(linea.porcentaje_sobre_total) }}</td>
-                        <td>{{ "{:,.0f}".format(linea.meta_pn) }}</td>
-                        <td>{{ "{:,.0f}".format(linea.venta_pn) }}</td>
-                        <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_pn) }}</td>
-                        <td><strong>{{ "{:,.0f}".format(linea.vencimiento_6_meses) }}</strong></td>
-                    </tr>
-                    {% endfor %}
-                    <!-- Fila de TOTAL -->
-                    <tr class="fila-total">
-                        <td><strong>Total</strong></td>
-                        <td><strong>{{ "{:,.0f}".format(kpis.meta_total) }}</strong></td>
-                        <td><strong>{{ "{:,.0f}".format(kpis.venta_total) }}</strong></td>
-                        <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
-                        <td class="porcentaje"><strong>100.0%</strong></td>
-                        <td><strong>{{ "{:,.0f}".format(kpis.meta_ipn) }}</strong></td>
-                        <td><strong>{{ "{:,.0f}".format(kpis.venta_ipn) }}</strong></td>
-                        <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance_ipn) }}</strong></td>
-                        <td><strong>{{ "{:,.0f}".format(kpis.vencimiento_6_meses) }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
-        
-        <!-- Columna Derecha: Gráfico Donut y KPI Vencimiento -->
-        <div class="columna-derecha">
-            <!-- Gráfico Ciclo de Vida -->
-            <div class="grafico-ciclo-vida">
-                <h3>Venta por tipo de Producto</h3>
-                <div class="donut-container">
-                    <div id="grafico-donut" style="width: 100%; height: 100%;"></div>
-                </div>
-            </div>
 
+        <!-- Posición 3: Meta LC Total y Venta por Línea Comercial (abajo izquierda) -->
+        <div class="grid-item grid-3">
+            <div class="tabla-container">
+                <div class="tabla-header">
+                    <h3>Meta LC Total y Venta por Línea Comercial</h3>
+                    <div class="tabla-header-botones">
+                        <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
+                            <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
+                        </a>
+                        <a href="{{ url_for('export_dashboard_details', mes=mes_seleccionado) }}" class="btn-export-tabla">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar Detalle
+                        </a>
+                    </div>
+                </div>
+                <table class="tabla-avance">
+                    <thead>
+                        <tr>
+                            <th>Línea Comercial</th>
+                            <th>Meta</th>
+                            <th>Venta</th>
+                            <th>% Cump</th>
+                            <th>% Total Vta.</th>
+                            <th>Meta IPN</th>
+                            <th>Venta IPN</th>
+                            <th>% Var. IPN</th>
+                            <th>Venc &lt;6 mss</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for linea in datos_lineas_tabla %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('dashboard_linea', linea_nombre=linea.nombre, mes=mes_seleccionado) }}" title="Ver dashboard de vendedores para {{ linea.nombre }}">
+                                    {{ linea.nombre }}
+                                </a>
+                            </td>
+                            <td>{{ "{:,.0f}".format(linea.meta) }}</td>
+                            <td>{{ "{:,.0f}".format(linea.venta) }}</td>
+                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_total) }}</td>
+                            <td class="porcentaje">{{ "%.1f%%"|format(linea.porcentaje_sobre_total) }}</td>
+                            <td>{{ "{:,.0f}".format(linea.meta_pn) }}</td>
+                            <td>{{ "{:,.0f}".format(linea.venta_pn) }}</td>
+                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_pn) }}</td>
+                            <td><strong>{{ "{:,.0f}".format(linea.vencimiento_6_meses) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                        <!-- Fila de TOTAL -->
+                        <tr class="fila-total">
+                            <td><strong>Total</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.meta_total) }}</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.venta_total) }}</strong></td>
+                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
+                            <td class="porcentaje"><strong>100.0%</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.meta_ipn) }}</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.venta_ipn) }}</strong></td>
+                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance_ipn) }}</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.vencimiento_6_meses) }}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Posición 4: Vacío (abajo derecha) -->
+        <div class="grid-item grid-4">
+            <!-- Espacio vacío para futuras funcionalidades -->
         </div>
     </div>
     
@@ -215,30 +195,10 @@
         
         <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
         <div class="grafico-lineas">
-            <h3>Venta por Línea Comercial</h3>
+            <h3>Venta Internacional del Año por Línea Comercial</h3>
             <div class="chart-container">
                 <canvas id="grafico-lineas"></canvas>
             </div>
-        </div>
-    </div>
-
-    <!-- Fila para el nuevo gráfico de Líneas Comerciales -->
-    <div class="grafico-extra-container">
-        <div class="grafico-echarts">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Ventas por Clasificación Comercial</h3>
-                <div style="display: flex; gap: 15px;">
-                    <select id="line-selector" multiple placeholder="Seleccionar líneas..."></select>
-                    <select id="stacked-chart-selector" onchange="updateStackedChart()">
-                        <option value="Forma Farmacéutica">Forma Farmacéutica</option>
-                        <option value="Clasificación Farmacologica">Clasificación Farmacologica</option>
-                        <option value="Vía de Administración">Vía de Administración</option>
-                        <option value="Categoría de Producto">Categoría de Producto</option>
-                        <option value="Línea de Producción">Línea de Producción</option>
-                    </select>
-                </div>
-            </div>
-            <div id="stacked-chart-container" style="width: 100%; height: 500px;"></div>
         </div>
     </div>
 
@@ -255,6 +215,16 @@
         <div class="grafico-echarts">
             <h3>Venta por Clasificación Farmacológica</h3>
             <div id="grafico-forma-farmaceutica" style="width: 100%; height: 350px;"></div>
+        </div>
+    </div>
+
+    <!-- Fila final para el gráfico de Venta por tipo de Producto -->
+    <div class="grafico-extra-container">
+        <div class="grafico-echarts">
+            <h3>Venta por tipo de Producto</h3>
+            <div class="donut-container-final">
+                <div id="grafico-donut" style="width: 100%; height: 400px;"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -479,97 +449,135 @@ body {
     line-height: 1;
 }
 
-/* Avance Diario - Layout agrupado con IPN a la derecha */
-.avance-diario-grid {
+/* CSS GRID LAYOUT - 2x2 CON TABLA MÁS ANCHA */
+.dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr; /* 5 columnas iguales */
-    grid-template-rows: auto auto; /* 2 filas automáticas */
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.avance-card-spacer {
-    /* Espacios vacíos en la segunda fila */
-    visibility: hidden;
-}
-
-.avance-card-placeholder {
-    /* Placeholder para cuando no hay ritmo diario */
-    visibility: hidden;
-}
-
-/* Responsividad */
-@media (max-width: 1200px) {
-    .avance-diario-grid { 
-        grid-template-columns: repeat(3, 1fr); 
-    }
-}
-
-@media (max-width: 768px) {
-    .avance-diario-grid { 
-        grid-template-columns: 1fr; 
-    }
-    .avance-card-spacer {
-        display: none;
-    }
-}
-
-.avance-card {
-    background: #ecf0f1;
-    padding: 5px 15px; /* Aumentado padding para más espacio interno */
-    border-radius: 6px;
-    text-align: center;
-    height: auto; /* Altura automática basada en contenido */
-    min-height: 30px; /* Aumentado de 20px a 30px */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    /* Eliminar completamente cualquier animación */
-    transition: none !important;
-    transform: none !important;
-    animation: none !important;
-}
-
-.avance-label {
-    font-size: 14px; /* Mantener tamaño original */
-    color: #7f8c8d;
-    margin-bottom: 2px; /* Pequeño espacio entre label y valor */
-    line-height: 1;
-}
-
-.avance-value {
-    font-size: 20px; /* Mantener tamaño original */
-    font-weight: bold;
-    color: #e67e22;
-    line-height: 1;
-}
-
-.avance-card.avance-requerido .avance-value {
-    color: #e74c3c; /* Rojo para indicar urgencia */
-}
-
-/* Eliminar cualquier estado hover, focus, active en tarjetas de avance */
-.avance-card:hover,
-.avance-card:focus,
-.avance-card:active {
-    transition: none !important;
-    transform: none !important;
-    animation: none !important;
-}
-
-/* FILA PRINCIPAL - LAYOUT CORRECTO */
-.main-content-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr; /* Tabla más ancha (izquierda), gráfico más pequeño (derecha) */
+    grid-template-columns: 700px 250px 1fr;
+    grid-template-rows: auto auto;
     gap: 25px;
-    align-items: start;
+    padding: 20px;
 }
-/* Contenedor para la columna derecha */
-.columna-derecha {
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
+
+/* Posiciones específicas del grid */
+.grid-1 {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.grid-2 {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.grid-3 {
+    grid-column: 1 / 4;  /* La tabla ocupa las tres columnas */
+    grid-row: 2;
+}
+
+.grid-4 {
+    /* Eliminamos grid-4 ya que la tabla ocupa todo el ancho */
+    display: none;
+}
+
+/* Estilos para contenedores específicos */
+.filtro-container {
+    background: #ffffff !important;
+    padding: 20px !important;
+    border-radius: 8px !important;
+    border: 2px solid #e0e0e0 !important;
+    height: 100% !important;
+    width: 700px !important;
+    max-width: 700px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+.filtro-container h3 {
+    color: #333 !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    margin-bottom: 15px !important;
+    text-align: left !important;
+}
+
+.opciones-container {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    height: 100%;
+    width: 250px;
+    max-width: 250px;
+}
+
+/* Estilos específicos para el filtro de cliente */
+.select-filtro {
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+}
+
+#filtro-cliente {
+    width: 100% !important;
+}
+
+/* Estilos para Tom Select en el filtro de cliente */
+.filtro-container .ts-control {
+    width: 100% !important;
+    min-width: 650px !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    border: 2px solid #ddd !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.filtro-container .ts-control.single {
+    background: #ffffff !important;
+    color: #333 !important;
+}
+
+.filtro-container .ts-control.single .ts-item {
+    background: transparent !important;
+    color: #333 !important;
+}
+
+.filtro-container .ts-dropdown {
+    width: 100% !important;
+    min-width: 650px !important;
+    background: #ffffff !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+    z-index: 1000 !important;
+}
+
+.filtro-container .ts-dropdown-content {
+    background: #ffffff !important;
+}
+
+.filtro-container .ts-dropdown .option {
+    background: #ffffff !important;
+    color: #333 !important;
+    padding: 8px 12px !important;
+}
+
+.filtro-container .ts-dropdown .option:hover,
+.filtro-container .ts-dropdown .option.active {
+    background: #f8f9fa !important;
+    color: #333 !important;
+}
+
+.tabla-container {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    overflow: hidden;
+    width: 100%;
+}
+
+.grid-4 {
+    /* Estilo para el espacio vacío si se necesita en el futuro */
+    min-height: 100px;
 }
 
 /* Tabla Container (IZQUIERDA) */
@@ -687,6 +695,16 @@ body {
     justify-content: center;
 }
 
+.donut-container-final {
+    position: relative;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px auto;
+    max-width: 800px;
+}
+
 #grafico-donut {
     max-width: 100%;
     max-height: 100%;
@@ -767,6 +785,14 @@ const drilldownTitles = {{ drilldown_titles|tojson|safe }};
 const topProductsByLevel = {{ top_products_by_level|tojson|safe }};
 const pieChartDataByLevel = {{ pie_chart_data_by_level|tojson|safe }};
 const allStackedChartData = JSON.parse({{ all_stacked_chart_data|tojson|safe }});
+
+// Debug: Verificar datos de líneas comerciales
+console.log('Datos líneas comerciales:', datosLineas);
+console.log('Longitud de datos:', datosLineas ? datosLineas.length : 'undefined');
+
+// Debug: Verificar datos de productos
+console.log('Datos productos:', datosProductos);
+console.log('Longitud de productos:', datosProductos ? datosProductos.length : 'undefined');
 
 // Gráfico de Ciclo de Vida (Donut)
 function crearGraficoCicloVida() {
@@ -886,8 +912,13 @@ function crearGraficoProductos(productosData) {
 function crearGraficoLineas() {
     const ctx = document.getElementById('grafico-lineas').getContext('2d');
     
+    // Verificar que tenemos datos
+    if (!Array.isArray(datosLineas) || datosLineas.length === 0) {
+        console.log('No hay datos de líneas comerciales disponibles');
+        return;
+    }
+    
     const labels = datosLineas.map(item => item.nombre);
-    const dataMeta = datosLineas.map(item => item.meta || 0);
     const dataVenta = datosLineas.map(item => item.venta || 0);
     
     new Chart(ctx, {
@@ -896,14 +927,7 @@ function crearGraficoLineas() {
             labels: labels,
             datasets: [
                 {
-                    label: 'Meta',
-                    data: dataMeta,
-                    backgroundColor: '#e74c3c',
-                    borderColor: '#c0392b',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Venta',
+                    label: 'Venta Internacional del Año',
                     data: dataVenta,
                     backgroundColor: '#3498db',
                     borderColor: '#2980b9',
@@ -930,7 +954,12 @@ function crearGraficoLineas() {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return 'S/ ' + (value / 1000000).toFixed(1) + 'M';
+                            if (value >= 1000000) {
+                                return 'S/ ' + (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return 'S/ ' + (value / 1000).toFixed(0) + 'K';
+                            }
+                            return 'S/ ' + value.toLocaleString();
                         }
                     }
                 },
@@ -1130,84 +1159,22 @@ function crearGraficoDrilldown() {
     }
 }
 
-// Nuevo gráfico de Barras Apiladas con Selector
-let stackedChart = null;
-let lineSelector = null;
-
-function updateStackedChart() {
-    const chartDom = document.getElementById('stacked-chart-container');
-    if (!chartDom) return;
-    if (!stackedChart) {
-        stackedChart = echarts.init(chartDom);
-    }
-
-    const dimension = document.getElementById('stacked-chart-selector').value;
-    const selectedLines = lineSelector.getValue();
-    const chartData = allStackedChartData[dimension];
-
-    if (!chartData) return;
-
-    // Filtrar datos según las líneas comerciales seleccionadas
-    const filteredYAxis = chartData.yAxis.filter(line => selectedLines.includes(line));
-    const filteredSeries = chartData.series.map(s => {
-        const newData = [];
-        chartData.yAxis.forEach((line, index) => {
-            if (selectedLines.includes(line)) {
-                newData.push(s.data[index]);
-            }
-        });
-        return { ...s, data: newData };
-    });
-
-    const option = {
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: { type: 'shadow' },
-            formatter: function (params) {
-                let tooltipText = `${params[0].axisValue}<br/>`;
-                let total = 0;
-                params.sort((a, b) => b.value - a.value);
-                params.forEach(param => {
-                    const value = param.value || 0;
-                    if (value !== 0) {
-                        tooltipText += `${param.marker} ${param.seriesName}: ${Math.round(value).toLocaleString('es-PE')}<br/>`;
-                    }
-                    total += value;
-                });
-                tooltipText += `<strong>Total: ${Math.round(total).toLocaleString('es-PE')}</strong>`;
-                return tooltipText;
-            }
-        },
-        legend: {
-            type: 'scroll',
-            orient: 'horizontal',
-            bottom: 10,
-            left: 'center'
-        },
-        grid: {
-            left: '3%',
-            right: '4%',
-            bottom: 60,
-            containLabel: true
-        },
-        xAxis: {
-            type: 'value',
-            min: 0
-        },
-        yAxis: {
-            type: 'category',
-            data: filteredYAxis
-        },
-        series: filteredSeries
-    };
-
-    stackedChart.setOption(option, true);
-}
-
-
 // Función para cambiar mes
 function cambiarMes(mesSeleccionado) {
     window.location.href = `?mes=${mesSeleccionado}`;
+}
+
+// Función para manejar cambio de cliente
+function cambiarCliente(clienteId) {
+    const currentUrl = new URL(window.location.href);
+    
+    if (clienteId && clienteId !== '') {
+        currentUrl.searchParams.set('cliente_id', clienteId);
+    } else {
+        currentUrl.searchParams.delete('cliente_id');
+    }
+    
+    window.location.href = currentUrl.toString();
 }
 
 // Inicializar gráficos cuando la página carga
@@ -1217,6 +1184,25 @@ document.addEventListener('DOMContentLoaded', function() {
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica(); // ECharts
     crearGraficoDrilldown(); // ECharts
+
+    // --- Tom Select Initialization for Client Filter ---
+    const clienteSelect = document.getElementById('filtro-cliente');
+    if (clienteSelect) {
+        new TomSelect(clienteSelect, {
+            placeholder: 'Seleccionar cliente...',
+            allowEmptyOption: true,
+            searchField: ['text'],
+            maxOptions: 100,
+            maxItems: 1, // Solo permite seleccionar un cliente
+            create: false, // No permite crear nuevos elementos
+            render: {
+                no_results: function(data, escape) {
+                    return '<div class="no-results">No se encontraron clientes</div>';
+                }
+            },
+            controlInput: null // Oculta el input cuando hay selección
+        });
+    }
 
     // --- Flatpickr Initialization ---
     const mesSeleccionado = document.getElementById('mes-selector').value; // "YYYY-MM"
@@ -1241,20 +1227,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
     });
-
-    // Inicializar selector de líneas para el gráfico apilado
-    const allLines = allStackedChartData['Forma Farmacéutica'].yAxis.map(line => ({ value: line, text: line }));
-    lineSelector = new TomSelect('#line-selector', {
-        plugins: ['remove_button'],
-        placeholder: 'Comparar líneas...',
-        options: allLines,
-        onChange: function() {
-            updateStackedChart();
-        }
-    });
-    lineSelector.setValue(allLines.map(l => l.value)); // Seleccionar todo por defecto
-
-    updateStackedChart(); // Carga inicial del nuevo gráfico
 });
 </script>
 
