@@ -7,7 +7,7 @@
 <div class="dashboard-header">
     <div class="header-left">
         <div class="header-info">
-            <h1>LÍNEAS DE VENTA</h1>
+            <h1>LÍNEAS DE VENTA INTERNACIONALES</h1>
         </div>
     </div>
     <div class="header-nav">
@@ -54,245 +54,52 @@
     </div>
 </div>
 
-<!-- Información de resultados optimizada -->
-{% if pagination %}
-<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-        <strong>📊 Resultados optimizados:</strong> 
-        Mostrando {{ pagination.showing_from }}-{{ pagination.showing_to }} de {{ pagination.total }} líneas
-        {% if pagination.pages > 1 %}(Página {{ pagination.page }} de {{ pagination.pages }}){% endif %}
-    </div>
-    
-    {% if pagination.pages > 1 %}
-    <div style="display: flex; gap: 10px; align-items: center;">
-        {% if pagination.has_prev %}
-            <a href="{{ url_for('sales', page=pagination.page-1, **selected_filters) }}" class="btn btn--sm">← Anterior</a>
-        {% endif %}
-        
-        <span style="padding: 0 15px;">Página {{ pagination.page }} de {{ pagination.pages }}</span>
-        
-        {% if pagination.has_next %}
-            <a href="{{ url_for('sales', page=pagination.page+1, **selected_filters) }}" class="btn btn--sm">Siguiente →</a>
-        {% endif %}
-    </div>
-    {% endif %}
-</div>
-{% endif %}
 
 <div class="table-container">
     <table class="table">
         <thead>
             <tr>
-                <th>Estado de Pago</th>
-                <th>Canal de Venta</th>
-                <th>Línea Comercial Local</th>
-                <th>Vendedor</th>
-                <th>Socio</th>
-                <th>NIF</th>
-                <th>Origen</th>
-                <th>Asiento Contable</th>
-                <th>Orden de Venta</th>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th>País</th>
+                <th>Fecha</th>
+                <th>Mes</th>
+                <th>Código Odoo</th>
                 <th>Producto</th>
-                <th>Referencia Interna</th>
-                <th>ID Producto</th>
-                <th>Fecha Factura</th>
-                <th>Tipo Documento</th>
-                <th>Número</th>
-                <th>Ref. Doc. Rectificado</th>
-                <th class="text-right">Saldo</th>
-                <th>Clasificación Farmacológica</th>
-                <th>Observaciones Entrega</th>
-                <th>Agencia</th>
+                <th>Descripcion</th>
+                <th>Linea Comercial</th>
+                <th>Clasificación farmacológica</th>
                 <th>Formas Farmacéuticas</th>
-                <th>Vía Administración</th>
-                <th>Categoría Producto</th>
-                <th>Línea Producción</th>
-                <th class="text-right">Cantidad</th>
-                <th class="text-right">Precio Unitario</th>
-                <th>Dirección Entrega</th>
-                <th>Ruta</th>
-                <th>Ciclo de Vida</th>
-                <th>IMP</th> <!-- Nueva columna -->
+                <th>Vía de Administración</th>
+                <th>Línea de producción</th>
+                <th>Cantidad Facturada</th>
+                <th>Precio unitario</th>
+                <th>Total</th>
             </tr>
         </thead>
         <tbody>
             {% for line in sales_data %}
             <tr>
-                <td>
-                    {% set payment_state = line.payment_state %}
-                    {% if payment_state == 'paid' %}
-                        <span class="status-green">Pagado</span>
-                    {% elif payment_state == 'partial' %}
-                        <span class="status-yellow">Parcial</span>
-                    {% elif payment_state == 'not_paid' %}
-                        <span class="status-red">No Pagado</span>
-                    {% else %}
-                        <span class="status-grey">{{ payment_state or 'N/A' }}</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.sales_channel_id %}
-                        {% if line.sales_channel_id is iterable and line.sales_channel_id|length > 1 %}
-                            {{ line.sales_channel_id[1] }}
-                        {% else %}
-                            {{ line.sales_channel_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.commercial_line_national_id %}
-                        {% if line.commercial_line_national_id is iterable and line.commercial_line_national_id|length > 1 %}
-                            {{ line.commercial_line_national_id[1] }}
-                        {% else %}
-                            {{ line.commercial_line_national_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.invoice_user_id %}
-                        {% if line.invoice_user_id is iterable and line.invoice_user_id|length > 1 %}
-                            {{ line.invoice_user_id[1] }}
-                        {% else %}
-                            {{ line.invoice_user_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>{{ line.partner_name or 'N/A' }}</td>
-                <td>{{ line.vat or 'N/A' }}</td>
-                <td>{{ line.invoice_origin or 'N/A' }}</td>
-                <td>{{ line.move_name or 'N/A' }}</td>
-                <td>{{ line.order_name or 'N/A' }}</td>
-                <td>{{ line.name or 'N/A' }}</td>
-                <td>{{ line.default_code or 'N/A' }}</td>
-                <td>{{ line.product_id[0] if line.product_id else 'N/A' }}</td>
-                <td>{{ line.invoice_date or 'N/A' }}</td>
-                <td>
-                    {% if line.l10n_latam_document_type_id %}
-                        {% if line.l10n_latam_document_type_id is iterable and line.l10n_latam_document_type_id|length > 1 %}
-                            {{ line.l10n_latam_document_type_id[1] }}
-                        {% else %}
-                            {{ line.l10n_latam_document_type_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>{{ line.move_name or 'N/A' }}</td>
-                <td>{{ line.origin_number or 'N/A' }}</td>
-                <td class="text-right">S/ {{ "{:,.2f}".format(line.balance if line.balance else 0) }}</td>
-                <td>
-                    {% if line.pharmacological_classification_id %}
-                        {% if line.pharmacological_classification_id is iterable and line.pharmacological_classification_id|length > 1 %}
-                            {{ line.pharmacological_classification_id[1] }}
-                        {% else %}
-                            {{ line.pharmacological_classification_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>{{ line.delivery_observations or 'N/A' }}</td>
-                <td>
-                    {% if line.partner_supplying_agency_id %}
-                        {% if line.partner_supplying_agency_id is iterable and line.partner_supplying_agency_id|length > 1 %}
-                            {{ line.partner_supplying_agency_id[1] }}
-                        {% else %}
-                            {{ line.partner_supplying_agency_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.pharmaceutical_forms_id %}
-                        {% if line.pharmaceutical_forms_id is iterable and line.pharmaceutical_forms_id|length > 1 %}
-                            {{ line.pharmaceutical_forms_id[1] }}
-                        {% else %}
-                            {{ line.pharmaceutical_forms_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.administration_way_id %}
-                        {% if line.administration_way_id is iterable and line.administration_way_id|length > 1 %}
-                            {{ line.administration_way_id[1] }}
-                        {% else %}
-                            {{ line.administration_way_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.categ_id %}
-                        {% if line.categ_id is iterable and line.categ_id|length > 1 %}
-                            {{ line.categ_id[1] }}
-                        {% else %}
-                            {{ line.categ_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.production_line_id %}
-                        {% if line.production_line_id is iterable and line.production_line_id|length > 1 %}
-                            {{ line.production_line_id[1] }}
-                        {% else %}
-                            {{ line.production_line_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td class="text-right">{{ line.quantity or 0 }}</td>
-                <td class="text-right">S/ {{ "{:,.2f}".format(line.price_unit if line.price_unit else 0) }}</td>
-                <td>
-                    {% if line.partner_shipping_id %}
-                        {% if line.partner_shipping_id is iterable and line.partner_shipping_id|length > 1 %}
-                            {{ line.partner_shipping_id[1] }}
-                        {% else %}
-                            {{ line.partner_shipping_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>
-                    {% if line.route_id %}
-                        {% if line.route_id is iterable and line.route_id|length > 1 %}
-                            {{ line.route_id[1] }}
-                        {% else %}
-                            {{ line.route_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td>{{ line.product_life_cycle or 'N/A' }}</td>
-                <td>
-                    {% if line.tax_id %}
-                        {% if line.tax_id is iterable and line.tax_id|length > 1 %}
-                            {{ line.tax_id[1] }}
-                        {% else %}
-                            {{ line.tax_id }}
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
+                <td>{{ line.pedido or 'N/A' }}</td>
+                <td>{{ line.cliente or 'N/A' }}</td>
+                <td>{{ line.pais or 'N/A' }}</td>
+                <td>{{ line.fecha or 'N/A' }}</td>
+                <td>{{ line.mes or 'N/A' }}</td>
+                <td>{{ line.codigo_odoo or 'N/A' }}</td>
+                <td>{{ line.producto or 'N/A' }}</td>
+                <td>{{ line.descripcion or 'N/A' }}</td>
+                <td>{{ line.linea_comercial or 'N/A' }}</td>
+                <td>{{ line.clasificacion_farmacologica or 'N/A' }}</td>
+                <td>{{ line.formas_farmaceuticas or 'N/A' }}</td>
+                <td>{{ line.via_administracion or 'N/A' }}</td>
+                <td>{{ line.linea_produccion or 'N/A' }}</td>
+                <td class="text-right">{{ line.cantidad_facturada or 0 }}</td>
+                <td class="text-right">S/ {{ "{:,.2f}".format(line.precio_unitario if line.precio_unitario else 0) }}</td>
+                <td class="text-right">S/ {{ "{:,.2f}".format(line.total if line.total else 0) }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="28" style="text-align: center; padding: var(--space-4);">No se encontraron líneas de venta.</td>
+                <td colspan="16" style="text-align: center; padding: var(--space-4);">No se encontraron líneas de venta.</td>
             </tr>
             {% endfor %}
         </tbody>

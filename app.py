@@ -20,27 +20,79 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # --- Inicialización de Managers ---
-try:
-    data_manager = OdooManager()
-except Exception as e:
-    print(f"⚠️ No se pudo inicializar OdooManager: {e}. Continuando en modo offline.")
-    # Crear un stub mínimo con las funciones usadas en la app para evitar fallos
-    class _StubManager:
-        def get_filter_options(self):
-            return {'lineas': [], 'clients': []}
-        def get_sales_lines(self, *args, **kwargs):
-            return []
-        def get_all_sellers(self):
-            return []
-        def get_commercial_lines_stacked_data(self, *args, **kwargs):
-            return {'yAxis': [], 'series': [], 'legend': []}
-    data_manager = _StubManager()
+data_manager = OdooManager()
 gs_manager = GoogleSheetsManager(
     credentials_file='credentials.json',
     sheet_name=os.getenv('GOOGLE_SHEET_NAME')
 )
 
 # --- Funciones Auxiliares ---
+
+def create_mock_sales_data():
+    """Crear datos de prueba simulados para testing"""
+    mock_data = []
+    
+    # Datos internacionales simulados
+    for i in range(15):
+        mock_data.append({
+            'pedido': f'SO00{i+1}',
+            'cliente': f'Cliente Internacional {i+1}',
+            'pais': 'Ecuador' if i % 3 == 0 else ('Colombia' if i % 3 == 1 else 'Chile'),
+            'fecha': f'2025-10-{(i % 30) + 1:02d}',
+            'mes': '2025-10',
+            'codigo_odoo': f'INTL{i+1:03d}',
+            'producto': f'Medicamento Internacional {i+1}',
+            'descripcion': f'Descripción del medicamento internacional {i+1}',
+            'linea_comercial': 'VENTA INTERNACIONAL',
+            'clasificacion_farmacologica': 'Antibióticos' if i % 2 == 0 else 'Analgésicos',
+            'formas_farmaceuticas': 'Tabletas' if i % 2 == 0 else 'Cápsulas',
+            'via_administracion': 'Oral',
+            'linea_produccion': f'Línea Internacional {(i % 3) + 1}',
+            'cantidad_facturada': 100 + i * 10,
+            'precio_unitario': 15.50 + i,
+            'total': (100 + i * 10) * (15.50 + i),
+            'sales_channel_id': [1, 'VENTA INTERNACIONAL'],
+            'commercial_line_national_id': [1, 'VENTA INTERNACIONAL'],
+            'partner_name': f'Cliente Internacional {i+1}',
+            'name': f'Medicamento Internacional {i+1}',
+            'default_code': f'INTL{i+1:03d}',
+            'invoice_date': f'2025-10-{(i % 30) + 1:02d}',
+            'balance': (100 + i * 10) * (15.50 + i),
+            'pharmacological_classification_id': [i+1, 'Antibióticos' if i % 2 == 0 else 'Analgésicos'],
+            'pharmaceutical_forms_id': [i+1, 'Tabletas' if i % 2 == 0 else 'Cápsulas'],
+            'administration_way_id': [i+1, 'Oral'],
+        })
+    
+    # Algunos datos locales para contrastar (NO deben aparecer en el filtro)
+    for i in range(5):
+        mock_data.append({
+            'pedido': f'SL00{i+1}',
+            'cliente': f'Cliente Local {i+1}',
+            'pais': 'Perú',
+            'fecha': f'2025-10-{(i % 30) + 1:02d}',
+            'mes': '2025-10',
+            'codigo_odoo': f'LOCAL{i+1:03d}',
+            'producto': f'Producto Nacional {i+1}',
+            'descripcion': f'Descripción del producto nacional {i+1}',
+            'linea_comercial': 'VENTA NACIONAL',
+            'clasificacion_farmacologica': 'Vitaminas',
+            'formas_farmaceuticas': 'Jarabe',
+            'via_administracion': 'Oral',
+            'linea_produccion': 'Línea Nacional',
+            'cantidad_facturada': 50 + i * 5,
+            'precio_unitario': 10.00 + i,
+            'total': (50 + i * 5) * (10.00 + i),
+            'sales_channel_id': [2, 'VENTA NACIONAL'],
+            'commercial_line_national_id': [2, 'VENTA NACIONAL'],
+            'partner_name': f'Cliente Local {i+1}',
+            'name': f'Producto Nacional {i+1}',
+            'default_code': f'LOCAL{i+1:03d}',
+            'invoice_date': f'2025-10-{(i % 30) + 1:02d}',
+            'balance': (50 + i * 5) * (10.00 + i),
+        })
+    
+    print(f"🔧 Datos simulados creados: {len(mock_data)} registros ({15} internacionales, {5} nacionales)")
+    return mock_data
 
 def get_meses_del_año(año):
     """Genera una lista de meses para un año específico."""
@@ -95,13 +147,17 @@ def sales():
             # For POST, get filters from the form
             selected_filters = {
                 'date_from': request.form.get('date_from'),
-                'date_to': request.form.get('date_to')
+                'date_to': request.form.get('date_to'),
+                'search_term': request.form.get('search_term'),
+                'per_page': request.form.get('per_page', '1000')
             }
         else:
-            # For GET, start with no filters, so defaults will be used
+            # For GET, get filters from query parameters
             selected_filters = {
-                'date_from': None,
-                'date_to': None
+                'date_from': request.args.get('date_from'),
+                'date_to': request.args.get('date_to'),
+                'search_term': request.args.get('search_term'),
+                'per_page': request.args.get('per_page', '1000')
             }
 
         # Create a clean copy for the database query
@@ -112,40 +168,96 @@ def sales():
             if not value:  # Handles empty strings and None
                 query_filters[key] = None
         
-        # Fetch data on every page load (GET and POST)
-        # On GET, filters are None, so odoo_manager will use defaults (last 30 days)
-        sales_data = data_manager.get_sales_lines(
+        # DEBUG: Mostrar filtros recibidos
+        print(f"🔍 DEBUG: Filtros recibidos - date_from: '{query_filters.get('date_from')}', date_to: '{query_filters.get('date_to')}'")
+        
+        # Si no hay filtros de fecha, buscar en todo el año 2025
+        if not query_filters.get('date_from') and not query_filters.get('date_to'):
+            query_filters['date_from'] = '2025-01-01'
+            query_filters['date_to'] = '2025-12-31'
+            print("🔍 DEBUG: Usando fechas por defecto: 2025-01-01 a 2025-12-31")
+        else:
+            print(f"🔍 DEBUG: Usando fechas del usuario: {query_filters.get('date_from')} a {query_filters.get('date_to')}")
+        
+        # Obtener datos básicos de ventas
+        sales_data_raw = data_manager.get_sales_lines(
             date_from=query_filters.get('date_from'),
             date_to=query_filters.get('date_to'),
             partner_id=None,
             linea_id=None,
-            limit=1000
+            limit=5000  # Aumentar límite para encontrar más datos
         )
         
-        # Filtrar VENTA INTERNACIONAL (exportaciones)
+        print(f"🔍 DEBUG: Total de registros obtenidos: {len(sales_data_raw)}")
+        # Definir variables antes del bucle
         sales_data_filtered = []
-        for sale in sales_data:
-            linea_comercial = sale.get('commercial_line_national_id')
-            if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
-                nombre_linea = linea_comercial[1].upper()
-                if 'VENTA INTERNACIONAL' in nombre_linea:
-                    continue
-            
-            # También filtrar por canal de ventas
-            canal_ventas = sale.get('sales_channel_id')
-            if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
-                nombre_canal = canal_ventas[1].upper()
-                if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                    continue
-            
-            sales_data_filtered.append(sale)
+        international_count = 0
+        canales_unicos = set()
+        search_term = query_filters.get('search_term', '').lower() if query_filters.get('search_term') else None
         
-        return render_template('sales.html', 
-                             sales_data=sales_data_filtered,
-                             filter_options=filter_options,
-                             selected_filters=selected_filters, # Pass original filters to re-populate form
-                             fecha_actual=datetime.now())
-    
+        for sale in sales_data_raw:
+            team_id = sale.get('team_id')
+            nombre_canal = ''
+            
+            if team_id and isinstance(team_id, list) and len(team_id) > 1:
+                nombre_canal = team_id[1]
+                canales_unicos.add(nombre_canal)
+                if 'INTERNACIONAL' in nombre_canal.upper():
+                    # Aplicar filtro de búsqueda después del filtro de canal
+                    if search_term:
+                        producto = sale.get('producto', '').lower()
+                        codigo = sale.get('codigo_odoo', '').lower()
+                        cliente = sale.get('cliente', '').lower()
+                        pedido = sale.get('pedido', '').lower()
+                        
+                        if (search_term in producto or 
+                            search_term in codigo or 
+                            search_term in cliente or
+                            search_term in pedido):
+                            sales_data_filtered.append(sale)
+                            international_count += 1
+                    else:
+                        sales_data_filtered.append(sale)
+                        international_count += 1
+        
+        print(f"DEBUG: Terminó el bucle. Total encontrado: {international_count}")
+        print(f"DEBUG canales únicos encontrados: {sorted(list(canales_unicos))}")
+        print(f"🌍 DEBUG: Ventas internacionales encontradas: {international_count} de {len(sales_data_raw)}")
+        
+        print(f"DEBUG: Datos filtrados antes de paginación: {len(sales_data_filtered)}")
+        
+        # --- PAGINACIÓN ---
+        page = int(request.args.get('page', 1))
+        per_page = int(selected_filters.get('per_page', 1000))
+        total = len(sales_data_filtered)
+        pages = max(1, (total + per_page - 1) // per_page)
+        showing_from = (page - 1) * per_page + 1 if total > 0 else 0
+        showing_to = min(page * per_page, total)
+
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'pages': pages,
+            'showing_from': showing_from,
+            'showing_to': showing_to,
+            'has_prev': page > 1,
+            'has_next': page < pages
+        }
+
+        # Filtrar los datos para la página actual
+        sales_data_filtered = sales_data_filtered[showing_from-1:showing_to]
+        
+        print(f"DEBUG: Datos enviados a plantilla: {len(sales_data_filtered)}")
+
+        return render_template(
+            'sales.html',
+            sales_data=sales_data_filtered,
+            filter_options=filter_options,
+            selected_filters=selected_filters,
+            fecha_actual=datetime.now(),
+            pagination=pagination
+        )
     except Exception as e:
         flash(f'Error al obtener datos: {str(e)}', 'danger')
         return render_template('sales.html', 
@@ -160,501 +272,207 @@ def dashboard():
         return redirect(url_for('login'))
     
     try:
-        # Obtener año actual y mes seleccionado
-        fecha_actual = datetime.now()
-        año_actual = fecha_actual.year
-        mes_seleccionado = request.args.get('mes', fecha_actual.strftime('%Y-%m'))
+        # Obtener opciones de filtro básicas
+        filter_options = data_manager.get_filter_options()
         
-        # --- NUEVA LÓGICA DE FILTRADO POR DÍA ---
-        # Obtener el día final del filtro, si existe
-        dia_fin_param = request.args.get('dia_fin')
+        if request.method == 'POST':
+            selected_filters = {
+                'date_from': request.form.get('date_from'),
+                'date_to': request.form.get('date_to')
+            }
+        else:
+            selected_filters = {
+                'date_from': None,
+                'date_to': None
+            }
 
-        # Crear todos los meses del año actual
-        meses_disponibles = get_meses_del_año(año_actual)
+        # Limpiar filtros para la consulta
+        query_filters = selected_filters.copy()
+        for key, value in query_filters.items():
+            if not value:
+                query_filters[key] = None
         
-        # Obtener nombre del mes seleccionado
-        mes_obj = next((m for m in meses_disponibles if m['key'] == mes_seleccionado), None)
-        mes_nombre = mes_obj['nombre'] if mes_obj else "Mes Desconocido"
+        # Obtener datos básicos de ventas
+        sales_data_raw = data_manager.get_sales_lines(
+            date_from=query_filters.get('date_from'),
+            date_to=query_filters.get('date_to'),
+            limit=1000
+        )
         
-        año_sel, mes_sel = mes_seleccionado.split('-')
-        
-        # Determinar el día a usar para los cálculos y la fecha final
-        if dia_fin_param:
-            try:
-                dia_actual = int(dia_fin_param)
-                fecha_fin = f"{año_sel}-{mes_sel}-{str(dia_actual).zfill(2)}"
-            except (ValueError, TypeError):
-                # Si el parámetro no es un número válido, usar el comportamiento por defecto
-                dia_fin_param = None # Resetear para que entre al siguiente bloque
-        
-        if not dia_fin_param:
-            # Comportamiento original si no hay filtro de día
-            if mes_seleccionado == fecha_actual.strftime('%Y-%m'):
-                # Mes actual: usar día actual
-                dia_actual = fecha_actual.day
-            else:
-                # Mes pasado: usar último día del mes
-                ultimo_dia_mes = calendar.monthrange(int(año_sel), int(mes_sel))[1]
-                dia_actual = ultimo_dia_mes
-            fecha_fin = f"{año_sel}-{mes_sel}-{str(dia_actual).zfill(2)}"
-
-        fecha_inicio = f"{año_sel}-{mes_sel}-01"
-        # --- FIN DE LA NUEVA LÓGICA ---
-
-        # Obtener metas del mes seleccionado desde la sesión
-        metas_historicas = gs_manager.read_metas_por_linea()
-        metas_del_mes = metas_historicas.get(mes_seleccionado, {}).get('metas', {})
-        metas_ipn_del_mes = metas_historicas.get(mes_seleccionado, {}).get('metas_ipn', {})
-        
-        # Las líneas comerciales se generan dinámicamente más adelante.
-        
-        # Obtener datos reales de ventas desde Odoo
-        try:
-            # Las fechas de inicio y fin ahora se calculan más arriba
+        # Filtrar para mostrar SOLO ventas internacionales
+        sales_data = []
+        for sale in sales_data_raw:
+            is_international = False
             
-            # Obtener datos de ventas reales desde Odoo
-            sales_data = data_manager.get_sales_lines(
-                date_from=fecha_inicio,
-                date_to=fecha_fin,
-                limit=5000
-            )
+            # Verificar por línea comercial
+            linea_comercial = sale.get('linea_comercial', '')
+            if 'VENTA INTERNACIONAL' in linea_comercial.upper():
+                is_international = True
             
-            print(f"📊 Obtenidas {len(sales_data)} líneas de ventas para el dashboard")
-            
-        except Exception as e:
-            print(f"⚠️ Error obteniendo datos de Odoo: {e}")
-            sales_data = []
-        
-        # Procesar datos de ventas por línea comercial
-        datos_lineas = []
-        total_venta = 0
-        total_vencimiento = 0
-        total_venta_pn = 0
-        
-        # --- CÁLCULO DE TOTALES ---
-        # Calcular totales de metas ANTES de filtrar las líneas para la tabla.
-        # Esto asegura que ECOMMERCE se incluya en el total general del KPI.
-        total_meta = sum(metas_del_mes.values())
-        total_meta_pn = sum(metas_ipn_del_mes.values())
-        
-        # Mapeo de líneas comerciales de Odoo a IDs locales
-        mapeo_lineas = {
-            'PETMEDICA': 'petmedica',
-            'AGROVET': 'agrovet', 
-            'PET NUTRISCIENCE': 'pet_nutriscience',
-            'AVIVET': 'avivet',
-            'OTROS': 'otros',
-            'GENVET': 'genvet',
-            'INTERPET': 'interpet',
-        }
-        
-        # Calcular ventas reales por línea comercial
-        ventas_por_linea = {}
-        ventas_por_ruta = {}
-        ventas_ipn_por_linea = {} # Nueva variable para ventas de productos nuevos
-        ventas_por_producto = {}
-        ciclo_vida_por_producto = {}
-        ventas_por_ciclo_vida = {}
-        ventas_por_forma = {}
-        for sale in sales_data:
-            # Excluir VENTA INTERNACIONAL (exportaciones)
-            linea_comercial = sale.get('commercial_line_national_id')
-            nombre_linea_actual = None
-            if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
-                nombre_linea_actual = linea_comercial[1].upper()
-                if 'VENTA INTERNACIONAL' in nombre_linea_actual:
-                    continue
-            
-            # También filtrar por canal de ventas
+            # Verificar por canal de ventas usando el campo compatible
             canal_ventas = sale.get('sales_channel_id')
             if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
                 nombre_canal = canal_ventas[1].upper()
                 if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                    continue
+                    is_international = True
             
-            # Procesar el balance de la venta
-            balance_float = float(sale.get('balance', 0))
-            if balance_float != 0:
-                
-                # Sumar a ventas totales por línea
-                if nombre_linea_actual:
-                    ventas_por_linea[nombre_linea_actual] = ventas_por_linea.get(nombre_linea_actual, 0) + balance_float
-                
-                # LÓGICA FINAL: Sumar si la RUTA (route_id) coincide con los valores especificados
-                ruta = sale.get('route_id')
-                # Se cambia la comparación al ID de la ruta (ruta[0]) para evitar problemas con traducciones.
-                if isinstance(ruta, list) and len(ruta) > 0 and ruta[0] in [18, 19]:
-                    if nombre_linea_actual:
-                        ventas_por_ruta[nombre_linea_actual] = ventas_por_ruta.get(nombre_linea_actual, 0) + balance_float
-                
-                # Sumar a ventas de productos nuevos (IPN) - Lógica restaurada
-                ciclo_vida = sale.get('product_life_cycle')
-                if ciclo_vida and ciclo_vida == 'nuevo':
-                    if nombre_linea_actual:
-                        ventas_ipn_por_linea[nombre_linea_actual] = ventas_ipn_por_linea.get(nombre_linea_actual, 0) + balance_float
-                
-                # Agrupar por producto para Top 7
-                producto_nombre = sale.get('name', '').strip()
-                if producto_nombre:
-                    ventas_por_producto[producto_nombre] = ventas_por_producto.get(producto_nombre, 0) + balance_float
-                    if producto_nombre not in ciclo_vida_por_producto:
-                        ciclo_vida_por_producto[producto_nombre] = ciclo_vida
-                
-                # Agrupar por ciclo de vida para el gráfico de dona
-                ciclo_vida_grafico = ciclo_vida if ciclo_vida else 'No definido'
-                ventas_por_ciclo_vida[ciclo_vida_grafico] = ventas_por_ciclo_vida.get(ciclo_vida_grafico, 0) + balance_float
-
-                # Agrupar por clasificación farmacológica para el gráfico de ECharts
-                clasif_farma = sale.get('pharmacological_classification_id')
-                nombre_clasif = clasif_farma[1] if clasif_farma and isinstance(clasif_farma, list) and len(clasif_farma) > 1 else 'N/A'
-                ventas_por_forma[nombre_clasif] = ventas_por_forma.get(nombre_clasif, 0) + balance_float
-
-        print(f"💰 Ventas por línea comercial: {ventas_por_linea}")
-        print(f"📦 Ventas por Vencimiento (Ciclo de Vida): {ventas_por_ruta}")
-        print(f"✨ Ventas IPN (Productos Nuevos): {ventas_ipn_por_linea}")
-
-        # --- Procesamiento de datos para gráficos (después del bucle) ---
-
-        # 1. Procesar datos para la tabla principal
-        # Generar dinámicamente las líneas comerciales a partir de ventas y metas
-        all_lines = {}  # Usar un dict para evitar duplicados, con el id como clave
-
-        # Añadir líneas desde las ventas reales
-        for nombre_linea_venta in ventas_por_linea.keys():
-            linea_id = nombre_linea_venta.lower().replace(' ', '_')
-            all_lines[linea_id] = {'nombre': nombre_linea_venta.upper(), 'id': linea_id}
-
-        # Añadir líneas desde las metas (para aquellas que no tuvieron ventas)
-        for linea_id_meta in metas_del_mes.keys():
-            if linea_id_meta not in all_lines:
-                # Reconstruir el nombre desde el ID de la meta
-                nombre_reconstruido = linea_id_meta.replace('_', ' ').upper()
-                all_lines[linea_id_meta] = {'nombre': nombre_reconstruido, 'id': linea_id_meta}
+            if is_international:
+                sales_data.append(sale)
         
-        # Convertir el diccionario de líneas a una lista ordenada por nombre
-        lineas_comerciales_dinamicas = sorted(all_lines.values(), key=lambda x: x['nombre'])
-
-        # Excluir líneas no deseadas que pueden venir de los datos
-        lineas_a_excluir = ['LICITACION', 'NINGUNO', 'ECOMMERCE']
-        lineas_comerciales_filtradas = [
-            linea for linea in lineas_comerciales_dinamicas
-            if linea['nombre'].upper() not in lineas_a_excluir
-        ]
-
-        # Pre-calcular la venta total para el cálculo de porcentajes
-        total_venta = sum(ventas_por_linea.values())
-        total_venta_calculado = total_venta # Renombrar para claridad en el bucle
-
-        for linea in lineas_comerciales_filtradas:
-            meta = metas_del_mes.get(linea['id'], 0)
-            nombre_linea = linea['nombre'].upper()
-            
-            # Usar ventas reales de Odoo
-            venta = ventas_por_linea.get(nombre_linea, 0)
-            
-            # Usar la meta IPN registrada por el usuario
-            meta_pn = metas_ipn_del_mes.get(linea['id'], 0)
-            venta_pn = ventas_ipn_por_linea.get(nombre_linea, 0) # Usar el cálculo real de ventas de productos nuevos
-            vencimiento = ventas_por_ruta.get(nombre_linea, 0) # Usamos el nuevo cálculo
-            
-            porcentaje_total = (venta / meta * 100) if meta > 0 else 0
-            porcentaje_pn = (venta_pn / meta_pn * 100) if meta_pn > 0 else 0
-            porcentaje_sobre_total = (venta / total_venta_calculado * 100) if total_venta_calculado > 0 else 0
-
-            datos_lineas.append({
-                'nombre': linea['nombre'],
-                'meta': meta,
-                'venta': venta, # Ahora es positivo
-                'porcentaje_total': porcentaje_total,
-                'porcentaje_sobre_total': porcentaje_sobre_total,
-                'meta_pn': meta_pn,
-                'venta_pn': venta_pn,
-                'porcentaje_pn': porcentaje_pn,
-                'vencimiento_6_meses': vencimiento
-            })
-            
-            # Los totales de metas ya se calcularon. Aquí solo sumamos los totales de ventas.
-            total_venta_pn += venta_pn
-            total_vencimiento += vencimiento
+        # KPIs básicos
+        total_sales = sum([abs(sale.get('total', 0)) for sale in sales_data])
+        total_quantity = sum([sale.get('cantidad_facturada', 0) for sale in sales_data])
+        total_lines = len(sales_data)
         
-        # --- 2. Calcular KPIs ---
-        # Días laborables restantes (Lunes a Sábado)
-        dias_restantes = 0
-        ritmo_diario_requerido = 0
-        if mes_seleccionado == fecha_actual.strftime('%Y-%m'):
-            hoy = fecha_actual.day
-            ultimo_dia_mes = calendar.monthrange(año_actual, fecha_actual.month)[1]
-            for dia in range(hoy, ultimo_dia_mes + 1):
-                # weekday() -> Lunes=0, Domingo=6
-                if datetime(año_actual, fecha_actual.month, dia).weekday() < 6:
-                    dias_restantes += 1
-            
-            porcentaje_restante = 100 - ((total_venta / total_meta * 100) if total_meta > 0 else 100)
-            if porcentaje_restante > 0 and dias_restantes > 0:
-                ritmo_diario_requerido = porcentaje_restante / dias_restantes
-
-        # Calcular KPIs
+        # KPIs básicos con todos los campos que el template espera
         kpis = {
-            'meta_total': total_meta,
-            'venta_total': total_venta,
-            'porcentaje_avance': (total_venta / total_meta * 100) if total_meta > 0 else 0,
-            'meta_ipn': total_meta_pn,
-            'venta_ipn': total_venta_pn,
-            'porcentaje_avance_ipn': (total_venta_pn / total_meta_pn * 100) if total_meta_pn > 0 else 0,
-            'vencimiento_6_meses': total_vencimiento,
-            'avance_diario_total': ((total_venta / total_meta * 100) / dia_actual) if total_meta > 0 and dia_actual > 0 else 0,
-            'avance_diario_ipn': ((total_venta_pn / total_meta_pn * 100) / dia_actual) if total_meta_pn > 0 and dia_actual > 0 else 0,
-            'ritmo_diario_requerido': ritmo_diario_requerido
-        }
-
-        # --- Avance lineal: proyección de cierre y faltante ---
-        # Proyección mensual lineal: proyectar ventas actuales al mes completo
-        try:
-            dias_en_mes = calendar.monthrange(int(año_sel), int(mes_sel))[1]
-        except Exception:
-            dias_en_mes = 30
-
-        if dia_actual > 0:
-            proyeccion_mensual = (total_venta / dia_actual) * dias_en_mes
-        else:
-            proyeccion_mensual = 0
-
-        avance_lineal_pct = (proyeccion_mensual / total_meta * 100) if total_meta > 0 else 0
-        faltante_meta = max(total_meta - total_venta, 0)
-
-        # Cálculos específicos para IPN (usando las variables ya calculadas)
-        # total_meta_pn ya está calculado arriba
-        # total_venta_pn ya está calculado arriba
-        
-        # Proyección lineal IPN
-        if dia_actual > 0:
-            promedio_diario_ipn = total_venta_pn / dia_actual
-            proyeccion_mensual_ipn = promedio_diario_ipn * dias_en_mes
-        else:
-            proyeccion_mensual_ipn = 0
-
-        avance_lineal_ipn_pct = (proyeccion_mensual_ipn / total_meta_pn * 100) if total_meta_pn > 0 else 0
-        faltante_meta_ipn = max(total_meta_pn - total_venta_pn, 0)
-
-        
-        # 3. Ordenar productos para el gráfico Top 7
-        # Ordenar productos por ventas y tomar los top 7
-        productos_ordenados = sorted(ventas_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
-        
-        datos_productos = []
-        for nombre_producto, venta in productos_ordenados:
-            datos_productos.append({
-                'nombre': nombre_producto,
-                'venta': venta,
-                'ciclo_vida': ciclo_vida_por_producto.get(nombre_producto, 'No definido')
-            })
-        
-        print(f"🏆 Top 7 productos por ventas: {[p['nombre'] for p in datos_productos]}")
-        
-        # 4. Ordenar datos para el gráfico de Ciclo de Vida
-        # Convertir a lista ordenada por ventas
-        datos_ciclo_vida = []
-        for ciclo, venta in sorted(ventas_por_ciclo_vida.items(), key=lambda x: x[1], reverse=True):
-            datos_ciclo_vida.append({
-                'ciclo': ciclo,
-                'venta': venta
-            })
-        
-        print(f"📈 Ventas por Ciclo de Vida: {datos_ciclo_vida}")
-        
-        # 5. Ordenar datos para el gráfico de Forma Farmacéutica
-        # Convertir a lista ordenada por ventas
-        datos_forma_farmaceutica = []
-        for forma, venta in sorted(ventas_por_forma.items(), key=lambda x: x[1], reverse=True):
-            datos_forma_farmaceutica.append({
-                'forma': forma,
-                'venta': venta
-            })
-        
-        # 6. Procesar datos para el gráfico Drilldown y Top 7 dinámico
-        nested_data = {}
-        for sale in sales_data:
-            balance = float(sale.get('balance', 0))
-            if balance == 0:
-                continue
-
-            producto_nombre = sale.get('name', '').strip()
-            l1 = sale.get('pharmacological_classification_id')
-            l2 = sale.get('administration_way_id')
-            l3 = sale.get('production_line_id')
-            l4 = sale.get('pharmaceutical_forms_id')
-
-            # Asegurarse de que los campos son listas con [id, nombre]
-            l1_name = l1[1] if l1 and isinstance(l1, list) and len(l1) > 1 else 'N/A'
-            l2_name = l2[1] if l2 and isinstance(l2, list) and len(l2) > 1 else 'N/A'
-            l3_name = l3[1] if l3 and isinstance(l3, list) and len(l3) > 1 else 'N/A'
-            l4_name = l4[1] if l4 and isinstance(l4, list) and len(l4) > 1 else 'N/A'
-
-            # Agrupar en estructura anidada
-            d1 = nested_data.setdefault(l1_name, {'total': 0, 'products': {}, 'children': {}})
-            d1['total'] += balance
-            if producto_nombre: d1['products'][producto_nombre] = d1['products'].get(producto_nombre, 0) + balance
-
-            d2 = d1['children'].setdefault(l2_name, {'total': 0, 'products': {}, 'children': {}})
-            d2['total'] += balance
-            if producto_nombre: d2['products'][producto_nombre] = d2['products'].get(producto_nombre, 0) + balance
-
-            d3 = d2['children'].setdefault(l3_name, {'total': 0, 'products': {}, 'children': {}})
-            d3['total'] += balance
-            if producto_nombre: d3['products'][producto_nombre] = d3['products'].get(producto_nombre, 0) + balance
-
-            d4 = d3['children'].setdefault(l4_name, {'total': 0, 'products': {}})
-            d4['total'] += balance
-            if producto_nombre: d4['products'][producto_nombre] = d4['products'].get(producto_nombre, 0) + balance
-
-        # Convertir la estructura anidada al formato que necesita ECharts
-        drilldown_data = {}
-        drilldown_titles = {}
-        top_products_by_level = {}
-        pie_chart_data_by_level = {}
-
-        # Nivel 1 (root)
-        drilldown_data['root'] = [[l1_name, data['total'], 'root', l1_name] for l1_name, data in nested_data.items()]
-        drilldown_titles['root'] = 'Nivel 1: Clasificación Farmacológica'
-        top_products_by_level['root'] = sorted(ventas_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
-        pie_chart_data_by_level['root'] = [{'name': l1_name, 'value': data['total']} for l1_name, data in nested_data.items()]
-
-        for l1_name, l1_data in nested_data.items():
-            # Nivel 2
-            drilldown_data[l1_name] = [[l2_name, data['total'], l1_name, f"{l1_name}_{l2_name}"] for l2_name, data in l1_data['children'].items()]
-            drilldown_titles[l1_name] = f'Nivel 2: Vía de Admin. para "{l1_name}"'
-            top_products_by_level[l1_name] = sorted(l1_data['products'].items(), key=lambda x: x[1], reverse=True)[:7]
-            pie_chart_data_by_level[l1_name] = [{'name': l2_name, 'value': data['total']} for l2_name, data in l1_data['children'].items()]
+            # KPIs básicos calculados
+            'total_sales': total_sales,
+            'total_quantity': total_quantity,
+            'total_lines': total_lines,
+            'avg_sale': total_sales / total_lines if total_lines > 0 else 0,
             
-            for l2_name, l2_data in l1_data['children'].items():
-                # Nivel 3
-                parent_id = f"{l1_name}_{l2_name}"
-                drilldown_data[parent_id] = [[l3_name, data['total'], parent_id, f"{parent_id}_{l3_name}"] for l3_name, data in l2_data['children'].items()]
-                drilldown_titles[parent_id] = f'Nivel 3: Línea de Prod. para "{l2_name}"'
-                top_products_by_level[parent_id] = sorted(l2_data['products'].items(), key=lambda x: x[1], reverse=True)[:7]
-                pie_chart_data_by_level[parent_id] = [{'name': l3_name, 'value': data['total']} for l3_name, data in l2_data['children'].items()]
-
-                for l3_name, l3_data in l2_data['children'].items():
-                    # Nivel 4 (final)
-                    parent_id_l4 = f"{parent_id}_{l3_name}"
-                    # El último nivel no tiene childGroupId (cuarto elemento)
-                    drilldown_data[parent_id_l4] = [[l4_name, data['total'], parent_id_l4] for l4_name, data in l3_data['children'].items()]
-                    drilldown_titles[parent_id_l4] = f'Nivel 4: Forma Farm. para "{l3_name}"'
-                    top_products_by_level[parent_id_l4] = sorted(l3_data['products'].items(), key=lambda x: x[1], reverse=True)[:7]
-                    pie_chart_data_by_level[parent_id_l4] = [{'name': l4_name, 'value': data['total']} for l4_name, data in l3_data['children'].items()]
-
-        # 7. Preparar datos para el nuevo gráfico de barras apiladas con selector
-        def get_stacked_chart_data_for_dimension(dimension_field):
-            datos_grafico = {}
-            dimension_values = set()
-            for sale in sales_data:
-                balance_float = float(sale.get('balance', 0))
-                if balance_float == 0:
-                    continue
-                linea_comercial_obj = sale.get('commercial_line_national_id')
-                if not (linea_comercial_obj and isinstance(linea_comercial_obj, list) and len(linea_comercial_obj) > 1):
-                    continue
-                linea_comercial_nombre = linea_comercial_obj[1].upper()
-                if 'VENTA INTERNACIONAL' in linea_comercial_nombre:
-                    continue
-                dimension_obj = sale.get(dimension_field)
-                dimension_value = 'N/A'
-                if dimension_obj and isinstance(dimension_obj, list) and len(dimension_obj) > 1:
-                    dimension_value = dimension_obj[1]
-                dimension_values.add(dimension_value)
-                if linea_comercial_nombre not in datos_grafico:
-                    datos_grafico[linea_comercial_nombre] = {}
-                current_total = datos_grafico[linea_comercial_nombre].get(dimension_value, 0)
-                datos_grafico[linea_comercial_nombre][dimension_value] = current_total + balance_float
-            series_names = sorted(list(dimension_values))
-            y_axis_data = sorted(list(datos_grafico.keys()))
-            series_data = []
-            for name in series_names:
-                data_points = [datos_grafico.get(linea, {}).get(name, 0) for linea in y_axis_data]
-                series_data.append({
-                    'name': name,
-                    'type': 'bar',
-                    'stack': 'total',
-                    'emphasis': {'focus': 'series'},
-                    'data': data_points
-                })
-            return {
-                'yAxis': y_axis_data,
-                'series': series_data
-            }
-
-        dimension_map = {
-            "Forma Farmacéutica": "pharmaceutical_forms_id",
-            "Clasificación Farmacologica": "pharmacological_classification_id",
-            "Vía de Administración": "administration_way_id",
-            "Categoría de Producto": "categ_id",
-            "Línea de Producción": "production_line_id"
-        }
-        all_stacked_chart_data = {}
-        for name, field in dimension_map.items():
-            all_stacked_chart_data[name] = get_stacked_chart_data_for_dimension(field)
-
-        # Ordenar los datos de la tabla por venta descendente
-        datos_lineas_tabla_sorted = sorted(datos_lineas, key=lambda x: x['venta'], reverse=True)
-
-        return render_template('dashboard_clean.html',
-                             meses_disponibles=meses_disponibles,
-                             mes_seleccionado=mes_seleccionado,
-                             mes_nombre=mes_nombre,
-                             dia_actual=dia_actual,
-                             kpis=kpis,
-                             datos_lineas=datos_lineas, # Para gráficos, mantener el orden original (alfabético por nombre)
-                             datos_lineas_tabla=datos_lineas_tabla_sorted, # Para la tabla, usar los datos ordenados por venta
-                             datos_productos=datos_productos,
-                             datos_ciclo_vida=datos_ciclo_vida if 'datos_ciclo_vida' in locals() else [],
-                             datos_forma_farmaceutica=datos_forma_farmaceutica,
-                             fecha_actual=fecha_actual,
-                             drilldown_data=drilldown_data,
-                             drilldown_titles=drilldown_titles,
-                             top_products_by_level=top_products_by_level,
-                             pie_chart_data_by_level=pie_chart_data_by_level,
-                             all_stacked_chart_data=json.dumps(all_stacked_chart_data),
-                             avance_lineal_pct=avance_lineal_pct,
-                             faltante_meta=faltante_meta,
-                             avance_lineal_ipn_pct=avance_lineal_ipn_pct,
-                             faltante_meta_ipn=faltante_meta_ipn)
-    
-    except Exception as e:
-        flash(f'Error al obtener datos del dashboard: {str(e)}', 'danger')
-        
-        # Crear datos por defecto para evitar errores
-        fecha_actual = datetime.now()
-        kpis_default = {
-            'meta_total': 0,
-            'venta_total': 0,
-            'porcentaje_avance': 0,
+            # KPIs que el template espera (con valores por defecto)
+            'meta_total': 0,  # Sin metas configuradas por ahora
+            'venta_total': total_sales,
+            'porcentaje_avance': 0,  # Sin metas, no se puede calcular
             'meta_ipn': 0,
             'venta_ipn': 0,
             'porcentaje_avance_ipn': 0,
             'vencimiento_6_meses': 0,
             'avance_diario_total': 0,
-            'avance_diario_ipn': 0
+            'avance_diario_ipn': 0,
+            'ritmo_diario_requerido': 0
         }
         
+        # Variables para el template
+        fecha_actual = datetime.now()
+        mes_nombre = fecha_actual.strftime('%B %Y').title()  # Ejemplo: "October 2025"
+        dia_actual = fecha_actual.day
+        
         return render_template('dashboard_clean.html',
-                             meses_disponibles=[{
-                                 'key': fecha_actual.strftime('%Y-%m'),
-                                 'nombre': f"{fecha_actual.strftime('%B')} {fecha_actual.year}"
-                             }],
+                             sales_data=sales_data,
+                             kpis=kpis,
+                             filter_options=filter_options,
+                             selected_filters=selected_filters,
+                             fecha_actual=fecha_actual,
+                             mes_nombre=mes_nombre,
+                             dia_actual=dia_actual,
+                             # Variables adicionales que el template pueda necesitar
+                             meses_disponibles=[],
                              mes_seleccionado=fecha_actual.strftime('%Y-%m'),
-                             mes_nombre=f"{fecha_actual.strftime('%B').upper()} {fecha_actual.year}",
-                             dia_actual=fecha_actual.day,
-                             kpis=kpis_default,
-                             datos_lineas=[], # Se mantiene vacío en caso de error
+                             datos_lineas=[],
                              datos_lineas_tabla=[],
                              datos_productos=[],
                              datos_ciclo_vida=[],
                              datos_forma_farmaceutica=[],
-                             fecha_actual=fecha_actual,
+                             drilldown_data={},
+                             drilldown_titles={},
+                             top_products_by_level={},
+                             pie_chart_data_by_level={},
+                             all_stacked_chart_data="{}",
                              avance_lineal_pct=0,
                              faltante_meta=0,
+                             avance_lineal_ipn_pct=0,
+                             faltante_meta_ipn=0)
+    
+    except Exception as e:
+        flash(f'Error al cargar dashboard: {str(e)}', 'danger')
+        fecha_actual = datetime.now()
+        mes_nombre = fecha_actual.strftime('%B %Y').title()
+        dia_actual = fecha_actual.day
+        
+        return render_template('dashboard_clean.html',
+                             sales_data=[],
+                             kpis={
+                                 'total_sales': 0, 
+                                 'total_quantity': 0, 
+                                 'total_lines': 0, 
+                                 'avg_sale': 0,
+                                 'meta_total': 0,
+                                 'venta_total': 0,
+                                 'porcentaje_avance': 0,
+                                 'meta_ipn': 0,
+                                 'venta_ipn': 0,
+                                 'porcentaje_avance_ipn': 0,
+                                 'vencimiento_6_meses': 0,
+                                 'avance_diario_total': 0,
+                                 'avance_diario_ipn': 0,
+                                 'ritmo_diario_requerido': 0
+                             },
+                             filter_options={'lineas': [], 'clientes': []},
+                             selected_filters={'date_from': None, 'date_to': None},
+                             fecha_actual=fecha_actual,
+                             mes_nombre=mes_nombre,
+                             dia_actual=dia_actual,
+                             meses_disponibles=[],
+                             mes_seleccionado=fecha_actual.strftime('%Y-%m'),
+                             datos_lineas=[],
+                             datos_lineas_tabla=[],
+                             datos_productos=[],
+                             datos_ciclo_vida=[],
+                             datos_forma_farmaceutica=[],
                              drilldown_data={},
-                             drilldown_titles={})
+                             drilldown_titles={},
+                             top_products_by_level={},
+                             pie_chart_data_by_level={},
+                             all_stacked_chart_data="{}",
+                             avance_lineal_pct=0,
+                             faltante_meta=0,
+                             avance_lineal_ipn_pct=0,
+                             faltante_meta_ipn=0)
+
+@app.route('/dashboard/international', methods=['GET', 'POST'])
+def dashboard_international():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Get filter options for the dropdowns
+        filter_options = data_manager.get_filter_options()
+        
+        # Get date filters from form or defaults
+        if request.method == 'POST':
+            date_from = request.form.get('date_from')
+            date_to = request.form.get('date_to')
+            linea_id = request.form.get('linea_id')
+            partner_id = request.form.get('partner_id')
+        else:
+            # Default to no filters on GET request
+            date_from = None
+            date_to = None
+            linea_id = None
+            partner_id = None
+
+        # Prepare selected filters to re-populate the form
+        selected_filters = {
+            'date_from': date_from,
+            'date_to': date_to,
+            'linea_id': linea_id,
+            'partner_id': partner_id
+        }
+
+        # Fetch processed data for the international dashboard
+        dashboard_data = data_manager.get_sales_dashboard_data_international(
+            date_from=date_from,
+            date_to=date_to,
+            linea_id=int(linea_id) if linea_id else None,
+            partner_id=int(partner_id) if partner_id else None
+        )
+        
+        return render_template('dashboard_international.html', 
+                             dashboard_data=dashboard_data,
+                             filter_options=filter_options,
+                             selected_filters=selected_filters,
+                             fecha_actual=datetime.now())
+    
+    except Exception as e:
+        flash(f'Error al obtener datos del dashboard internacional: {str(e)}', 'danger')
+        return render_template('dashboard_international.html', 
+                             dashboard_data=data_manager._get_empty_dashboard_data(),
+                             filter_options=data_manager.get_filter_options(),
+                             selected_filters={},
+                             fecha_actual=datetime.now())
 
 
 @app.route('/dashboard_linea')

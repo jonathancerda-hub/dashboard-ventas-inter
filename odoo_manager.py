@@ -337,6 +337,14 @@ class OdooManager:
                     }
                 )
                 move_data = {m['id']: m for m in moves}
+                
+                # DEBUG: Mostrar todos los canales de venta (team_id) únicos
+                unique_teams = set()
+                for move in moves:
+                    if move.get('team_id') and isinstance(move['team_id'], list) and len(move['team_id']) > 1:
+                        unique_teams.add(move['team_id'][1])
+                print(f"🏢 DEBUG: Canales de venta (team_id) encontrados: {sorted(list(unique_teams))}")
+                
                 print(f"✅ Asientos contables (account.move): {len(move_data)} registros")
             
             # Obtener datos de productos con todos los campos farmacéuticos
@@ -362,13 +370,13 @@ class OdooManager:
                 # --- FIN DEBUG ---
                 print(f"✅ Productos: {len(product_data)} registros")
             
-            # Obtener datos de clientes
+            # Obtener datos de clientes incluyendo país
             partner_data = {}
             if partner_ids:
                 partners = self.models.execute_kw(
                     self.db, self.uid, self.password, 'res.partner', 'search_read',
                     [[('id', 'in', partner_ids)]],
-                    {'fields': ['vat', 'name'], 'context': {'lang': 'es_PE'}}
+                    {'fields': ['vat', 'name', 'country_id'], 'context': {'lang': 'es_PE'}}
                 )
                 partner_data = {p['id']: p for p in partners}
                 print(f"✅ Clientes: {len(partner_data)} registros")
@@ -458,121 +466,109 @@ class OdooManager:
                     if tid in tax_names:
                         imp_list.append(tax_names[tid])
                 imp_str = ', '.join(imp_list) if imp_list else ''
-                # Filtrar por impuestos IGV o IGV_INC
-                if 'IGV' in imp_list or 'IGV_INC' in imp_list:
-                    # APLICAR CAMBIO: Reemplazar línea comercial para usuarios ECOMMERCE específicos
-                    # Se hace aquí para que el commercial_line_national_id original esté disponible para otros cálculos si es necesario
-                    commercial_line_id = product.get('commercial_line_national_id')
-                    invoice_user = move.get('invoice_user_id')
-                    
-                    
+                # Eliminar filtro de impuestos - procesar todas las líneas
+                
+                # APLICAR CAMBIO: Reemplazar línea comercial para usuarios ECOMMERCE específicos
+                # Se hace aquí para que el commercial_line_national_id original esté disponible para otros cálculos si es necesario
+                commercial_line_id = product.get('commercial_line_national_id')
+                invoice_user = move.get('invoice_user_id')
 
-                    # Crear registro completo con las 27 columnas
-                    sales_lines.append({
-                        # 1. Estado de Pago
-                        'payment_state': move.get('payment_state'),
-                        
-                        # 2. Canal de Venta
-                        'sales_channel_id': move.get('team_id'),
-                        
-                        # 3. Línea Comercial Local
-                        'commercial_line_national_id': commercial_line_id,
-                        
-                        # 4. Vendedor
-                        'invoice_user_id': move.get('invoice_user_id'),
-                        
-                        # 5. Socio
-                        'partner_name': partner.get('name'),
-                        
-                        # 6. NIF
-                        'vat': partner.get('vat'),
-                        
-                        # 7. Origen
-                        'invoice_origin': move.get('invoice_origin'),
-                        
-                        # 7.1. Asiento Contable (move_id)
-                        'move_name': move.get('name'),  # Número del asiento contable
-                        'move_ref': move.get('ref'),    # Referencia del asiento
-                        'move_state': move.get('state'), # Estado del asiento
-                        
-                        # 7.2. Orden de Venta (order_id) 
-                        'order_name': order.get('name'),  # Número de la orden de venta
-                        'order_origin': order.get('origin'), # Origen de la orden
-                        'client_order_ref': order.get('client_order_ref'), # Referencia del cliente
-                        
-                        # 8. Producto
-                        'name': product.get('name', ''),
-                        
-                        # 9. Referencia Interna
-                        'default_code': product.get('default_code', ''),
-                        
-                        # 10. ID Producto
-                        'product_id': line.get('product_id'),
-                        
-                        # 11. Fecha Factura
-                        'invoice_date': move.get('invoice_date'),
-                        
-                        # 12. Tipo Documento
-                        'l10n_latam_document_type_id': move.get('l10n_latam_document_type_id'),
-                        
-                        # 13. Número
-                        'move_name': line.get('move_name'),
-                        
-                        # 14. Ref. Doc. Rectificado
-                        'origin_number': move.get('origin_number'),
-                        
-                        # 15. Saldo
-                        'balance': -line.get('balance', 0) if line.get('balance') is not None else 0,
-                        
-                        # 16. Clasificación Farmacológica
-                        'pharmacological_classification_id': product.get('pharmacological_classification_id'),
-                        
-                        # 17. Observaciones Entrega (delivery_observations)
-                        'delivery_observations': order.get('delivery_observations'),
-                        
-                        # 17.1. Información adicional de la orden
-                        'order_date': order.get('date_order'),  # Fecha de la orden
-                        'order_state': order.get('state'),      # Estado de la orden
-                        'commitment_date': order.get('commitment_date'),  # Fecha compromiso
-                        'order_user_id': order.get('user_id'),  # Vendedor de la orden
-                        
-                        # 18. Agencia
-                        'partner_supplying_agency_id': order.get('partner_supplying_agency_id'),
-                        
-                        # 19. Formas Farmacéuticas
-                        'pharmaceutical_forms_id': product.get('pharmaceutical_forms_id'),
-                        
-                        # 20. Vía Administración
-                        'administration_way_id': product.get('administration_way_id'),
-                        
-                        # 21. Categoría Producto
-                        'categ_id': product.get('categ_id'),
-                        
-                        # 22. Línea Producción
-                        'production_line_id': product.get('production_line_id'),
-                        
-                        # 23. Cantidad
-                        'quantity': line.get('quantity'),
-                        
-                        # 24. Precio Unitario
-                        'price_unit': line.get('price_unit'),
-                        
-                        # 25. Dirección Entrega
-                        'partner_shipping_id': order.get('partner_shipping_id'),
-                        
-                        # 26. Ruta
-                        'route_id': sale_line.get('route_id'),
-                        
-                        # 27. Ciclo de Vida
-                        'product_life_cycle': product.get('product_life_cycle'),
-                        
-                        # 28. IMP (Impuesto)
-                        'tax_id': imp_str,
-                        
-                        # Campos adicionales para compatibilidad
-                        'move_id': line.get('move_id'),
-                        'partner_id': line.get('partner_id')
-                    })
+                # Crear registro con los 16 campos solicitados en orden específico
+                # Extraer país del partner (cliente)
+                partner_country = ''
+                if partner.get('country_id') and len(partner['country_id']) > 1:
+                    partner_country = partner['country_id'][1]
+                
+                # Extraer mes de la fecha de factura en formato de letras
+                mes = ''
+                if move.get('invoice_date'):
+                    try:
+                        fecha_obj = datetime.strptime(move['invoice_date'], '%Y-%m-%d')
+                        # Meses en español
+                        meses_es = {
+                            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+                            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+                            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+                        }
+                        mes_nombre = meses_es.get(fecha_obj.month, '')
+                        mes = f"{mes_nombre} {fecha_obj.year}"  # Formato "Octubre 2025"
+                    except:
+                        mes = ''
+                
+                sales_lines.append({
+                    # 1. Pedido (número de orden de venta)
+                    'pedido': order.get('name', ''),
+                    
+                    # 2. Cliente
+                    'cliente': partner.get('name', ''),
+                    
+                    # 3. País
+                    'pais': partner_country,
+                    
+                    # 4. Fecha
+                    'fecha': move.get('invoice_date', ''),
+                    
+                    # 5. Mes
+                    'mes': mes,
+                    
+                    # 6. Código Odoo
+                    'codigo_odoo': product.get('default_code', ''),
+                    
+                    # 7. Producto
+                    'producto': product.get('name', ''),
+                    
+                    # 8. Descripción (mismo que producto en este caso)
+                    'descripcion': product.get('name', ''),
+                    
+                    # 9. Línea Comercial
+                    'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
+                    
+                    # 10. Clasificación farmacológica
+                    'clasificacion_farmacologica': product.get('pharmacological_classification_id')[1] if product.get('pharmacological_classification_id') and len(product.get('pharmacological_classification_id')) > 1 else '',
+                    
+                    # 11. Formas Farmacéuticas
+                    'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and len(product.get('pharmaceutical_forms_id')) > 1 else '',
+                    
+                    # 12. Vía de Administración
+                    'via_administracion': product.get('administration_way_id')[1] if product.get('administration_way_id') and len(product.get('administration_way_id')) > 1 else '',
+                    
+                    # 13. Línea de producción
+                    'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and len(product.get('production_line_id')) > 1 else '',
+                    
+                    # 14. Cantidad Facturada
+                    'cantidad_facturada': line.get('quantity', 0),
+                    
+                    # 15. Precio unitario
+                    'precio_unitario': line.get('price_unit', 0),
+                    
+                    # 16. Total
+                    'total': -line.get('balance', 0) if line.get('balance') is not None else 0,
+                    
+                    # Campos adicionales para compatibilidad con el resto del sistema
+                    'payment_state': move.get('payment_state'),
+                    'sales_channel_id': move.get('team_id'),
+                    'team_id': move.get('team_id'),
+                    'commercial_line_national_id': commercial_line_id,
+                    'invoice_user_id': move.get('invoice_user_id'),
+                    'partner_name': partner.get('name'),
+                    'vat': partner.get('vat'),
+                    'invoice_origin': move.get('invoice_origin'),
+                    'move_name': move.get('name'),
+                    'name': product.get('name', ''),
+                    'default_code': product.get('default_code', ''),
+                    'product_id': line.get('product_id'),
+                    'invoice_date': move.get('invoice_date'),
+                    'balance': -line.get('balance', 0) if line.get('balance') is not None else 0,
+                    'pharmacological_classification_id': product.get('pharmacological_classification_id'),
+                    'pharmaceutical_forms_id': product.get('pharmaceutical_forms_id'),
+                    'administration_way_id': product.get('administration_way_id'),
+                    'categ_id': product.get('categ_id'),
+                    'production_line_id': product.get('production_line_id'),
+                    'quantity': line.get('quantity'),
+                    'price_unit': line.get('price_unit'),
+                    'move_id': line.get('move_id'),
+                    'partner_id': line.get('partner_id')
+                })
             
             print(f"✅ Procesadas {len(sales_lines)} líneas con 27 columnas completas")
             print(f"🔄 Reasignadas {ecommerce_reassigned} líneas a ECOMMERCE (usuarios específicos)")
@@ -616,24 +612,183 @@ class OdooManager:
                 limit=5000
             )
             
-            # Filtrar VENTA INTERNACIONAL (exportaciones)
+            # Filtrar SOLO VENTA INTERNACIONAL (exportaciones)
+            sales_lines_internacional = []
+            for line in sales_lines:
+                # Incluir solo líneas comerciales internacionales
+                linea_comercial = line.get('commercial_line_national_id')
+                canal_ventas = line.get('sales_channel_id')
+                nombre_linea = linea_comercial[1].upper() if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1 else ''
+                nombre_canal = canal_ventas[1].upper() if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1 else ''
+                if 'VENTA INTERNACIONAL' in nombre_linea or 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
+                    sales_lines_internacional.append(line)
+            sales_lines = sales_lines_internacional  # Usar solo datos internacionales
+            
+            if not sales_lines:
+                return self._get_empty_dashboard_data()
+            
+            # Calcular métricas básicas
+            total_sales = sum([abs(line.get('balance', 0)) for line in sales_lines])
+            total_quantity = sum([line.get('quantity', 0) for line in sales_lines])
+            total_lines = len(sales_lines)
+            
+            # Métricas por cliente
+            clients_data = {}
+            for line in sales_lines:
+                client_name = line.get('partner_name', 'Sin Cliente')
+                if client_name not in clients_data:
+                    clients_data[client_name] = {'sales': 0, 'quantity': 0}
+                clients_data[client_name]['sales'] += abs(line.get('balance', 0))
+                clients_data[client_name]['quantity'] += line.get('quantity', 0)
+            
+            # Top clientes
+            top_clients = sorted(clients_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
+            
+            # Métricas por producto
+            products_data = {}
+            for line in sales_lines:
+                product_name = line.get('name', 'Sin Producto')
+                if product_name not in products_data:
+                    products_data[product_name] = {'sales': 0, 'quantity': 0}
+                products_data[product_name]['sales'] += abs(line.get('balance', 0))
+                products_data[product_name]['quantity'] += line.get('quantity', 0)
+            
+            # Top productos
+            top_products = sorted(products_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
+            
+            # Métricas por canal
+            channels_data = {}
+            for line in sales_lines:
+                channel = line.get('sales_channel_id')
+                channel_name = channel[1] if channel and len(channel) > 1 else 'Sin Canal'
+                if channel_name not in channels_data:
+                    channels_data[channel_name] = {'sales': 0, 'quantity': 0}
+                channels_data[channel_name]['sales'] += abs(line.get('balance', 0))
+                channels_data[channel_name]['quantity'] += line.get('quantity', 0)
+            
+            sales_by_channel = list(channels_data.items())
+            
+            # Métricas por línea comercial (NUEVO)
+            commercial_lines_data = {}
+            for line in sales_lines:
+                commercial_line = line.get('commercial_line_national_id')
+                if commercial_line:
+                    line_name = commercial_line[1] if commercial_line and len(commercial_line) > 1 else 'Sin Línea'
+                else:
+                    line_name = 'Sin Línea Comercial'
+                
+                if line_name not in commercial_lines_data:
+                    commercial_lines_data[line_name] = {'sales': 0, 'quantity': 0}
+                commercial_lines_data[line_name]['sales'] += abs(line.get('balance', 0))
+                commercial_lines_data[line_name]['quantity'] += line.get('quantity', 0)
+            
+            # Preparar datos de líneas comerciales para el gráfico
+            commercial_lines_sorted = sorted(commercial_lines_data.items(), key=lambda x: x[1]['sales'], reverse=True)
+            commercial_lines = [
+                {
+                    'name': line_name,
+                    'amount': data['sales'],
+                    'quantity': data['quantity']
+                } 
+                for line_name, data in commercial_lines_sorted
+            ]
+            
+            # Estadísticas de líneas comerciales
+            commercial_lines_stats = {
+                'total_lines': len(commercial_lines),
+                'top_line_name': commercial_lines[0]['name'] if commercial_lines else 'N/A',
+                'top_line_amount': commercial_lines[0]['amount'] if commercial_lines else 0
+            }
+            
+            # Métricas por vendedor (NUEVO)
+            sellers_data = {}
+            for line in sales_lines:
+                seller = line.get('invoice_user_id')
+                if seller:
+                    seller_name = seller[1] if seller and len(seller) > 1 else 'Sin Vendedor'
+                else:
+                    seller_name = 'Sin Vendedor Asignado'
+                
+                if seller_name not in sellers_data:
+                    sellers_data[seller_name] = {'sales': 0, 'quantity': 0}
+                sellers_data[seller_name]['sales'] += abs(line.get('balance', 0))
+                sellers_data[seller_name]['quantity'] += line.get('quantity', 0)
+            
+            # Preparar datos de vendedores para el gráfico (Top 8 vendedores)
+            sellers_sorted = sorted(sellers_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:8]
+            sellers = [
+                {
+                    'name': seller_name,
+                    'amount': data['sales'],
+                    'quantity': data['quantity']
+                } 
+                for seller_name, data in sellers_sorted
+            ]
+            
+            # Estadísticas de vendedores
+            sellers_stats = {
+                'total_sellers': len(sellers_data),
+                'top_seller_name': sellers[0]['name'] if sellers else 'N/A',
+                'top_seller_amount': sellers[0]['amount'] if sellers else 0
+            }
+            
+            return {
+                'total_sales': total_sales,
+                'total_quantity': total_quantity,
+                'total_lines': total_lines,
+                'top_clients': top_clients,
+                'top_products': top_products,
+                'sales_by_month': [],  # Puede implementarse después
+                'sales_by_channel': sales_by_channel,
+                # Datos específicos para líneas comerciales
+                'commercial_lines': commercial_lines,
+                'commercial_lines_stats': commercial_lines_stats,
+                # Datos específicos para vendedores
+                'sellers': sellers,
+                'sellers_stats': sellers_stats,
+                # Campos KPI para el template
+                'kpi_total_sales': total_sales,
+                'kpi_total_invoices': total_lines,
+                'kpi_total_quantity': total_quantity
+            }
+            
+        except Exception as e:
+            print(f"Error obteniendo datos del dashboard: {e}")
+            return self._get_empty_dashboard_data()
+
+    def get_sales_dashboard_data_international(self, date_from=None, date_to=None, linea_id=None, partner_id=None):
+        """Obtener datos para el dashboard de ventas internacionales"""
+        try:
+            # Obtener líneas de venta
+            sales_lines = self.get_sales_lines(
+                date_from=date_from,
+                date_to=date_to,
+                partner_id=partner_id,
+                linea_id=linea_id,
+                limit=5000
+            )
+            
+            # Filtrar para incluir SOLO VENTA INTERNACIONAL (exportaciones)
             sales_lines_filtered = []
             for line in sales_lines:
-                # Filtrar por línea comercial
+                is_international = False
+                # Revisar por línea comercial
                 linea_comercial = line.get('commercial_line_national_id')
                 if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
                     nombre_linea = linea_comercial[1].upper()
                     if 'VENTA INTERNACIONAL' in nombre_linea:
-                        continue
+                        is_international = True
                 
-                # Filtrar por canal de ventas
-                canal_ventas = line.get('sales_channel_id')
-                if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
-                    nombre_canal = canal_ventas[1].upper()
-                    if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                        continue
+                # Revisar por canal de ventas si no se ha marcado ya
+                if not is_international:
+                    canal_ventas = line.get('sales_channel_id')
+                    if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
+                        nombre_canal = canal_ventas[1].upper()
+                        if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
+                            is_international = True
                 
-                sales_lines_filtered.append(line)
+                if is_international:
+                    sales_lines_filtered.append(line)
             
             sales_lines = sales_lines_filtered  # Usar los datos filtrados
             
@@ -766,7 +921,7 @@ class OdooManager:
             }
             
         except Exception as e:
-            print(f"Error obteniendo datos del dashboard: {e}")
+            print(f"Error obteniendo datos del dashboard internacional: {e}")
             return self._get_empty_dashboard_data()
 
     def _get_empty_dashboard_data(self):

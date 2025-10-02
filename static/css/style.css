@@ -131,12 +131,12 @@ main {
 }
 
 /* --- BARRA DE FILTROS --- */
-/* --- BARRA DE FILTROS MINIMALISTA ODOO --- */
+/* --- BARRA DE FILTROS COMPACTA --- */
 .filter-bar {
     background-color: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    padding: 16px 24px;
-    margin-bottom: var(--space-4);
+    padding: 12px 20px; /* Reducido de 16px 24px */
+    margin-bottom: var(--space-3); /* Reducido de space-4 */
     position: sticky;
     top: 80px;
     z-index: 100;
@@ -146,8 +146,8 @@ main {
 .filter-bar label {
     color: var(--color-text-primary);
     font-weight: 500;
-    font-size: var(--font-size-sm);
-    margin-bottom: 4px;
+    font-size: 12px; /* Reducido de font-size-sm */
+    margin-bottom: 2px; /* Reducido de 4px */
     display: block;
 }
 
@@ -155,14 +155,14 @@ main {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-4);
+    gap: 16px; /* Reducido de space-4 */
 }
 
-/* --- FORMULARIO DE FILTROS MEJORADO --- */
+/* --- FORMULARIO DE FILTROS COMPACTO --- */
 .filter-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px; /* Reducido de 16px */
     align-items: flex-end;
     width: 100%;
 }
@@ -170,8 +170,8 @@ main {
 .filter-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    min-width: 160px;
+    gap: 2px; /* Reducido de 4px */
+    min-width: 140px; /* Reducido de 160px */
     flex: 1;
 }
 
@@ -268,6 +268,10 @@ main {
     background-color: var(--color-primary);
     border-color: var(--color-primary);
     color: white;
+    height: 32px; /* Igual que los inputs */
+    padding: 0 16px; /* Más compacto */
+    font-size: 12px; /* Más pequeño */
+    min-width: 70px; /* Más compacto */
 }
 
 .filter-bar .btn:hover {
@@ -278,11 +282,11 @@ main {
 }
 
 .form-control, .form-select {
-    height: 36px;
-    padding: 8px 12px;
+    height: 32px; /* Reducido de 36px */
+    padding: 6px 10px; /* Reducido de 8px 12px */
     border: 1px solid var(--color-border);
     border-radius: 4px;
-    font-size: var(--font-size-sm);
+    font-size: 12px; /* Reducido para ser más compacto */
     font-family: inherit;
     background-color: var(--color-surface);
     color: var(--color-text-primary);
@@ -683,46 +687,110 @@ tr:hover {
     }
 }
 
-/* --- TABLA ESTILO ODOO --- */
+/* --- TABLA CON SCROLL MEJORADO Y DISEÑO PROFESIONAL --- */
 .table-container {
     background-color: var(--color-surface);
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     overflow: hidden;
-    max-height: 70vh;
-    overflow-y: auto;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    max-height: 75vh; /* Altura óptima */
+    overflow-x: auto; /* Scroll horizontal */
+    overflow-y: auto; /* Scroll vertical */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* Personalizar la barra de scroll */
+.table-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px; /* Para scroll horizontal */
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: var(--odoo-primary);
+    border-radius: 5px;
+    border: 2px solid #f8f9fa;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--odoo-primary-dark);
+}
+
+.table-container::-webkit-scrollbar-corner {
+    background: #f8f9fa;
 }
 
 .table {
     width: 100%;
     border-collapse: collapse;
+    min-width: 1800px; /* Ancho mínimo para evitar compresión */
 }
 
 .table thead th {
     background-color: #f8f9fa;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
+    font-size: 13px;
     text-align: left;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--color-border);
+    padding: 14px 12px;
+    border-bottom: 2px solid var(--odoo-primary);
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Anchos específicos para columnas */
+.table th:nth-child(1), .table td:nth-child(1) { min-width: 120px; } /* Pedido */
+.table th:nth-child(2), .table td:nth-child(2) { min-width: 200px; } /* Cliente */
+.table th:nth-child(3), .table td:nth-child(3) { min-width: 100px; } /* País */
+.table th:nth-child(4), .table td:nth-child(4) { min-width: 110px; } /* Fecha */
+.table th:nth-child(5), .table td:nth-child(5) { min-width: 130px; } /* Mes */
+.table th:nth-child(6), .table td:nth-child(6) { min-width: 130px; } /* Código */
+.table th:nth-child(7), .table td:nth-child(7) { min-width: 180px; } /* Producto */
+.table th:nth-child(8), .table td:nth-child(8) { min-width: 180px; } /* Descripción */
+.table th:nth-child(9), .table td:nth-child(9) { min-width: 140px; } /* Línea Comercial */
+.table th:nth-child(10), .table td:nth-child(10) { min-width: 160px; } /* Clasificación */
+.table th:nth-child(11), .table td:nth-child(11) { min-width: 140px; } /* Formas */
+.table th:nth-child(12), .table td:nth-child(12) { min-width: 140px; } /* Vía */
+.table th:nth-child(13), .table td:nth-child(13) { min-width: 140px; } /* Línea Producción */
+.table th:nth-child(14), .table td:nth-child(14) { min-width: 120px; text-align: right; } /* Cantidad */
+.table th:nth-child(15), .table td:nth-child(15) { min-width: 120px; text-align: right; } /* Precio */
+.table th:nth-child(16), .table td:nth-child(16) { min-width: 120px; text-align: right; } /* Total */
+
 .table tbody td {
-    padding: 12px 16px;
+    padding: 10px 12px;
     border-bottom: 1px solid #f0f0f0;
     vertical-align: middle;
-    font-size: var(--font-size-sm);
+    font-size: 13px;
+    line-height: 1.4;
     white-space: normal;
 }
 
 .table tbody tr:hover {
-    background-color: rgba(135, 90, 123, 0.05);
+    background-color: rgba(135, 90, 123, 0.08);
     transition: background-color 0.2s ease;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+.table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+/* Estilos para columnas numéricas */
+.table .text-right {
+    text-align: right;
+    font-weight: 500;
+    font-family: 'Courier New', monospace;
 }
 
 .table tbody tr {
