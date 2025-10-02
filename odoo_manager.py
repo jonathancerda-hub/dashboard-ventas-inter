@@ -361,6 +361,24 @@ class OdooManager:
             
             print(f"📊 Base obtenida: {len(sales_lines_base)} líneas")
             
+            # DEBUG: Si estamos buscando S00791, mostrar todas las líneas obtenidas
+            if search and 'S00791' in search:
+                print(f"🔍 DEBUG: Analizando {len(sales_lines_base)} líneas obtenidas para S00791...")
+                s00791_lines_found = {}
+                for line in sales_lines_base:
+                    move_name = line.get('move_name', '')
+                    if 'F15-000001' in move_name:  # Buscar facturas F15-00000187, F15-00000154, F15-00000149
+                        if move_name not in s00791_lines_found:
+                            s00791_lines_found[move_name] = 0
+                        s00791_lines_found[move_name] += 1
+                
+                print(f"🔍 DEBUG: Líneas encontradas por factura:")
+                for factura, count in s00791_lines_found.items():
+                    print(f"   📄 {factura}: {count} líneas")
+                
+                if not s00791_lines_found:
+                    print("⚠️ DEBUG: NO se encontraron líneas de las facturas F15-000001xx en la consulta base")
+            
             if not sales_lines_base:
                 return []
             

@@ -199,26 +199,45 @@ def sales():
             team_id = sale.get('team_id')
             nombre_canal = ''
             
+            # DEBUG: Rastrear líneas de S00791 específicamente
+            pedido = sale.get('pedido', '')
+            factura = sale.get('factura', '')
+            if 'S00791' in pedido:
+                print(f"🔍 DEBUG APP.PY S00791: Pedido={pedido}, Factura={factura}, Canal={team_id}")
+            
             if team_id and isinstance(team_id, list) and len(team_id) > 1:
                 nombre_canal = team_id[1]
                 canales_unicos.add(nombre_canal)
                 if 'INTERNACIONAL' in nombre_canal.upper():
+                    # DEBUG: Confirmar que líneas S00791 pasan el filtro de canal
+                    if 'S00791' in pedido:
+                        print(f"✅ DEBUG APP.PY S00791: PASÓ filtro de canal - {pedido}, {factura}")
+                    
                     # Aplicar filtro de búsqueda después del filtro de canal
                     if search_term:
                         producto = sale.get('producto', '').lower()
                         codigo = sale.get('codigo_odoo', '').lower()
                         cliente = sale.get('cliente', '').lower()
-                        pedido = sale.get('pedido', '').lower()
+                        pedido_lower = pedido.lower()
                         
                         if (search_term in producto or 
                             search_term in codigo or 
                             search_term in cliente or
-                            search_term in pedido):
+                            search_term in pedido_lower):
+                            
+                            # DEBUG: Confirmar que líneas S00791 pasan el filtro de búsqueda
+                            if 'S00791' in pedido:
+                                print(f"✅ DEBUG APP.PY S00791: PASÓ filtro de búsqueda - {pedido}, {factura}")
+                            
                             sales_data_filtered.append(sale)
                             international_count += 1
                     else:
                         sales_data_filtered.append(sale)
                         international_count += 1
+            else:
+                # DEBUG: Líneas sin canal o con canal inválido
+                if 'S00791' in pedido:
+                    print(f"❌ DEBUG APP.PY S00791: SIN CANAL válido - {pedido}, {factura}, team_id={team_id}")
         
         print(f"DEBUG: Terminó el bucle. Total encontrado: {international_count}")
         print(f"DEBUG canales únicos encontrados: {sorted(list(canales_unicos))}")
