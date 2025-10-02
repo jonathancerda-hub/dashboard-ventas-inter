@@ -195,39 +195,62 @@ def sales():
         canales_unicos = set()
         search_term = query_filters.get('search_term', '').lower() if query_filters.get('search_term') else None
         
+        # DEBUG: Información de búsqueda
+        if search_term:
+            print(f"🔍 DEBUG: Buscando término: '{search_term}'")
+        
         for sale in sales_data_raw:
             team_id = sale.get('team_id')
             nombre_canal = ''
             
-            # DEBUG: Rastrear líneas de S00791 específicamente
+            # Obtener información del pedido y factura
             pedido = sale.get('pedido', '')
             factura = sale.get('factura', '')
-            if 'S00791' in pedido:
-                print(f"🔍 DEBUG APP.PY S00791: Pedido={pedido}, Factura={factura}, Canal={team_id}")
+            
+            # DEBUG: Para S00791 específicamente
+            if search_term and 's00791' in pedido.lower():
+                print(f"🔍 DEBUG S00791: Procesando línea con pedido: {pedido}")
+                print(f"   team_id: {team_id}")
+                print(f"   factura: {factura}")
             
             if team_id and isinstance(team_id, list) and len(team_id) > 1:
                 nombre_canal = team_id[1]
                 canales_unicos.add(nombre_canal)
+                
+                # DEBUG para S00791
+                if search_term and 's00791' in pedido.lower():
+                    print(f"   nombre_canal: {nombre_canal}")
+                    print(f"   es internacional: {'INTERNACIONAL' in nombre_canal.upper()}")
+                
                 if 'INTERNACIONAL' in nombre_canal.upper():
-                    # DEBUG: Confirmar que líneas S00791 pasan el filtro de canal
-                    if 'S00791' in pedido:
-                        print(f"✅ DEBUG APP.PY S00791: PASÓ filtro de canal - {pedido}, {factura}")
                     
                     # Aplicar filtro de búsqueda después del filtro de canal
                     if search_term:
-                        producto = sale.get('producto', '').lower()
-                        codigo = sale.get('codigo_odoo', '').lower()
-                        cliente = sale.get('cliente', '').lower()
-                        pedido_lower = pedido.lower()
+                        # Validar tipos y convertir a string de forma segura
+                        producto = str(sale.get('producto', '') or '').lower()
+                        codigo = str(sale.get('codigo_odoo', '') or '').lower()
+                        cliente = str(sale.get('cliente', '') or '').lower()
+                        pedido_lower = str(pedido or '').lower()
+                        factura_lower = str(factura or '').lower()
+                        
+                        # DEBUG para S00791
+                        if 's00791' in pedido_lower:
+                            print(f"   Comprobando búsqueda:")
+                            print(f"     - En pedido '{pedido_lower}': {search_term in pedido_lower}")
+                            print(f"     - En producto '{producto}': {search_term in producto}")
+                            print(f"     - En código '{codigo}': {search_term in codigo}")
+                            print(f"     - En cliente '{cliente}': {search_term in cliente}")
+                            print(f"     - En factura '{factura_lower}': {search_term in factura_lower}")
                         
                         if (search_term in producto or 
                             search_term in codigo or 
                             search_term in cliente or
-                            search_term in pedido_lower):
+                            search_term in pedido_lower or
+                            search_term in factura_lower):
                             
-                            # DEBUG: Confirmar que líneas S00791 pasan el filtro de búsqueda
-                            if 'S00791' in pedido:
-                                print(f"✅ DEBUG APP.PY S00791: PASÓ filtro de búsqueda - {pedido}, {factura}")
+                            # DEBUG para S00791
+                            if 's00791' in pedido.lower():
+                                print(f"   ✅ AÑADIDA línea S00791 a resultados")
                             
                             sales_data_filtered.append(sale)
                             international_count += 1
@@ -235,9 +258,11 @@ def sales():
                         sales_data_filtered.append(sale)
                         international_count += 1
             else:
-                # DEBUG: Líneas sin canal o con canal inválido
-                if 'S00791' in pedido:
-                    print(f"❌ DEBUG APP.PY S00791: SIN CANAL válido - {pedido}, {factura}, team_id={team_id}")
+                # DEBUG para S00791
+                if search_term and 's00791' in pedido.lower():
+                    print(f"   ❌ team_id inválido: {team_id}")
+                # Líneas sin canal válido se excluyen
+                pass
         
         print(f"DEBUG: Terminó el bucle. Total encontrado: {international_count}")
         print(f"DEBUG canales únicos encontrados: {sorted(list(canales_unicos))}")
