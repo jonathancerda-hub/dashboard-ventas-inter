@@ -290,6 +290,24 @@ class OdooManager:
             if linea_id:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
             
+            # DEBUG: Buscar TODAS las facturas del pedido S00791 antes de filtros
+            try:
+                print("🔍 DEBUG: Buscando TODAS las facturas del pedido S00791...")
+                s00791_invoices = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'account.move', 'search_read',
+                    [[('invoice_origin', 'ilike', 'S00791')]], 
+                    {
+                        'fields': ['name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
+                        'context': {'lang': 'es_PE'}
+                    }
+                )
+                print(f"🔍 DEBUG: Encontradas {len(s00791_invoices)} facturas relacionadas con S00791:")
+                for inv in s00791_invoices:
+                    team_name = inv.get('team_id')[1] if inv.get('team_id') and len(inv.get('team_id')) > 1 else 'SIN_CANAL'
+                    print(f"   📄 {inv['name']} | Origen: {inv.get('invoice_origin', '')} | Fecha: {inv.get('invoice_date', '')} | Estado: {inv.get('state', '')} | Canal: {team_name} | Tipo: {inv.get('move_type', '')}")
+            except Exception as e:
+                print(f"⚠️ Error en debug de facturas S00791: {e}")
+            
             # Obtener líneas base con todos los campos necesarios
             query_options = {
                 'fields': [
@@ -500,7 +518,8 @@ class OdooManager:
                 order_name = order.get('name', '')
                 if 'S00791' in order_name:
                     s00791_debug_count += 1
-                    print(f"🔍 DEBUG S00791 #{s00791_debug_count}: Pedido={order_name}, Factura={move.get('name', '')}, Producto={product.get('default_code', '')}, Cantidad={line.get('quantity', 0)}, Total={-line.get('balance', 0)}")
+                    team_name = move.get('team_id')[1] if move.get('team_id') and len(move.get('team_id')) > 1 else 'SIN_CANAL'
+                    print(f"🔍 DEBUG S00791 #{s00791_debug_count}: Pedido={order_name}, Factura={move.get('name', '')}, Canal={team_name}, Producto={product.get('default_code', '')}, Cantidad={line.get('quantity', 0)}, Total={-line.get('balance', 0)}, Estado={move.get('state', '')}, Fecha={move.get('invoice_date', '')}")
                 
                 sales_lines.append({
                     # 1. Pedido (número de orden de venta)
