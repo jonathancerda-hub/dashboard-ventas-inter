@@ -107,19 +107,15 @@ class OdooManager:
             try:
                 self.uid = common.authenticate(self.db, self.username, self.password, {})
             except socket.timeout:
-                print(f"⏱️ Timeout al conectar a Odoo después de {rpc_timeout}s. Continuando en modo offline.")
                 self.uid = None
             except Exception as auth_e:
                 # Manejar errores de protocolo o conexión sin bloquear
-                print(f"⚠️ Error durante authenticate() a Odoo: {auth_e}")
                 self.uid = None
             
             if self.uid:
                 # Usar el mismo transport para el endpoint de object
                 self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', transport=transport)
-                print("✅ Conexión a Odoo establecida exitosamente.")
             else:
-                print("❌ Advertencia: No se pudo autenticar. Continuando en modo offline.")
                 self.uid = None
                 self.models = None
                 
@@ -136,7 +132,6 @@ class OdooManager:
             uid = common.authenticate(self.db, username, password, {})
             
             if uid:
-                print(f"✅ Autenticación exitosa para usuario: {username} (UID: {uid})")
                 # Una vez autenticado, obtener el nombre del usuario
                 models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
                 user_data = models.execute_kw(
@@ -149,11 +144,9 @@ class OdooManager:
                     # Fallback si no se pueden leer los datos del usuario
                     return {'id': uid, 'name': username, 'login': username}
             else:
-                print(f"❌ Credenciales incorrectas para usuario: {username}")
                 return None
                 
         except Exception as e:
-            print(f"❌ Error en autenticación contra Odoo: {e}")
             # En caso de error de conexión, no se puede autenticar
             return None
 
@@ -246,11 +239,8 @@ class OdooManager:
     def get_sales_lines(self, page=None, per_page=None, filters=None, date_from=None, date_to=None, partner_id=None, linea_id=None, search=None, limit=5000):
         """Obtener líneas de venta completas con todas las 27 columnas"""
         try:
-            print(f"🔍 Obteniendo líneas de venta completas...")
-            
             # Verificar conexión
             if not self.uid or not self.models:
-                print("❌ No hay conexión a Odoo disponible")
                 if page is not None and per_page is not None:
                     return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 return []
@@ -294,102 +284,92 @@ class OdooManager:
             if linea_id:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
             
-            # DEBUG: Buscar TODAS las facturas del pedido S00791 antes de filtros
-            s00791_move_ids = []
-            try:
-                print("🔍 DEBUG: Buscando TODAS las facturas del pedido S00791...")
-                s00791_invoices = self.models.execute_kw(
-                    self.db, self.uid, self.password, 'account.move', 'search_read',
-                    [[('invoice_origin', 'ilike', 'S00791')]], 
-                    {
-                        'fields': ['id', 'name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
-                        'context': {'lang': 'es_PE'}
-                    }
-                )
-                print(f"🔍 DEBUG: Encontradas {len(s00791_invoices)} facturas relacionadas con S00791:")
-                for inv in s00791_invoices:
-                    team_name = inv.get('team_id')[1] if inv.get('team_id') and len(inv.get('team_id')) > 1 else 'SIN_CANAL'
-                    print(f"   📄 {inv['name']} | Origen: {inv.get('invoice_origin', '')} | Fecha: {inv.get('invoice_date', '')} | Estado: {inv.get('state', '')} | Canal: {team_name} | Tipo: {inv.get('move_type', '')}")
-                    s00791_move_ids.append(inv['id'])
-                
-                # Buscar líneas específicas de estas facturas
-                if s00791_move_ids:
-                    print(f"🔍 DEBUG: Buscando líneas de account.move.line para las facturas S00791...")
-                    s00791_lines = self.models.execute_kw(
-                        self.db, self.uid, self.password, 'account.move.line', 'search_read',
-                        [[('move_id', 'in', s00791_move_ids), ('product_id', '!=', False)]],
+            # Buscar facturas del pedido específico si hay búsqueda
+            searched_move_ids = []
+            search_pedido = None
+            
+            # Detectar si se está buscando un pedido específico
+            if search:
+                search_upper = search.upper()
+                # Buscar patrones de pedido (S00XXX, S01XXX, etc.)
+                import re
+                pedido_pattern = r'S\d{5}'
+                pedido_match = re.search(pedido_pattern, search_upper)
+                if pedido_match:
+                    search_pedido = pedido_match.group()
+            
+            if search_pedido:
+                try:
+                    searched_invoices = self.models.execute_kw(
+                        self.db, self.uid, self.password, 'account.move', 'search_read',
+                        [[('invoice_origin', 'ilike', search_pedido)]], 
                         {
-                            'fields': ['id', 'move_id', 'product_id', 'quantity', 'balance', 'move_name'],
+                            'fields': ['id', 'name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
                             'context': {'lang': 'es_PE'}
                         }
                     )
-                    print(f"🔍 DEBUG: Encontradas {len(s00791_lines)} líneas de productos para S00791:")
-                    for line in s00791_lines:
-                        move_name = line.get('move_name', '')
-                        product_id = line.get('product_id', [0, ''])[0] if line.get('product_id') else 0
-                        print(f"   📋 Línea ID: {line['id']} | Factura: {move_name} | Producto ID: {product_id} | Cantidad: {line.get('quantity', 0)} | Balance: {line.get('balance', 0)}")
-                        
-            except Exception as e:
-                print(f"⚠️ Error en debug de facturas S00791: {e}")
+                    for inv in searched_invoices:
+                        searched_move_ids.append(inv['id'])
+                except Exception as e:
+                    pass
             
-            # Si estamos buscando S00791 o detectamos sus facturas, incluir específicamente esas facturas
+            # Si estamos buscando un pedido específico o detectamos sus facturas, incluir específicamente esas facturas
             # TAMBIÉN aplicar para otros pedidos multi-factura detectados automáticamente
-            special_move_ids = s00791_move_ids.copy()
+            special_move_ids = searched_move_ids.copy()
             
             # SOLUCIÓN MEJORADA: Detectar TODOS los pedidos multi-factura automáticamente
             # Funciona tanto con búsqueda como sin ella
             if date_from and date_to:
                 try:
-                    # Obtener TODAS las facturas del canal internacional
-                    all_invoices = self.models.execute_kw(
-                        self.db, self.uid, self.password, 'account.move', 'search_read',
-                        [[
-                            ('invoice_date', '>=', date_from),
-                            ('invoice_date', '<=', date_to), 
-                            ('move_type', '=', 'out_invoice'),
-                            ('state', '=', 'posted'),
-                            ('invoice_origin', '!=', False),
-                            ('team_id.name', 'ilike', 'INTERNACIONAL')
-                        ]],
-                        {'fields': ['id', 'invoice_origin'], 'limit': 500}
-                    )
-                    
-                    # Agrupar por invoice_origin para encontrar pedidos multi-factura
-                    origin_groups = {}
-                    for inv in all_invoices:
-                        origin = inv.get('invoice_origin', '')
-                        if origin not in origin_groups:
-                            origin_groups[origin] = []
-                        origin_groups[origin].append(inv['id'])
-                    
-                    # Encontrar pedidos con múltiples facturas
-                    multi_origin_move_ids = []
-                    multi_origin_count = 0
-                    for origin, move_ids in origin_groups.items():
-                        if len(move_ids) > 1:  # Más de una factura por pedido
-                            multi_origin_move_ids.extend(move_ids)
-                            multi_origin_count += 1
-                    
-                    # Si hay búsqueda, filtrar solo las facturas relevantes
-                    if search:
-                        # Solo incluir facturas de pedidos que coincidan con la búsqueda
-                        relevant_move_ids = []
-                        search_lower = search.lower()
+                    # Si estamos buscando un pedido específico, NO hacer la detección automática
+                    if not search_pedido:
+                        # Obtener TODAS las facturas del canal internacional
+                        all_invoices = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'account.move', 'search_read',
+                            [[
+                                ('invoice_date', '>=', date_from),
+                                ('invoice_date', '<=', date_to), 
+                                ('move_type', '=', 'out_invoice'),
+                                ('state', '=', 'posted'),
+                                ('invoice_origin', '!=', False),
+                                ('team_id.name', 'ilike', 'INTERNACIONAL')
+                            ]],
+                            {'fields': ['id', 'invoice_origin'], 'limit': 500}
+                        )
+                        
+                        # Agrupar por invoice_origin para encontrar pedidos multi-factura
+                        origin_groups = {}
+                        for inv in all_invoices:
+                            origin = inv.get('invoice_origin', '')
+                            if origin not in origin_groups:
+                                origin_groups[origin] = []
+                            origin_groups[origin].append(inv['id'])
+                        
+                        # Encontrar pedidos con múltiples facturas
+                        multi_origin_move_ids = []
+                        multi_origin_count = 0
                         for origin, move_ids in origin_groups.items():
-                            if len(move_ids) > 1 and search_lower in origin.lower():
-                                relevant_move_ids.extend(move_ids)
-                        special_move_ids.extend(relevant_move_ids)
-                        if relevant_move_ids:
-                            relevant_count = len([o for o in origin_groups.keys() if len(origin_groups[o]) > 1 and search_lower in o.lower()])
-                            print(f"🔍 Búsqueda '{search}': {relevant_count} pedidos multi-factura coincidentes")
+                            if len(move_ids) > 1:  # Más de una factura por pedido
+                                multi_origin_move_ids.extend(move_ids)
+                                multi_origin_count += 1
+                        
+                        # Si hay búsqueda general (no específica de pedido), filtrar solo las facturas relevantes
+                        if search:
+                            # Solo incluir facturas de pedidos que coincidan con la búsqueda
+                            relevant_move_ids = []
+                            search_lower = search.lower()
+                            for origin, move_ids in origin_groups.items():
+                                if len(move_ids) > 1 and search_lower in origin.lower():
+                                    relevant_move_ids.extend(move_ids)
+                            special_move_ids.extend(relevant_move_ids)
+                        else:
+                            # Sin búsqueda, incluir todos los pedidos multi-factura
+                            special_move_ids.extend(multi_origin_move_ids)
                     else:
-                        # Sin búsqueda, incluir todos los pedidos multi-factura
-                        special_move_ids.extend(multi_origin_move_ids)
-                        if multi_origin_count > 0:
-                            print(f"🔍 Detectados {multi_origin_count} pedidos multi-factura con {len(multi_origin_move_ids)} facturas totales")
+                        pass
                         
                 except Exception as e:
-                    print(f"⚠️ Error detectando pedidos multi-factura: {e}")
+                    pass
             
             # Usar consulta especial si hay pedidos multi-factura detectados O si se busca S00791 específicamente
             if len(special_move_ids) > 0 and special_move_ids:
@@ -402,7 +382,6 @@ class OdooManager:
                 ]
                 # Remover límite para obtener TODAS las líneas de pedidos multi-factura
                 limit = None
-                print(f"🔍 Usando consulta especial para {len(special_move_ids)} facturas de pedidos multi-factura")
             
             # Obtener líneas base con todos los campos necesarios
             query_options = {
@@ -423,37 +402,6 @@ class OdooManager:
                 query_options
             )
             
-            print(f"📊 Base obtenida: {len(sales_lines_base)} líneas")
-            
-            # DEBUG: Si estamos buscando S00791, mostrar todas las líneas obtenidas
-            if search and 'S00791' in search:
-                print(f"🔍 DEBUG: Analizando {len(sales_lines_base)} líneas obtenidas para S00791...")
-                s00791_lines_found = {}
-                all_move_names = set()
-                
-                for line in sales_lines_base:
-                    move_name = line.get('move_name', '')
-                    all_move_names.add(move_name)
-                    
-                    if move_name in ['F F15-00000187', 'F F15-00000154', 'F F15-00000149']:  # Facturas exactas de S00791
-                        if move_name not in s00791_lines_found:
-                            s00791_lines_found[move_name] = 0
-                        s00791_lines_found[move_name] += 1
-                
-                print(f"🔍 DEBUG: Líneas encontradas por factura S00791:")
-                for factura, count in s00791_lines_found.items():
-                    print(f"   📄 {factura}: {count} líneas")
-                
-                if not s00791_lines_found:
-                    print("⚠️ DEBUG: NO se encontraron líneas de las facturas F15-000001xx en la consulta base")
-                    print(f"🔍 DEBUG: Algunas facturas encontradas en la consulta: {list(all_move_names)[:10]}")
-                    
-                # Verificar si obtuvimos TODAS las líneas esperadas (10 líneas)
-                total_s00791_lines = sum(s00791_lines_found.values())
-                if total_s00791_lines != 10:
-                    print(f"⚠️ DEBUG: FALTAN LÍNEAS! Esperadas: 10, Obtenidas: {total_s00791_lines}")
-                else:
-                    print(f"✅ DEBUG: TODAS las líneas S00791 obtenidas correctamente: {total_s00791_lines}")
             
             if not sales_lines_base:
                 return []
@@ -463,7 +411,6 @@ class OdooManager:
             product_ids = list(set([line['product_id'][0] for line in sales_lines_base if line.get('product_id')]))
             partner_ids = list(set([line['partner_id'][0] for line in sales_lines_base if line.get('partner_id')]))
             
-            print(f"📊 IDs únicos: {len(move_ids)} facturas, {len(product_ids)} productos, {len(partner_ids)} clientes")
             
             # Obtener datos de facturas (account.move) - Asientos contables
             move_data = {}
@@ -487,9 +434,7 @@ class OdooManager:
                 for move in moves:
                     if move.get('team_id') and isinstance(move['team_id'], list) and len(move['team_id']) > 1:
                         unique_teams.add(move['team_id'][1])
-                print(f"🏢 DEBUG: Canales de venta (team_id) encontrados: {sorted(list(unique_teams))}")
                 
-                print(f"✅ Asientos contables (account.move): {len(move_data)} registros")
             
             # Obtener datos de productos con todos los campos farmacéuticos
             product_data = {}
@@ -507,12 +452,6 @@ class OdooManager:
                     }
                 )
                 product_data = {p['id']: p for p in products}
-                # --- DEBUG: Imprimir los campos del primer producto para verificar el nombre del campo ---
-                if products:
-                    print("🔍 DEBUG: Campos del primer producto obtenido:")
-                    print(products[0])
-                # --- FIN DEBUG ---
-                print(f"✅ Productos: {len(product_data)} registros")
             
             # Obtener datos de clientes incluyendo país
             partner_data = {}
@@ -523,7 +462,6 @@ class OdooManager:
                     {'fields': ['vat', 'name', 'country_id'], 'context': {'lang': 'es_PE'}}
                 )
                 partner_data = {p['id']: p for p in partners}
-                print(f"✅ Clientes: {len(partner_data)} registros")
             
             # Obtener datos de órdenes de venta con más campos
             order_ids = [move['order_id'][0] for move in move_data.values() if move.get('order_id')]
@@ -542,31 +480,21 @@ class OdooManager:
                     }
                 )
                 order_data = {o['id']: o for o in orders}
-                print(f"✅ Órdenes de venta (sale.order): {len(order_data)} registros con observaciones de entrega")
                 
                 # DEBUG: Verificar si se obtuvo el pedido S00791
                 s00791_order = None
                 for order in orders:
                     if order.get('name') == 'S00791':
                         s00791_order = order
-                        print(f"✅ DEBUG: Encontrado pedido S00791 con ID: {order['id']}")
                         break
                 
                 if not s00791_order and search and 'S00791' in search:
-                    print("⚠️ DEBUG: NO se encontró el pedido S00791 en las órdenes obtenidas")
                     # Buscar directamente el pedido S00791
-                    try:
-                        s00791_direct = self.models.execute_kw(
-                            self.db, self.uid, self.password, 'sale.order', 'search_read',
-                            [[('name', '=', 'S00791')]],
-                            {'fields': ['id', 'name'], 'limit': 1}
-                        )
-                        if s00791_direct:
-                            print(f"🔍 DEBUG: S00791 existe con ID {s00791_direct[0]['id']}, pero no está relacionado con las facturas")
-                        else:
-                            print("🔍 DEBUG: El pedido S00791 no existe en el sistema")
-                    except Exception as e:
-                        print(f"⚠️ Error buscando S00791 directamente: {e}")
+                    s00791_direct = self.models.execute_kw(
+                        self.db, self.uid, self.password, 'sale.order', 'search_read',
+                        [[('name', '=', 'S00791')]],
+                        {'fields': ['id', 'name'], 'limit': 1}
+                    )
             
             # Obtener datos de líneas de orden de venta con más campos
             sale_line_data = {}
@@ -588,9 +516,8 @@ class OdooManager:
                         if sl.get('order_id') and sl.get('product_id'):
                             key = (sl['order_id'][0], sl['product_id'][0])
                             sale_line_data[key] = sl
-                    print(f"✅ Líneas de orden de venta (sale.order.line): {len(sale_line_data)} registros con rutas")
                 except Exception as e:
-                    print(f"⚠️ Error obteniendo líneas de orden: {e}")
+                    pass
             
             # Obtener todos los tax_ids únicos de las líneas contables
             all_tax_ids = set()
@@ -610,7 +537,6 @@ class OdooManager:
             sales_lines = []
             ecommerce_reassigned = 0
             s00791_debug_count = 0  # Contador para debug del pedido específico
-            print(f"🚀 Procesando {len(sales_lines_base)} líneas con 27 columnas...")
             
             for line in sales_lines_base:
                 move_id = line.get('move_id')
@@ -760,8 +686,6 @@ class OdooManager:
                     'partner_id': line.get('partner_id')
                 })
             
-            print(f"✅ Procesadas {len(sales_lines)} líneas con 27 columnas completas")
-            print(f"🔄 Reasignadas {ecommerce_reassigned} líneas a ECOMMERCE (usuarios específicos)")
             # Líneas de S00791 procesadas correctamente
             
             # Si se solicita paginación, devolver tupla (datos, paginación)
@@ -794,11 +718,9 @@ class OdooManager:
     def get_pending_orders(self, page=None, per_page=None, filters=None, date_from=None, date_to=None, partner_id=None, search=None, limit=5000):
         """Obtener líneas de pedidos de venta pendientes de facturación usando datos ya disponibles"""
         try:
-            print(f"🔍 Obteniendo pedidos pendientes de facturación (método alternativo)...")
             
             # Verificar conexión
             if not self.uid or not self.models:
-                print("❌ No hay conexión a Odoo disponible")
                 if page is not None and per_page is not None:
                     return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 return []
@@ -815,7 +737,6 @@ class OdooManager:
             
             try:
                 # 1. Obtener las líneas de order que tienen sale.order.line con datos disponibles
-                print("🔍 Obteniendo líneas de pedidos desde sale.order.line disponible...")
                 
                 # Usar la misma lógica que get_sales_lines pero enfocada en sale.order.line
                 sale_order_lines_data = []
@@ -836,7 +757,6 @@ class OdooManager:
                         six_months_ago = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
                         basic_domain.append(('order_id.date_order', '>=', six_months_ago))
                 
-                print(f"🔍 Consultando sale.order.line con dominio básico: {basic_domain}")
                 
                 # Obtener líneas de pedidos de venta
                 order_lines = self.models.execute_kw(
@@ -853,28 +773,23 @@ class OdooManager:
                     }
                 )
                 
-                print(f"✅ Líneas de pedidos obtenidas: {len(order_lines)}")
                 
                 if not order_lines:
-                    print("❌ No se encontraron líneas de pedidos")
                     if page is not None and per_page is not None:
                         return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                     return []
                 
                 # 2. Filtrar solo las que tienen cantidad pendiente > 0
                 pending_lines = [line for line in order_lines if line.get('qty_to_invoice', 0) > 0]
-                print(f"🔍 Líneas con cantidad pendiente > 0: {len(pending_lines)}")
                 
                 # 3. Obtener información de pedidos para filtrar por equipo INTERNACIONAL
                 order_ids = list(set([line['order_id'][0] for line in pending_lines if line.get('order_id')]))
                 
                 if not order_ids:
-                    print("❌ No hay IDs de pedidos para procesar")
                     if page is not None and per_page is not None:
                         return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                     return []
                 
-                print(f"📋 Obteniendo información de {len(order_ids)} pedidos...")
                 
                 # Obtener información de pedidos en lotes pequeños
                 order_data = {}
@@ -894,12 +809,9 @@ class OdooManager:
                         )
                         for order in batch_orders:
                             order_data[order['id']] = order
-                        print(f"   ✅ Lote {i//batch_size + 1}: {len(batch_orders)} pedidos")
                     except Exception as e:
-                        print(f"   ⚠️ Error en lote {i//batch_size + 1}: {e}")
                         continue
                 
-                print(f"✅ Información de pedidos obtenida: {len(order_data)} registros")
                 
                 # 4. Filtrar solo pedidos del canal INTERNACIONAL
                 international_pending = []
@@ -912,10 +824,8 @@ class OdooManager:
                         if team_name == 'VENTA INTERNACIONAL':
                             international_pending.append(line)
                 
-                print(f"🌍 Líneas del canal INTERNACIONAL con cantidad pendiente: {len(international_pending)}")
                 
                 if not international_pending:
-                    print("❌ No hay líneas pendientes del canal internacional")
                     if page is not None and per_page is not None:
                         return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                     return []
@@ -938,9 +848,8 @@ class OdooManager:
                             }
                         )
                         product_data = {product['id']: product for product in products}
-                        print(f"✅ Información de productos obtenida: {len(product_data)} registros")
                     except Exception as e:
-                        print(f"⚠️ Error al obtener productos: {e}")
+                        pass
                 
                 # 6. Obtener información de clientes
                 partner_ids = list(set([order['partner_id'][0] for order in order_data.values() if order.get('partner_id')]))
@@ -956,9 +865,8 @@ class OdooManager:
                             }
                         )
                         partner_data = {partner['id']: partner for partner in partners}
-                        print(f"✅ Información de clientes obtenida: {len(partner_data)} registros")
                     except Exception as e:
-                        print(f"⚠️ Error al obtener clientes: {e}")
+                        pass
                 
                 # 7. Procesar y estructurar los datos finales
                 final_pending_lines = []
@@ -1032,7 +940,6 @@ class OdooManager:
                         final_pending_lines.append(pending_record)
                         
                     except Exception as e:
-                        print(f"⚠️ Error procesando línea {line.get('id')}: {e}")
                         continue
                 
                 # Aplicar filtro de búsqueda
@@ -1047,7 +954,6 @@ class OdooManager:
                             filtered_lines.append(line)
                     final_pending_lines = filtered_lines
                 
-                print(f"✅ Procesadas {len(final_pending_lines)} líneas pendientes finales")
                 
                 # Manejo de paginación
                 if page is not None and per_page is not None:
@@ -1068,13 +974,11 @@ class OdooManager:
                 return final_pending_lines
                 
             except Exception as e:
-                print(f"❌ Error en consulta alternativa: {e}")
                 if page is not None and per_page is not None:
                     return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 return []
                 
         except Exception as e:
-            print(f"❌ Error general al obtener pedidos pendientes: {e}")
             if page is not None and per_page is not None:
                 return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
             return []

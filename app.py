@@ -91,7 +91,6 @@ def create_mock_sales_data():
             'balance': (50 + i * 5) * (10.00 + i),
         })
     
-    print(f"🔧 Datos simulados creados: {len(mock_data)} registros ({15} internacionales, {5} nacionales)")
     return mock_data
 
 def get_meses_del_año(año):
@@ -168,16 +167,10 @@ def sales():
             if not value:  # Handles empty strings and None
                 query_filters[key] = None
         
-        # DEBUG: Mostrar filtros recibidos
-        print(f"🔍 DEBUG: Filtros recibidos - date_from: '{query_filters.get('date_from')}', date_to: '{query_filters.get('date_to')}'")
-        
         # Si no hay filtros de fecha, buscar en todo el año 2025
         if not query_filters.get('date_from') and not query_filters.get('date_to'):
             query_filters['date_from'] = '2025-01-01'
             query_filters['date_to'] = '2025-12-31'
-            print("🔍 DEBUG: Usando fechas por defecto: 2025-01-01 a 2025-12-31")
-        else:
-            print(f"🔍 DEBUG: Usando fechas del usuario: {query_filters.get('date_from')} a {query_filters.get('date_to')}")
         
         # Obtener datos básicos de ventas
         sales_data_raw = data_manager.get_sales_lines(
@@ -188,16 +181,11 @@ def sales():
             limit=5000  # Aumentar límite para encontrar más datos
         )
         
-        print(f"🔍 DEBUG: Total de registros obtenidos: {len(sales_data_raw)}")
         # Definir variables antes del bucle
         sales_data_filtered = []
         international_count = 0
         canales_unicos = set()
         search_term = query_filters.get('search_term', '').lower() if query_filters.get('search_term') else None
-        
-        # DEBUG: Información de búsqueda
-        if search_term:
-            print(f"🔍 DEBUG: Buscando término: '{search_term}'")
         
         for sale in sales_data_raw:
             team_id = sale.get('team_id')
@@ -207,20 +195,9 @@ def sales():
             pedido = sale.get('pedido', '')
             factura = sale.get('factura', '')
             
-            # DEBUG: Para S00791 específicamente
-            if search_term and 's00791' in pedido.lower():
-                print(f"🔍 DEBUG S00791: Procesando línea con pedido: {pedido}")
-                print(f"   team_id: {team_id}")
-                print(f"   factura: {factura}")
-            
             if team_id and isinstance(team_id, list) and len(team_id) > 1:
                 nombre_canal = team_id[1]
                 canales_unicos.add(nombre_canal)
-                
-                # DEBUG para S00791
-                if search_term and 's00791' in pedido.lower():
-                    print(f"   nombre_canal: {nombre_canal}")
-                    print(f"   es internacional: {'INTERNACIONAL' in nombre_canal.upper()}")
                 
                 if 'INTERNACIONAL' in nombre_canal.upper():
                     
@@ -233,24 +210,11 @@ def sales():
                         pedido_lower = str(pedido or '').lower()
                         factura_lower = str(factura or '').lower()
                         
-                        # DEBUG para S00791
-                        if 's00791' in pedido_lower:
-                            print(f"   Comprobando búsqueda:")
-                            print(f"     - En pedido '{pedido_lower}': {search_term in pedido_lower}")
-                            print(f"     - En producto '{producto}': {search_term in producto}")
-                            print(f"     - En código '{codigo}': {search_term in codigo}")
-                            print(f"     - En cliente '{cliente}': {search_term in cliente}")
-                            print(f"     - En factura '{factura_lower}': {search_term in factura_lower}")
-                        
                         if (search_term in producto or 
                             search_term in codigo or 
                             search_term in cliente or
                             search_term in pedido_lower or
                             search_term in factura_lower):
-                            
-                            # DEBUG para S00791
-                            if 's00791' in pedido.lower():
-                                print(f"   ✅ AÑADIDA línea S00791 a resultados")
                             
                             sales_data_filtered.append(sale)
                             international_count += 1
@@ -258,17 +222,8 @@ def sales():
                         sales_data_filtered.append(sale)
                         international_count += 1
             else:
-                # DEBUG para S00791
-                if search_term and 's00791' in pedido.lower():
-                    print(f"   ❌ team_id inválido: {team_id}")
                 # Líneas sin canal válido se excluyen
                 pass
-        
-        print(f"DEBUG: Terminó el bucle. Total encontrado: {international_count}")
-        print(f"DEBUG canales únicos encontrados: {sorted(list(canales_unicos))}")
-        print(f"🌍 DEBUG: Ventas internacionales encontradas: {international_count} de {len(sales_data_raw)}")
-        
-        print(f"DEBUG: Datos filtrados antes de paginación: {len(sales_data_filtered)}")
         
         # --- PAGINACIÓN ---
         page = int(request.args.get('page', 1))
@@ -292,8 +247,6 @@ def sales():
         # Filtrar los datos para la página actual
         sales_data_filtered = sales_data_filtered[showing_from-1:showing_to]
         
-        print(f"DEBUG: Datos enviados a plantilla: {len(sales_data_filtered)}")
-
         return render_template(
             'sales.html',
             sales_data=sales_data_filtered,
@@ -331,8 +284,6 @@ def pending():
             # Remove empty values
             selected_filters = {k: v for k, v in selected_filters.items() if v}
             
-            print(f"📋 POST - Filtros seleccionados para pedidos pendientes: {selected_filters}")
-            
         else:
             # For GET, use query parameters if available
             selected_filters = {
@@ -344,18 +295,11 @@ def pending():
             
             # Remove empty values
             selected_filters = {k: v for k, v in selected_filters.items() if v}
-            
-            print(f"📋 GET - Filtros de URL para pedidos pendientes: {selected_filters}")
         
         # Obtener datos de pedidos pendientes
-        print(f"🔍 Obteniendo pedidos pendientes con filtros: {selected_filters}")
         pending_data = data_manager.get_pending_orders(filters=selected_filters)
         
         # Filtrar solo por canal INTERNACIONAL (ya filtrado en la función)
-        if pending_data:
-            print(f"✅ Se encontraron {len(pending_data)} líneas pendientes del canal INTERNACIONAL")
-        else:
-            print("❌ No se encontraron líneas pendientes")
         
         # Aplicar búsqueda adicional si está presente
         search_query = selected_filters.get('search_term', '')
@@ -369,9 +313,6 @@ def pending():
                     search_lower in item.get('producto', '').lower()):
                     filtered_data.append(item)
             pending_data = filtered_data
-            print(f"🔍 Después de aplicar búsqueda '{search_query}': {len(pending_data)} resultados")
-        
-        print(f"📊 Mostrando {len(pending_data)} líneas de pedidos pendientes")
         
         return render_template('pending.html', 
                              pending_data=pending_data,
