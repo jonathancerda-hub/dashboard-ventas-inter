@@ -330,15 +330,17 @@ class OdooManager:
             
             # DEBUG: Si estamos buscando S00791, incluir específicamente esas facturas
             if search and 'S00791' in search and s00791_move_ids:
-                print(f"🔍 DEBUG: Incluyendo específicamente facturas de S00791 en la consulta: {s00791_move_ids}")
-                # Modificar dominio para incluir solo las facturas específicas de S00791
+                print(f"🔍 DEBUG: REEMPLAZANDO dominio completamente para S00791: {s00791_move_ids}")
+                # REEMPLAZAR completamente el dominio para consultar SOLO las facturas de S00791
                 domain = [
                     ('move_id', 'in', s00791_move_ids),
-                    ('product_id.default_code', '!=', False)  # Solo productos con código
+                    ('product_id', '!=', False),  # Solo líneas con productos
+                    ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
+                    ('move_id.state', '=', 'posted')
                 ]
-                # Aumentar límite para asegurar que se obtengan todas las líneas
-                if limit:
-                    limit = max(limit, 10000)
+                # Remover límite para obtener TODAS las líneas de S00791
+                limit = None
+                print(f"🔍 DEBUG: Nuevo dominio específico para S00791: {domain}")
             
             # Obtener líneas base con todos los campos necesarios
             query_options = {
@@ -365,19 +367,31 @@ class OdooManager:
             if search and 'S00791' in search:
                 print(f"🔍 DEBUG: Analizando {len(sales_lines_base)} líneas obtenidas para S00791...")
                 s00791_lines_found = {}
+                all_move_names = set()
+                
                 for line in sales_lines_base:
                     move_name = line.get('move_name', '')
+                    all_move_names.add(move_name)
+                    
                     if 'F15-000001' in move_name:  # Buscar facturas F15-00000187, F15-00000154, F15-00000149
                         if move_name not in s00791_lines_found:
                             s00791_lines_found[move_name] = 0
                         s00791_lines_found[move_name] += 1
                 
-                print(f"🔍 DEBUG: Líneas encontradas por factura:")
+                print(f"🔍 DEBUG: Líneas encontradas por factura S00791:")
                 for factura, count in s00791_lines_found.items():
                     print(f"   📄 {factura}: {count} líneas")
                 
                 if not s00791_lines_found:
                     print("⚠️ DEBUG: NO se encontraron líneas de las facturas F15-000001xx en la consulta base")
+                    print(f"🔍 DEBUG: Algunas facturas encontradas en la consulta: {list(all_move_names)[:10]}")
+                    
+                # Verificar si obtuvimos TODAS las líneas esperadas (10 líneas)
+                total_s00791_lines = sum(s00791_lines_found.values())
+                if total_s00791_lines != 10:
+                    print(f"⚠️ DEBUG: FALTAN LÍNEAS! Esperadas: 10, Obtenidas: {total_s00791_lines}")
+                else:
+                    print(f"✅ DEBUG: TODAS las líneas S00791 obtenidas correctamente: {total_s00791_lines}")
             
             if not sales_lines_base:
                 return []
