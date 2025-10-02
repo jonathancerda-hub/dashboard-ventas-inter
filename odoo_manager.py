@@ -600,6 +600,294 @@ class OdooManager:
                 return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
             return []
 
+    def get_pending_orders(self, page=None, per_page=None, filters=None, date_from=None, date_to=None, partner_id=None, search=None, limit=5000):
+        """Obtener líneas de pedidos de venta pendientes de facturación usando datos ya disponibles"""
+        try:
+            print(f"🔍 Obteniendo pedidos pendientes de facturación (método alternativo)...")
+            
+            # Verificar conexión
+            if not self.uid or not self.models:
+                print("❌ No hay conexión a Odoo disponible")
+                if page is not None and per_page is not None:
+                    return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+                return []
+            
+            # Manejar parámetros de filtros
+            if filters:
+                date_from = filters.get('date_from')
+                date_to = filters.get('date_to')
+                partner_id = filters.get('partner_id')
+                search = filters.get('search_term')
+            
+            # NUEVA ESTRATEGIA: Usar los datos de sale.order.line que ya se obtienen en get_sales_lines
+            # Pero consultando directamente sin pasar por filtros problemáticos
+            
+            try:
+                # 1. Obtener las líneas de order que tienen sale.order.line con datos disponibles
+                print("🔍 Obteniendo líneas de pedidos desde sale.order.line disponible...")
+                
+                # Usar la misma lógica que get_sales_lines pero enfocada en sale.order.line
+                sale_order_lines_data = []
+                
+                # Consultar sale.order.line directamente con filtros mínimos
+                basic_domain = [
+                    ('product_id.default_code', '!=', False),  # Solo productos con código
+                ]
+                
+                # Filtros de fecha en el pedido (si están disponibles)
+                if date_from:
+                    basic_domain.append(('order_id.date_order', '>=', date_from))
+                if date_to:
+                    basic_domain.append(('order_id.date_order', '<=', date_to))
+                else:
+                    # Si no hay fecha específica, últimos 6 meses
+                    if not date_from:
+                        six_months_ago = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+                        basic_domain.append(('order_id.date_order', '>=', six_months_ago))
+                
+                print(f"🔍 Consultando sale.order.line con dominio básico: {basic_domain}")
+                
+                # Obtener líneas de pedidos de venta
+                order_lines = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'sale.order.line', 'search_read',
+                    [basic_domain],
+                    {
+                        'fields': [
+                            'id', 'order_id', 'product_id', 'name', 'product_uom_qty', 
+                            'qty_delivered', 'qty_invoiced', 'qty_to_invoice',
+                            'price_unit', 'price_subtotal', 'state'
+                        ],
+                        'limit': limit * 2,  # Obtener más para filtrar después
+                        'order': 'order_id desc'
+                    }
+                )
+                
+                print(f"✅ Líneas de pedidos obtenidas: {len(order_lines)}")
+                
+                if not order_lines:
+                    print("❌ No se encontraron líneas de pedidos")
+                    if page is not None and per_page is not None:
+                        return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+                    return []
+                
+                # 2. Filtrar solo las que tienen cantidad pendiente > 0
+                pending_lines = [line for line in order_lines if line.get('qty_to_invoice', 0) > 0]
+                print(f"🔍 Líneas con cantidad pendiente > 0: {len(pending_lines)}")
+                
+                # 3. Obtener información de pedidos para filtrar por equipo INTERNACIONAL
+                order_ids = list(set([line['order_id'][0] for line in pending_lines if line.get('order_id')]))
+                
+                if not order_ids:
+                    print("❌ No hay IDs de pedidos para procesar")
+                    if page is not None and per_page is not None:
+                        return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+                    return []
+                
+                print(f"📋 Obteniendo información de {len(order_ids)} pedidos...")
+                
+                # Obtener información de pedidos en lotes pequeños
+                order_data = {}
+                batch_size = 100
+                for i in range(0, len(order_ids), batch_size):
+                    batch_ids = order_ids[i:i+batch_size]
+                    try:
+                        batch_orders = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'sale.order', 'read',
+                            [batch_ids],
+                            {
+                                'fields': [
+                                    'id', 'name', 'partner_id', 'date_order', 'state',
+                                    'amount_total', 'team_id', 'user_id'
+                                ]
+                            }
+                        )
+                        for order in batch_orders:
+                            order_data[order['id']] = order
+                        print(f"   ✅ Lote {i//batch_size + 1}: {len(batch_orders)} pedidos")
+                    except Exception as e:
+                        print(f"   ⚠️ Error en lote {i//batch_size + 1}: {e}")
+                        continue
+                
+                print(f"✅ Información de pedidos obtenida: {len(order_data)} registros")
+                
+                # 4. Filtrar solo pedidos del canal INTERNACIONAL
+                international_pending = []
+                for line in pending_lines:
+                    order_id = line['order_id'][0] if line.get('order_id') else None
+                    order = order_data.get(order_id)
+                    
+                    if order and order.get('team_id'):
+                        team_name = order['team_id'][1] if len(order['team_id']) > 1 else ''
+                        if team_name == 'VENTA INTERNACIONAL':
+                            international_pending.append(line)
+                
+                print(f"🌍 Líneas del canal INTERNACIONAL con cantidad pendiente: {len(international_pending)}")
+                
+                if not international_pending:
+                    print("❌ No hay líneas pendientes del canal internacional")
+                    if page is not None and per_page is not None:
+                        return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+                    return []
+                
+                # 5. Obtener información de productos
+                product_ids = list(set([line['product_id'][0] for line in international_pending if line.get('product_id')]))
+                product_data = {}
+                
+                if product_ids:
+                    try:
+                        products = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'product.product', 'read',
+                            [product_ids],
+                            {
+                                'fields': [
+                                    'id', 'name', 'default_code', 'categ_id',
+                                    'commercial_line_national_id', 'pharmacological_classification_id',
+                                    'pharmaceutical_forms_id', 'administration_way_id', 'production_line_id'
+                                ]
+                            }
+                        )
+                        product_data = {product['id']: product for product in products}
+                        print(f"✅ Información de productos obtenida: {len(product_data)} registros")
+                    except Exception as e:
+                        print(f"⚠️ Error al obtener productos: {e}")
+                
+                # 6. Obtener información de clientes
+                partner_ids = list(set([order['partner_id'][0] for order in order_data.values() if order.get('partner_id')]))
+                partner_data = {}
+                
+                if partner_ids:
+                    try:
+                        partners = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'res.partner', 'read',
+                            [partner_ids],
+                            {
+                                'fields': ['id', 'name', 'country_id', 'vat']
+                            }
+                        )
+                        partner_data = {partner['id']: partner for partner in partners}
+                        print(f"✅ Información de clientes obtenida: {len(partner_data)} registros")
+                    except Exception as e:
+                        print(f"⚠️ Error al obtener clientes: {e}")
+                
+                # 7. Procesar y estructurar los datos finales
+                final_pending_lines = []
+                
+                for line in international_pending:
+                    try:
+                        order = order_data.get(line['order_id'][0]) if line.get('order_id') else {}
+                        product = product_data.get(line['product_id'][0]) if line.get('product_id') else {}
+                        partner = partner_data.get(order.get('partner_id')[0]) if order.get('partner_id') else {}
+                        
+                        # Aplicar filtros adicionales
+                        # Excluir categorías específicas
+                        if product.get('categ_id'):
+                            category_id = product['categ_id'][0] if isinstance(product['categ_id'], list) else product['categ_id']
+                            if category_id in [315, 333, 304, 314, 318, 339]:
+                                continue
+                        
+                        # Filtro de cliente
+                        if partner_id and order.get('partner_id'):
+                            if order['partner_id'][0] != int(partner_id):
+                                continue
+                        
+                        # Extraer país del partner
+                        partner_country = ''
+                        if partner.get('country_id') and len(partner['country_id']) > 1:
+                            partner_country = partner['country_id'][1]
+                        
+                        # Extraer mes de la fecha del pedido
+                        mes = ''
+                        if order.get('date_order'):
+                            try:
+                                fecha_obj = datetime.strptime(order['date_order'], '%Y-%m-%d %H:%M:%S')
+                                meses_es = {
+                                    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+                                    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+                                    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+                                }
+                                mes_nombre = meses_es.get(fecha_obj.month, '')
+                                mes = f"{mes_nombre} {fecha_obj.year}"
+                            except:
+                                mes = ''
+                        
+                        # Extraer línea comercial
+                        commercial_line_id = product.get('commercial_line_national_id')
+                        
+                        pending_record = {
+                            # 16 campos específicos
+                            'pedido': order.get('name', ''),
+                            'cliente': partner.get('name', ''),
+                            'pais': partner_country,
+                            'fecha': order.get('date_order', '').split(' ')[0] if order.get('date_order') else '',
+                            'mes': mes,
+                            'codigo_odoo': product.get('default_code', ''),
+                            'producto': product.get('name', ''),
+                            'descripcion': product.get('name', ''),
+                            'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
+                            'clasificacion_farmacologica': product.get('pharmacological_classification_id')[1] if product.get('pharmacological_classification_id') and len(product.get('pharmacological_classification_id')) > 1 else '',
+                            'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and len(product.get('pharmaceutical_forms_id')) > 1 else '',
+                            'via_administracion': product.get('administration_way_id')[1] if product.get('administration_way_id') and len(product.get('administration_way_id')) > 1 else '',
+                            'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and len(product.get('production_line_id')) > 1 else '',
+                            'cantidad_pendiente': line.get('qty_to_invoice', 0),
+                            'precio_unitario': line.get('price_unit', 0),
+                            'total_pendiente': line.get('qty_to_invoice', 0) * line.get('price_unit', 0),
+                            
+                            # Campos adicionales
+                            'team_id': order.get('team_id'),
+                            'state': line.get('state'),
+                            'order_state': order.get('state')
+                        }
+                        
+                        final_pending_lines.append(pending_record)
+                        
+                    except Exception as e:
+                        print(f"⚠️ Error procesando línea {line.get('id')}: {e}")
+                        continue
+                
+                # Aplicar filtro de búsqueda
+                if search:
+                    search_lower = search.lower()
+                    filtered_lines = []
+                    for line in final_pending_lines:
+                        if (search_lower in line.get('pedido', '').lower() or
+                            search_lower in line.get('cliente', '').lower() or
+                            search_lower in line.get('codigo_odoo', '').lower() or
+                            search_lower in line.get('producto', '').lower()):
+                            filtered_lines.append(line)
+                    final_pending_lines = filtered_lines
+                
+                print(f"✅ Procesadas {len(final_pending_lines)} líneas pendientes finales")
+                
+                # Manejo de paginación
+                if page is not None and per_page is not None:
+                    total_items = len(final_pending_lines)
+                    start_idx = (page - 1) * per_page
+                    end_idx = start_idx + per_page
+                    paginated_data = final_pending_lines[start_idx:end_idx]
+                    
+                    pagination = {
+                        'page': page,
+                        'per_page': per_page,
+                        'total': total_items,
+                        'pages': (total_items + per_page - 1) // per_page
+                    }
+                    
+                    return paginated_data, pagination
+                
+                return final_pending_lines
+                
+            except Exception as e:
+                print(f"❌ Error en consulta alternativa: {e}")
+                if page is not None and per_page is not None:
+                    return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+                return []
+                
+        except Exception as e:
+            print(f"❌ Error general al obtener pedidos pendientes: {e}")
+            if page is not None and per_page is not None:
+                return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+            return []
+
     def get_sales_dashboard_data(self, date_from=None, date_to=None, linea_id=None, partner_id=None):
         """Obtener datos para el dashboard de ventas"""
         try:

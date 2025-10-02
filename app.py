@@ -266,6 +266,83 @@ def sales():
                              selected_filters={},
                              fecha_actual=datetime.now())
 
+@app.route('/pending', methods=['GET', 'POST'])
+def pending():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Obtener opciones de filtro
+        filter_options = data_manager.get_filter_options()
+        
+        if request.method == 'POST':
+            # For POST, get filters from the form
+            selected_filters = {
+                'date_from': request.form.get('date_from'),
+                'date_to': request.form.get('date_to'),
+                'partner_id': request.form.get('partner_id'),
+                'search_term': request.form.get('search_term', '')
+            }
+            
+            # Remove empty values
+            selected_filters = {k: v for k, v in selected_filters.items() if v}
+            
+            print(f"📋 POST - Filtros seleccionados para pedidos pendientes: {selected_filters}")
+            
+        else:
+            # For GET, use query parameters if available
+            selected_filters = {
+                'date_from': request.args.get('date_from'),
+                'date_to': request.args.get('date_to'),
+                'partner_id': request.args.get('partner_id'),
+                'search_term': request.args.get('search_term', '')
+            }
+            
+            # Remove empty values
+            selected_filters = {k: v for k, v in selected_filters.items() if v}
+            
+            print(f"📋 GET - Filtros de URL para pedidos pendientes: {selected_filters}")
+        
+        # Obtener datos de pedidos pendientes
+        print(f"🔍 Obteniendo pedidos pendientes con filtros: {selected_filters}")
+        pending_data = data_manager.get_pending_orders(filters=selected_filters)
+        
+        # Filtrar solo por canal INTERNACIONAL (ya filtrado en la función)
+        if pending_data:
+            print(f"✅ Se encontraron {len(pending_data)} líneas pendientes del canal INTERNACIONAL")
+        else:
+            print("❌ No se encontraron líneas pendientes")
+        
+        # Aplicar búsqueda adicional si está presente
+        search_query = selected_filters.get('search_term', '')
+        if search_query and pending_data:
+            search_lower = search_query.lower()
+            filtered_data = []
+            for item in pending_data:
+                if (search_lower in item.get('pedido', '').lower() or
+                    search_lower in item.get('cliente', '').lower() or
+                    search_lower in item.get('codigo_odoo', '').lower() or
+                    search_lower in item.get('producto', '').lower()):
+                    filtered_data.append(item)
+            pending_data = filtered_data
+            print(f"🔍 Después de aplicar búsqueda '{search_query}': {len(pending_data)} resultados")
+        
+        print(f"📊 Mostrando {len(pending_data)} líneas de pedidos pendientes")
+        
+        return render_template('pending.html', 
+                             pending_data=pending_data,
+                             filter_options=filter_options,
+                             selected_filters=selected_filters,
+                             fecha_actual=datetime.now()
+        )
+    except Exception as e:
+        flash(f'Error al obtener datos de pedidos pendientes: {str(e)}', 'danger')
+        return render_template('pending.html', 
+                             pending_data=[],
+                             filter_options={'lineas': [], 'clientes': []},
+                             selected_filters={},
+                             fecha_actual=datetime.now())
+
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'username' not in session:

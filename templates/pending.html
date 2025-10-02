@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+
+{% block title %}Pedidos Pendientes{% endblock %}
+
+{% block content %}
+<!-- Header estilo Odoo -->
+<div class="dashboard-header">
+    <div class="header-left">
+        <div class="header-info">
+            <h1>PEDIDOS PENDIENTES DE FACTURACIÓN - INTERNACIONAL</h1>
+        </div>
+    </div>
+    <div class="header-nav">
+        <a href="{{ url_for('dashboard') }}" class="btn-nav"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <a href="{{ url_for('sales') }}" class="btn-nav"><i class="bi bi-receipt"></i> Ventas</a>
+        <a href="{{ url_for('pending') }}" class="btn-nav active"><i class="bi bi-clock"></i> Pendientes</a>
+        <a href="{{ url_for('meta') }}" class="btn-nav"><i class="bi bi-bullseye"></i> Metas</a>
+        <a href="{{ url_for('logout') }}" class="btn-salir"><i class="bi bi-box-arrow-right"></i> Salir</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-bar__content">
+        <form method="GET" action="{{ url_for('pending') }}" style="display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-end; width: 100%;">
+            
+            <div>
+                <label for="date_from">Desde</label>
+                <input type="date" name="date_from" id="date_from" value="{{ selected_filters.date_from or '' }}" class="form-control">
+            </div>
+            
+            <div>
+                <label for="date_to">Hasta</label>
+                <input type="date" name="date_to" id="date_to" value="{{ selected_filters.date_to or '' }}" class="form-control">
+            </div>
+            
+            <div style="flex-grow: 1;">
+                <label for="search_term">Búsqueda</label>
+                <input type="text" name="search_term" placeholder="Producto, código..." value="{{ selected_filters.search_term or '' }}" class="form-control">
+            </div>
+            
+            <div>
+                <label for="per_page">Resultados</label>
+                <select name="per_page" id="per_page" class="form-select">
+                    <option value="500" {% if request.values.get('per_page', '1000') == '500' %}selected{% endif %}>500</option>
+                    <option value="1000" {% if request.values.get('per_page', '1000') == '1000' %}selected{% endif %}>1,000</option>
+                    <option value="2000" {% if request.values.get('per_page', '1000') == '2000' %}selected{% endif %}>2,000</option>
+                    <option value="5000" {% if request.values.get('per_page', '1000') == '5000' %}selected{% endif %}>5,000</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+                <a href="{{ url_for('pending') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-clockwise"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Datos principales -->
+<div class="main-content">
+    <table class="table-hover">
+        <thead>
+            <tr>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th>País</th>
+                <th>Fecha</th>
+                <th>Mes</th>
+                <th>Código Odoo</th>
+                <th>Producto</th>
+                <th>Descripcion</th>
+                <th>Linea Comercial</th>
+                <th>Clasificación farmacológica</th>
+                <th>Formas Farmacéuticas</th>
+                <th>Vía de Administración</th>
+                <th>Línea de producción</th>
+                <th>Cantidad Pendiente</th>
+                <th>Precio unitario</th>
+                <th>Total Pendiente</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in pending_data %}
+            <tr>
+                <td>{{ line.pedido or 'N/A' }}</td>
+                <td>{{ line.cliente or 'N/A' }}</td>
+                <td>{{ line.pais or 'N/A' }}</td>
+                <td>{{ line.fecha or 'N/A' }}</td>
+                <td>{{ line.mes or 'N/A' }}</td>
+                <td>{{ line.codigo_odoo or 'N/A' }}</td>
+                <td>{{ line.producto or 'N/A' }}</td>
+                <td>{{ line.descripcion or 'N/A' }}</td>
+                <td>{{ line.linea_comercial or 'N/A' }}</td>
+                <td>{{ line.clasificacion_farmacologica or 'N/A' }}</td>
+                <td>{{ line.formas_farmaceuticas or 'N/A' }}</td>
+                <td>{{ line.via_administracion or 'N/A' }}</td>
+                <td>{{ line.linea_produccion or 'N/A' }}</td>
+                <td class="text-right">{{ line.cantidad_pendiente or 0 }}</td>
+                <td class="text-right">S/ {{ "{:,.2f}".format(line.precio_unitario if line.precio_unitario else 0) }}</td>
+                <td class="text-right">S/ {{ "{:,.2f}".format(line.total_pendiente if line.total_pendiente else 0) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% if not pending_data %}
+    <div class="alert alert-info text-center" role="alert">
+        <i class="bi bi-info-circle"></i>
+        <h5>No hay pedidos pendientes</h5>
+        <p>No se encontraron líneas de pedidos pendientes de facturación con los filtros aplicados.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+/* Usando los mismos estilos que sales.html */
+:root {
+    --color-primary: #0F4C75;
+    --color-secondary: #3282B8;
+    --color-accent: #BBE1FA;
+    --color-text: #1B262C;
+    --color-light: #F8F9FA;
+    --color-border: #E9ECEF;
+    --color-hover: #F1F3F4;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --radius: 8px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --font-small: 0.875rem;
+    --font-normal: 1rem;
+    --font-large: 1.125rem;
+}
+
+.dashboard-header {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    color: white;
+    padding: var(--space-4) var(--space-5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.header-info h1 {
+    margin: 0;
+    font-size: var(--font-large);
+    font-weight: 600;
+}
+
+.header-nav {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.btn-nav, .btn-salir {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius);
+    text-decoration: none;
+    font-size: var(--font-small);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.btn-nav {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.btn-nav:hover, .btn-nav.active {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-salir {
+    background: rgba(220,53,69,0.8);
+    color: white;
+    border: 1px solid rgba(220,53,69,0.3);
+}
+
+.btn-salir:hover {
+    background: rgba(220,53,69,1);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.filter-bar {
+    background: white;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.filter-bar__content {
+    max-width: 100%;
+}
+
+.filter-bar label {
+    display: block;
+    font-size: var(--font-small);
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.form-control, .form-select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: var(--font-small);
+    background: white;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    min-width: 120px;
+}
+
+.form-control:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(50, 130, 184, 0.1);
+}
+
+.btn {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius);
+    font-size: var(--font-small);
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    transition: all 0.2s ease;
+    border: 1px solid;
+    cursor: pointer;
+}
+
+.btn-outline-primary {
+    color: var(--color-secondary);
+    border-color: var(--color-secondary);
+    background: white;
+}
+
+.btn-outline-primary:hover {
+    background: var(--color-secondary);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background: white;
+}
+
+.btn-outline-secondary:hover {
+    background: #6c757d;
+    color: white;
+    transform: translateY(-1px);
+}
+
+.main-content {
+    background: white;
+    margin: 0;
+    overflow-x: auto;
+}
+
+.table-hover {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-small);
+    background: white;
+}
+
+.table-hover thead {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-hover th, .table-hover td {
+    padding: var(--space-3) var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.table-hover th {
+    font-weight: 600;
+    font-size: var(--font-small);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.table-hover tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table-hover tbody tr:hover {
+    background: var(--color-hover);
+}
+
+.table-hover tbody tr:nth-child(even) {
+    background: rgba(0,0,0,0.02);
+}
+
+.table-hover tbody tr:nth-child(even):hover {
+    background: var(--color-hover);
+}
+
+.text-right {
+    text-align: right;
+}
+
+.alert {
+    padding: var(--space-4);
+    margin: var(--space-4);
+    border-radius: var(--radius);
+    border: 1px solid;
+}
+
+.alert-info {
+    background: #d1ecf1;
+    border-color: #b6d4da;
+    color: #0c5460;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dashboard-header {
+        flex-direction: column;
+        gap: var(--space-3);
+        text-align: center;
+    }
+    
+    .header-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .filter-bar__content form {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .filter-bar__content form > div {
+        width: 100%;
+    }
+    
+    .main-content {
+        font-size: 0.75rem;
+    }
+    
+    .table-hover th, .table-hover td {
+        padding: var(--space-2) var(--space-1);
+    }
+}
+</style>
+{% endblock %}
