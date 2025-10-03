@@ -151,25 +151,48 @@ class OdooManager:
             return None
 
     def get_international_clients(self):
-        """Obtener clientes específicos del canal de ventas internacionales"""
+        """Obtener clientes específicos del canal de ventas internacionales de facturas y pedidos."""
         try:
-            # Buscar órdenes de venta del equipo/canal internacional
+            all_partner_ids = set()
+
+            # 1. Obtener clientes de Pedidos de Venta (pendientes)
             order_domain = [
                 ('team_id.name', 'ilike', 'INTERNACIONAL'),
-                ('state', 'in', ['sale', 'done'])  # Solo órdenes confirmadas
+                ('state', 'in', ['sale', 'done'])
             ]
-            
             orders = self.models.execute_kw(
                 self.db, self.uid, self.password, 'sale.order', 'search_read',
                 [order_domain],
-                {'fields': ['partner_id'], 'limit': 1000}
+                {'fields': ['partner_id'], 'limit': 2000}
             )
-            
-            # Extraer IDs únicos de clientes internacionales
-            partner_ids = list(set([order['partner_id'][0] for order in orders if order.get('partner_id')]))
+            for order in orders:
+                if order.get('partner_id'):
+                    all_partner_ids.add(order['partner_id'][0])
+
+            # 2. Obtener clientes de Facturas (facturado)
+            invoice_domain = [
+                ('team_id.name', 'ilike', 'INTERNACIONAL'),
+                ('move_type', 'in', ['out_invoice', 'out_refund']),
+                ('state', '=', 'posted'),
+                ('partner_id', '!=', False)
+            ]
+            invoices = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move', 'read_group',
+                [invoice_domain],
+                {
+                    'fields': ['partner_id'],
+                    'groupby': ['partner_id'],
+                    'lazy': False
+                }
+            )
+            for group in invoices:
+                if group.get('partner_id'):
+                    all_partner_ids.add(group['partner_id'][0])
+
+            partner_ids = list(all_partner_ids)
             
             if not partner_ids:
-                print("DEBUG: No se encontraron clientes del canal internacional")
+                print("DEBUG: No se encontraron clientes del canal internacional en pedidos o facturas.")
                 return []
             
             # Obtener información completa de estos clientes
@@ -194,7 +217,7 @@ class OdooManager:
             # Ordenar alfabéticamente
             clientes_internacionales.sort(key=lambda x: x[1])
             
-            print(f"DEBUG: Encontrados {len(clientes_internacionales)} clientes internacionales")
+            print(f"DEBUG: Encontrados {len(clientes_internacionales)} clientes internacionales únicos.")
             return clientes_internacionales
             
         except Exception as e:
@@ -424,6 +447,11 @@ class OdooManager:
                     ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
                     ('move_id.state', '=', 'posted')
                 ]
+                
+                # Mantener el filtro de cliente si existe
+                if partner_id:
+                    domain.append(('partner_id', '=', partner_id))
+                
                 # Remover límite para obtener TODAS las líneas de pedidos multi-factura
                 limit = None
             
@@ -806,6 +834,7 @@ class OdooManager:
                 
                 
                 # Obtener líneas de pedidos de venta
+                # SIN LÍMITE para capturar todos los pedidos pendientes, incluyendo los en estado 'credit'
                 order_lines = self.models.execute_kw(
                     self.db, self.uid, self.password, 'sale.order.line', 'search_read',
                     [basic_domain],
@@ -815,7 +844,6 @@ class OdooManager:
                             'qty_delivered', 'qty_invoiced', 'qty_to_invoice',
                             'price_unit', 'price_subtotal', 'state', 'discount'
                         ],
-                        'limit': limit * 2,  # Obtener más para filtrar después
                         'order': 'order_id desc'
                     }
                 )
@@ -827,7 +855,22 @@ class OdooManager:
                     return []
                 
                 # 2. Filtrar solo las que tienen cantidad pendiente > 0
-                pending_lines = [line for line in order_lines if line.get('qty_to_invoice', 0) > 0]
+                # INCLUIR también pedidos en estado 'credit' calculando qty_to_invoice manualmente
+                pending_lines = []
+                for line in order_lines:
+                    qty_to_invoice = line.get('qty_to_invoice', 0)
+                    line_state = line.get('state', '')
+                    
+                    # Si está en estado credit, calcular manualmente qty_to_invoice
+                    if line_state == 'credit':
+                        qty_ordered = line.get('product_uom_qty', 0)
+                        qty_invoiced = line.get('qty_invoiced', 0)
+                        qty_to_invoice = qty_ordered - qty_invoiced
+                        # Guardar el valor calculado en la línea para usarlo después
+                        line['qty_to_invoice_calculated'] = qty_to_invoice
+                    
+                    if qty_to_invoice > 0:
+                        pending_lines.append(line)
                 
                 # 3. Obtener información de pedidos para filtrar por equipo INTERNACIONAL
                 order_ids = list(set([line['order_id'][0] for line in pending_lines if line.get('order_id')]))
@@ -862,12 +905,14 @@ class OdooManager:
                 
                 # 4. Filtrar solo pedidos del canal INTERNACIONAL
                 international_pending = []
+                
                 for line in pending_lines:
                     order_id = line['order_id'][0] if line.get('order_id') else None
                     order = order_data.get(order_id)
                     
-                    if order and order.get('team_id'):
-                        team_name = order['team_id'][1] if len(order['team_id']) > 1 else ''
+                    if order:
+                        team_name = order['team_id'][1] if order.get('team_id') and len(order['team_id']) > 1 else ''
+                        
                         if team_name == 'VENTA INTERNACIONAL':
                             international_pending.append(line)
                 
@@ -974,9 +1019,9 @@ class OdooManager:
                             'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and len(product.get('pharmaceutical_forms_id')) > 1 else '',
                             'via_administracion': product.get('administration_way_id')[1] if product.get('administration_way_id') and len(product.get('administration_way_id')) > 1 else '',
                             'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and len(product.get('production_line_id')) > 1 else '',
-                            'cantidad_pendiente': line.get('qty_to_invoice', 0),
+                            'cantidad_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)),
                             'precio_unitario': line.get('price_unit', 0),
-                            'total_pendiente': line.get('qty_to_invoice', 0) * line.get('price_unit', 0),
+                            'total_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)) * line.get('price_unit', 0),
                             'discount': line.get('discount', 0),
                             
                             # Campos adicionales

@@ -118,7 +118,12 @@
         <div class="grid-item grid-3">
             <div class="tabla-container">
                 <div class="tabla-header">
-                    <h3>Meta LC Total y Venta por Línea Comercial</h3>
+                    <h3>
+                        Meta LC Total y Venta por Línea Comercial
+                        {% if nombre_cliente_seleccionado %}
+                        <br><small style="font-size: 14px; color: #666;">Cliente: {{ nombre_cliente_seleccionado }}</small>
+                        {% endif %}
+                    </h3>
                     <div class="tabla-header-botones">
                         <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
                             <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
@@ -143,6 +148,12 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <!-- DEBUG: Verificar si datos_lineas_tabla tiene contenido -->
+                        {% if datos_lineas_tabla %}
+                            <!-- DEBUG: {{ datos_lineas_tabla|length }} líneas comerciales -->
+                        {% else %}
+                            <!-- DEBUG: datos_lineas_tabla está vacío -->
+                        {% endif %}
                         {% for linea in datos_lineas_tabla %}
                         <tr>
                             <td>
