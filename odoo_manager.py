@@ -466,7 +466,8 @@ class OdooManager:
                         'fields': [
                             'payment_state', 'team_id', 'invoice_user_id', 'invoice_origin',
                             'invoice_date', 'l10n_latam_document_type_id', 'origin_number',
-                            'order_id', 'name', 'ref', 'journal_id', 'amount_total', 'state'
+                            'order_id', 'name', 'ref', 'journal_id', 'amount_total', 'state',
+                            'currency_id', 'exchange_rate'
                         ],
                         'context': {'lang': 'es_PE'}
                     }
@@ -727,7 +728,9 @@ class OdooManager:
                     'quantity': line.get('quantity'),
                     'price_unit': line.get('price_unit'),
                     'move_id': line.get('move_id'),
-                    'partner_id': line.get('partner_id')
+                    'partner_id': line.get('partner_id'),
+                    'exchange_rate': move.get('exchange_rate', 1.0),
+                    'currency_id': move.get('currency_id')
                 })
             
             # Líneas de S00791 procesadas correctamente
@@ -810,7 +813,7 @@ class OdooManager:
                         'fields': [
                             'id', 'order_id', 'product_id', 'name', 'product_uom_qty', 
                             'qty_delivered', 'qty_invoiced', 'qty_to_invoice',
-                            'price_unit', 'price_subtotal', 'state'
+                            'price_unit', 'price_subtotal', 'state', 'discount'
                         ],
                         'limit': limit * 2,  # Obtener más para filtrar después
                         'order': 'order_id desc'
@@ -974,6 +977,7 @@ class OdooManager:
                             'cantidad_pendiente': line.get('qty_to_invoice', 0),
                             'precio_unitario': line.get('price_unit', 0),
                             'total_pendiente': line.get('qty_to_invoice', 0) * line.get('price_unit', 0),
+                            'discount': line.get('discount', 0),
                             
                             # Campos adicionales
                             'team_id': order.get('team_id'),

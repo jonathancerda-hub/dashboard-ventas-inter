@@ -72,8 +72,9 @@
                 <th>Vía de Administración</th>
                 <th>Línea de producción</th>
                 <th>Cantidad Pendiente</th>
-                <th>Precio unitario</th>
-                <th>Total Pendiente</th>
+                <th>Precio unitario ($)</th>
+                <th>Descuento (%)</th>
+                <th>Total Pendiente ($)</th>
             </tr>
         </thead>
         <tbody>
@@ -93,12 +94,13 @@
                 <td>{{ line.via_administracion or 'N/A' }}</td>
                 <td>{{ line.linea_produccion or 'N/A' }}</td>
                 <td class="text-right">{{ line.cantidad_pendiente or 0 }}</td>
-                <td class="text-right">S/ {{ "{:,.2f}".format(line.precio_unitario if line.precio_unitario else 0) }}</td>
-                <td class="text-right">S/ {{ "{:,.2f}".format(line.total_pendiente if line.total_pendiente else 0) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(line.precio_unitario if line.precio_unitario else 0) }}</td>
+                <td class="text-right">{{ line.discount or 0 }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(line.total_pendiente * (1 - (line.discount or 0) / 100)) }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="16" style="text-align: center; padding: var(--space-4);">No se encontraron pedidos pendientes de facturación.</td>
+                <td colspan="17" style="text-align: center; padding: var(--space-4);">No se encontraron pedidos pendientes de facturación.</td>
             </tr>
             {% endfor %}
         </tbody>

@@ -328,6 +328,58 @@ def pending():
                              selected_filters={},
                              fecha_actual=datetime.now())
 
+@app.route('/test-dashboard')
+def test_dashboard():
+    """Ruta de prueba para verificar que los datos se están obteniendo correctamente"""
+    try:
+        # Obtener opciones de filtro básicas
+        filter_options = data_manager.get_filter_options()
+        
+        # Simular datos básicos
+        datos_lineas = [
+            {'nombre': 'PETMEDICA', 'venta': 4757527},
+            {'nombre': 'AGROVET', 'venta': 2551879},
+            {'nombre': 'AVIVET', 'venta': 1020029}
+        ]
+        
+        kpis = {
+            'venta_total': 8478773
+        }
+        
+        return render_template('dashboard_test.html',
+                             filter_options=filter_options,
+                             datos_lineas=datos_lineas,
+                             kpis=kpis)
+    
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+@app.route('/debug-dashboard')
+def debug_dashboard():
+    """Ruta de debug simplificada"""
+    try:
+        print("DEBUG: Iniciando debug dashboard...")
+        
+        # Obtener solo filtros
+        filter_options = data_manager.get_filter_options()
+        print(f"DEBUG: Filter options obtenidas: {len(filter_options.get('clientes', []))} clientes")
+        
+        # Crear datos mínimos
+        kpis = {'venta_total': 8478773}
+        datos_lineas = [{'nombre': 'TEST', 'venta': 1000}]
+        
+        # Renderizar template de prueba
+        return render_template('dashboard_test.html',
+                             filter_options=filter_options,
+                             datos_lineas=datos_lineas,
+                             kpis=kpis)
+        
+    except Exception as e:
+        print(f"DEBUG: Error en debug_dashboard: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}"
+
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'username' not in session:
@@ -368,24 +420,35 @@ def dashboard():
         print(f"DEBUG: Filtros aplicados - Fecha desde: {query_filters.get('date_from')}, "
               f"Fecha hasta: {query_filters.get('date_to')}, Cliente ID: {partner_id}")
         
-        # Obtener datos básicos de ventas para KPIs (con filtros de fecha y cliente)
-        sales_data_raw = data_manager.get_sales_lines(
-            date_from=query_filters.get('date_from'),
-            date_to=query_filters.get('date_to'),
-            partner_id=partner_id,
-            limit=1000
-        )
-        
         # Obtener datos del año completo para el gráfico de líneas comerciales
         year_start = f"{datetime.now().year}-01-01"
         year_end = f"{datetime.now().year}-12-31"
         
-        sales_data_year = data_manager.get_sales_lines(
-            date_from=year_start,
-            date_to=year_end,
-            partner_id=partner_id,  # Aplicar filtro de cliente también al año completo
-            limit=5000  # Más datos para todo el año
-        )
+        # Si no hay filtros de fecha, usar el año completo para ambos (KPIs y gráficos)
+        if not query_filters.get('date_from') and not query_filters.get('date_to'):
+            # Sin filtros de fecha: usar datos del año completo para todo
+            sales_data_raw = data_manager.get_sales_lines(
+                date_from=year_start,
+                date_to=year_end,
+                partner_id=partner_id,
+                limit=5000
+            )
+            sales_data_year = sales_data_raw  # Usar los mismos datos
+        else:
+            # Con filtros de fecha: consultas separadas
+            sales_data_raw = data_manager.get_sales_lines(
+                date_from=query_filters.get('date_from'),
+                date_to=query_filters.get('date_to'),
+                partner_id=partner_id,
+                limit=1000
+            )
+            
+            sales_data_year = data_manager.get_sales_lines(
+                date_from=year_start,
+                date_to=year_end,
+                partner_id=partner_id,  # Aplicar filtro de cliente también al año completo
+                limit=5000  # Más datos para todo el año
+            )
         
         print(f"DEBUG: KPIs - Consultando ventas con filtros: {query_filters}")
         print(f"DEBUG: KPIs - Datos obtenidos: {len(sales_data_raw)} registros")
@@ -465,6 +528,11 @@ def dashboard():
         print(f"DEBUG: Total ventas internacionales del período: S/ {total_sales_period:,.0f}")
         print(f"DEBUG: Líneas comerciales encontradas: {len(ventas_por_linea)}")
         
+        # Verificar que el total coincida con la suma de líneas comerciales
+        suma_lineas = sum(datos_lineas[i]['venta'] for i in range(len(datos_lineas)))
+        print(f"DEBUG: Suma de ventas por líneas comerciales: S/ {suma_lineas:,.0f}")
+        print(f"DEBUG: Coincidencia total_sales_period vs suma_lineas: {total_sales_period == suma_lineas}")
+        
         # Generar datos para el gráfico (ordenado por venta descendente)
         datos_lineas = []
         for nombre_linea, venta in sorted(ventas_por_linea.items(), key=lambda x: x[1], reverse=True):
@@ -524,9 +592,9 @@ def dashboard():
             'total_lines': total_lines,
             'avg_sale': total_sales / total_lines if total_lines > 0 else 0,
             
-            # KPIs que el template espera (con valores por defecto)
+            # KPIs que el template espera (usando total_sales_period para consistencia con la tabla)
             'meta_total': 0,  # Sin metas configuradas por ahora
-            'venta_total': total_sales,
+            'venta_total': total_sales_period,  # Usar el total que coincide con la suma de líneas comerciales
             'porcentaje_avance': 0,  # Sin metas, no se puede calcular
             'meta_ipn': 0,
             'venta_ipn': 0,
@@ -542,31 +610,42 @@ def dashboard():
         mes_nombre = fecha_actual.strftime('%B %Y').title()  # Ejemplo: "October 2025"
         dia_actual = fecha_actual.day
         
-        return render_template('dashboard_clean.html',
-                             sales_data=sales_data,
-                             kpis=kpis,
-                             filter_options=filter_options,
-                             selected_filters=selected_filters,
-                             fecha_actual=fecha_actual,
-                             mes_nombre=mes_nombre,
-                             dia_actual=dia_actual,
-                             # Variables adicionales que el template pueda necesitar
-                             meses_disponibles=[],
-                             mes_seleccionado=fecha_actual.strftime('%Y-%m'),
-                             datos_lineas=datos_lineas,
-                             datos_lineas_tabla=datos_lineas_tabla,
-                             datos_productos=datos_productos,
-                             datos_ciclo_vida=[],
-                             datos_forma_farmaceutica=[],
-                             drilldown_data={},
-                             drilldown_titles={},
-                             top_products_by_level={},
-                             pie_chart_data_by_level={},
-                             all_stacked_chart_data="{}",
-                             avance_lineal_pct=0,
-                             faltante_meta=0,
-                             avance_lineal_ipn_pct=0,
-                             faltante_meta_ipn=0)
+        print(f"DEBUG: Renderizando template con:")
+        print(f"  - filter_options.clientes: {len(filter_options.get('clientes', []))}")
+        print(f"  - datos_lineas: {len(datos_lineas)}")
+        print(f"  - datos_productos: {len(datos_productos)}")
+        print(f"  - kpis.venta_total: {kpis.get('venta_total', 'N/A')}")
+        
+        # Asegurar que todas las variables requeridas no sean None
+        template_vars = {
+            'sales_data': sales_data or [],
+            'kpis': kpis or {},
+            'filter_options': filter_options or {},
+            'selected_filters': selected_filters or {},
+            'fecha_actual': fecha_actual,
+            'mes_nombre': mes_nombre,
+            'dia_actual': dia_actual,
+            # Variables adicionales que el template pueda necesitar
+            'meses_disponibles': [],
+            'mes_seleccionado': fecha_actual.strftime('%Y-%m'),
+            'datos_lineas': datos_lineas or [],
+            'datos_lineas_tabla': datos_lineas_tabla or [],
+            'datos_productos': datos_productos or [],
+            'datos_ciclo_vida': [],
+            'datos_forma_farmaceutica': [],
+            'drilldown_data': {},
+            'drilldown_titles': {},
+            'top_products_by_level': {},
+            'pie_chart_data_by_level': {},
+            'all_stacked_chart_data': "{}",
+            'avance_lineal_pct': 0,
+            'faltante_meta': 0,
+            'avance_lineal_ipn_pct': 0,
+            'faltante_meta_ipn': 0
+        }
+        
+        print(f"DEBUG: Intentando renderizar template...")
+        return render_template('dashboard_clean.html', **template_vars)
     
     except Exception as e:
         flash(f'Error al cargar dashboard: {str(e)}', 'danger')
