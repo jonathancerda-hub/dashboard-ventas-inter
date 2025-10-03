@@ -451,22 +451,8 @@ def dashboard():
             if is_international:
                 sales_data.append(sale)
         
-        # Procesar ventas del año completo (filtrar SOLO por canal/team INTERNACIONAL, no por línea comercial)
-        for sale in sales_data_year:
-            is_international = False
-            
-            # Verificar SOLO por canal de ventas (team_id)
-            canal_ventas = sale.get('team_id') or sale.get('sales_channel_id')
-            if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
-                nombre_canal = canal_ventas[1].upper()
-                if 'INTERNACIONAL' in nombre_canal:
-                    is_international = True
-            
-            if is_international:
-                sales_data_international.append(sale)
-        
-        print(f"DEBUG: KPIs - Ventas internacionales del período: {len(sales_data)}")
-        print(f"DEBUG: Gráfico - Ventas internacionales del año: {len(sales_data_international)}")
+        # Usar directamente sales_data_year (ya filtrado por facturas internacionales en Odoo)
+        sales_data_international = sales_data_year
         
         # KPIs básicos (basados en ventas internacionales filtradas)
         total_sales = sum([abs(sale.get('total', 0)) for sale in sales_data])
@@ -476,8 +462,6 @@ def dashboard():
         # Procesar datos por línea comercial para TABLA (usando ventas internacionales del AÑO COMPLETO)
         ventas_por_linea = {}
         total_sales_year = 0
-        
-        print(f"DEBUG: Procesando {len(sales_data_international)} ventas internacionales del año para la tabla...")
         
         for sale in sales_data_international:
             linea_comercial = sale.get('commercial_line_national_id')
@@ -498,19 +482,6 @@ def dashboard():
                 ventas_por_linea[nombre_linea] = ventas_por_linea.get(nombre_linea, 0) + venta_amount_usd
                 total_sales_year += venta_amount_usd
         
-        print(f"DEBUG: Total ventas internacionales del año: $ {total_sales_year:,.0f}")
-        print(f"DEBUG: Líneas comerciales encontradas: {len(ventas_por_linea)}")
-        if len(ventas_por_linea) == 0:
-            print(f"DEBUG: ADVERTENCIA - No se encontraron líneas comerciales en los datos")
-            print(f"DEBUG: Muestra de primera venta (si existe):")
-            if sales_data_international:
-                primera_venta = sales_data_international[0]
-                print(f"  - team_id: {primera_venta.get('team_id')}")
-                print(f"  - commercial_line_national_id: {primera_venta.get('commercial_line_national_id')}")
-                print(f"  - total: {primera_venta.get('total')}")
-        for nombre, venta in sorted(ventas_por_linea.items(), key=lambda x: x[1], reverse=True):
-            print(f"  - {nombre}: $ {venta:,.0f}")
-        
         # Generar datos para el gráfico (ordenado por venta descendente)
         datos_lineas = []
         for nombre_linea, venta in sorted(ventas_por_linea.items(), key=lambda x: x[1], reverse=True):
@@ -520,18 +491,6 @@ def dashboard():
                     'venta': venta,
                     'meta': 0  # Por ahora sin metas
                 })
-
-        # Verificar que el total coincida con la suma de líneas comerciales
-        try:
-            suma_lineas = sum(item['venta'] for item in datos_lineas)
-        except Exception:
-            suma_lineas = 0
-        print(f"DEBUG: Suma de ventas por líneas comerciales: S/ {suma_lineas:,.0f}")
-        print(f"DEBUG: Coincidencia total_sales_year vs suma_lineas: {total_sales_year == suma_lineas}")
-        
-        print(f"DEBUG: Datos líneas generados: {len(datos_lineas)} líneas comerciales")
-        for i, linea in enumerate(datos_lineas[:5]):  # Mostrar las primeras 5
-            print(f"  {i+1}. {linea['nombre']}: S/ {linea['venta']:,.0f}")
         
         # Procesar datos por producto para gráfico (usando ventas internacionales del año)
         ventas_por_producto = {}
@@ -553,10 +512,6 @@ def dashboard():
                     'nombre': nombre_producto,
                     'venta': venta
                 })
-        
-        print(f"DEBUG: Productos generados: {len(datos_productos)} productos")
-        for i, producto in enumerate(datos_productos):
-            print(f"  {i+1}. {producto['nombre']}: S/ {producto['venta']:,.0f}")
         
         # Para la tabla (agregar datos adicionales si es necesario)
         datos_lineas_tabla = datos_lineas.copy()

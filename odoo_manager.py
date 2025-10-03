@@ -312,6 +312,24 @@ class OdooManager:
                     return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 return []
             
+            # Obtener lista de facturas internacionales si no hay partner_id específico
+            international_invoice_ids = None
+            
+            if not partner_id:
+                # Obtener DIRECTAMENTE facturas con team_id INTERNACIONAL
+                invoices_intl = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'account.move', 'search',
+                    [[
+                        ('team_id.name', 'ilike', 'INTERNACIONAL'),
+                        ('move_type', 'in', ['out_invoice', 'out_refund']),
+                        ('state', '=', 'posted')
+                    ]],
+                    {'limit': 5000}
+                )
+                
+                if invoices_intl:
+                    international_invoice_ids = invoices_intl
+            
             # Manejar parámetros de ambos formatos de llamada
             if filters:
                 date_from = filters.get('date_from')
@@ -342,10 +360,12 @@ class OdooManager:
             domain = [
                 ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
                 ('move_id.state', '=', 'posted'),
-                ('product_id', '!=', False)  # Solo líneas con producto (excluye impuestos, descuentos, etc.)
+                ('product_id', '!=', False),  # Solo líneas con producto
             ]
             
-            # NO aplicar filtros de código, categorías ni display_type
+            # Filtrar por facturas internacionales
+            if international_invoice_ids:
+                domain.append(('move_id', 'in', international_invoice_ids))
             
             # Filtros de fecha
             if date_from:
@@ -364,9 +384,8 @@ class OdooManager:
             if search and search_factura:
                 domain.append(('move_name', 'ilike', search))
             
-            # Filtro de cliente: primero obtener los move_ids del cliente, luego filtrar líneas
+            # Filtro de cliente
             if partner_id:
-                # Buscar facturas del cliente
                 client_moves = self.models.execute_kw(
                     self.db, self.uid, self.password, 'account.move', 'search',
                     [[
@@ -375,23 +394,15 @@ class OdooManager:
                         ('state', '=', 'posted')
                     ]]
                 )
-                print(f"DEBUG FILTRO CLIENTE: Partner ID {partner_id} tiene {len(client_moves)} facturas")
                 if client_moves:
                     domain.append(('move_id', 'in', client_moves))
-                    print(f"DEBUG FILTRO CLIENTE: Agregado filtro move_id in {len(client_moves)} facturas")
-                    print(f"DEBUG FILTRO CLIENTE: IDs de facturas: {client_moves[:5]}... (mostrando primeras 5)")
                 else:
                     # Si no hay facturas para este cliente, retornar vacío
-                    print(f"DEBUG FILTRO CLIENTE: No se encontraron facturas para partner_id {partner_id}")
                     return []
             
             # Filtro de línea comercial
             if linea_id:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
-            
-            # DEBUG: Mostrar el domain completo
-            if partner_id:
-                print(f"DEBUG DOMAIN: {domain}")
             
             # Buscar facturas del pedido específico si hay búsqueda de pedido
             searched_move_ids = []
