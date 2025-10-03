@@ -178,10 +178,12 @@ def sales():
             date_to=query_filters.get('date_to'),
             partner_id=None,
             linea_id=None,
-            limit=5000  # Aumentar límite para encontrar más datos
+            search=query_filters.get('search_term'),  # Pasar el término de búsqueda
+            limit=None  # Sin límite para obtener todos los datos
         )
         
-        # Definir variables antes del bucle
+        
+        # Filtrar por canal INTERNACIONAL
         sales_data_filtered = []
         international_count = 0
         canales_unicos = set()
@@ -373,7 +375,7 @@ def dashboard():
             date_from=query_filters.get('date_from'),
             date_to=query_filters.get('date_to'),
             partner_id=partner_id,
-            limit=1000
+            limit=None  # Sin límite para obtener todos los datos
         )
         
         # Obtener datos del año completo para el gráfico de líneas comerciales
@@ -382,17 +384,34 @@ def dashboard():
         
         print(f"DEBUG: Consultando ventas del año con partner_id={partner_id}")
         
+        # Traer TODO sin filtro de fechas (para todos los clientes)
         sales_data_year = data_manager.get_sales_lines(
-            date_from=year_start,
-            date_to=year_end,
-            partner_id=partner_id,  # Aplicar filtro de cliente también al año completo
-            limit=5000  # Más datos para todo el año
+            date_from=None,
+            date_to=None,
+            partner_id=partner_id,
+            limit=None
         )
         
         print(f"DEBUG: KPIs - Consultando ventas con filtros: {query_filters}")
         print(f"DEBUG: KPIs - Datos obtenidos: {len(sales_data_raw)} registros")
         print(f"DEBUG: Gráfico - Consultando ventas del {year_start} al {year_end}")
         print(f"DEBUG: Gráfico - Datos del año obtenidos: {len(sales_data_year)} registros")
+        
+        # DEBUG: Verificar si F15-00000147 está en los datos del dashboard
+        if partner_id:
+            f15_en_dashboard = False
+            for sale in sales_data_year:
+                factura = sale.get('factura', '')
+                if 'F15-00000147' in str(factura):
+                    f15_en_dashboard = True
+                    print(f"DEBUG DASHBOARD: ✅ F15-00000147 encontrada para cliente {partner_id}")
+                    print(f"  Factura: {factura}")
+                    print(f"  Cliente: {sale.get('cliente')}")
+                    print(f"  Total: {sale.get('total')}")
+                    print(f"  Línea Comercial: {sale.get('commercial_line_national_id')}")
+                    break
+            if not f15_en_dashboard:
+                print(f"DEBUG DASHBOARD: ❌ F15-00000147 NO encontrada en {len(sales_data_year)} registros para cliente {partner_id}")
         
         # Debug adicional: ver qué canales hay en los datos
         if sales_data_year:
@@ -467,12 +486,19 @@ def dashboard():
             else:
                 nombre_linea = 'Sin Línea Comercial'
             
-            venta_amount = abs(sale.get('total', 0))
-            if venta_amount > 0:  # Solo procesar ventas con monto
-                ventas_por_linea[nombre_linea] = ventas_por_linea.get(nombre_linea, 0) + venta_amount
-                total_sales_year += venta_amount
+            # Obtener monto y tipo de cambio
+            venta_amount_soles = abs(sale.get('total', 0))
+            exchange_rate = sale.get('exchange_rate', 1.0)
+            if exchange_rate and exchange_rate > 0:
+                venta_amount_usd = venta_amount_soles / exchange_rate
+            else:
+                venta_amount_usd = venta_amount_soles  # Si no hay tipo de cambio, asumir que ya está en USD
+            
+            if venta_amount_usd > 0:  # Solo procesar ventas con monto
+                ventas_por_linea[nombre_linea] = ventas_por_linea.get(nombre_linea, 0) + venta_amount_usd
+                total_sales_year += venta_amount_usd
         
-        print(f"DEBUG: Total ventas internacionales del año: S/ {total_sales_year:,.0f}")
+        print(f"DEBUG: Total ventas internacionales del año: $ {total_sales_year:,.0f}")
         print(f"DEBUG: Líneas comerciales encontradas: {len(ventas_por_linea)}")
         if len(ventas_por_linea) == 0:
             print(f"DEBUG: ADVERTENCIA - No se encontraron líneas comerciales en los datos")
@@ -483,7 +509,7 @@ def dashboard():
                 print(f"  - commercial_line_national_id: {primera_venta.get('commercial_line_national_id')}")
                 print(f"  - total: {primera_venta.get('total')}")
         for nombre, venta in sorted(ventas_por_linea.items(), key=lambda x: x[1], reverse=True):
-            print(f"  - {nombre}: S/ {venta:,.0f}")
+            print(f"  - {nombre}: $ {venta:,.0f}")
         
         # Generar datos para el gráfico (ordenado por venta descendente)
         datos_lineas = []

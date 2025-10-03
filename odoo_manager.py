@@ -320,50 +320,81 @@ class OdooManager:
                 linea_id = filters.get('linea_id')
                 search = filters.get('search')
             
+            # Detectar tipo de búsqueda ANTES de construir el dominio
+            search_pedido = None
+            search_factura = False
+            
+            if search:
+                search_upper = search.upper()
+                import re
+                # Buscar patrones de pedido (S00XXX, S01XXX, etc.)
+                pedido_pattern = r'S\d{5}'
+                pedido_match = re.search(pedido_pattern, search_upper)
+                if pedido_match:
+                    search_pedido = pedido_match.group()
+                
+                # Detectar si se está buscando una factura (F, FF, FFF seguido de números o guiones)
+                factura_pattern = r'F+\s*[A-Z]?\d+[-\d]*'
+                if re.search(factura_pattern, search_upper):
+                    search_factura = True
+            
             # Construir dominio de filtro
             domain = [
                 ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
                 ('move_id.state', '=', 'posted'),
-                ('product_id.default_code', '!=', False)  # Solo productos con código
+                ('product_id', '!=', False)  # Solo líneas con producto (excluye impuestos, descuentos, etc.)
             ]
             
-            # Filtros de exclusión de categorías específicas
-            excluded_categories = [315, 333, 304, 314, 318, 339]
-            domain.append(('product_id.categ_id', 'not in', excluded_categories))
+            # NO aplicar filtros de código, categorías ni display_type
             
             # Filtros de fecha
             if date_from:
                 domain.append(('move_id.invoice_date', '>=', date_from))
             else:
                 # Si no hay fecha de inicio, por defecto buscar en los últimos 30 días
-                if not date_to:
+                # PERO: Si hay filtro de cliente, NO aplicar límite de 30 días
+                if not date_to and not partner_id:
                     thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
                     domain.append(('move_id.invoice_date', '>=', thirty_days_ago))
 
             if date_to:
                 domain.append(('move_id.invoice_date', '<=', date_to))
             
-            # Filtro de cliente
+            # Si se está buscando una factura específica, agregar filtro por nombre de factura
+            if search and search_factura:
+                domain.append(('move_name', 'ilike', search))
+            
+            # Filtro de cliente: primero obtener los move_ids del cliente, luego filtrar líneas
             if partner_id:
-                domain.append(('partner_id', '=', partner_id))
+                # Buscar facturas del cliente
+                client_moves = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'account.move', 'search',
+                    [[
+                        ('partner_id', '=', partner_id),
+                        ('move_type', 'in', ['out_invoice', 'out_refund']),
+                        ('state', '=', 'posted')
+                    ]]
+                )
+                print(f"DEBUG FILTRO CLIENTE: Partner ID {partner_id} tiene {len(client_moves)} facturas")
+                if client_moves:
+                    domain.append(('move_id', 'in', client_moves))
+                    print(f"DEBUG FILTRO CLIENTE: Agregado filtro move_id in {len(client_moves)} facturas")
+                    print(f"DEBUG FILTRO CLIENTE: IDs de facturas: {client_moves[:5]}... (mostrando primeras 5)")
+                else:
+                    # Si no hay facturas para este cliente, retornar vacío
+                    print(f"DEBUG FILTRO CLIENTE: No se encontraron facturas para partner_id {partner_id}")
+                    return []
             
             # Filtro de línea comercial
             if linea_id:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
             
-            # Buscar facturas del pedido específico si hay búsqueda
-            searched_move_ids = []
-            search_pedido = None
+            # DEBUG: Mostrar el domain completo
+            if partner_id:
+                print(f"DEBUG DOMAIN: {domain}")
             
-            # Detectar si se está buscando un pedido específico
-            if search:
-                search_upper = search.upper()
-                # Buscar patrones de pedido (S00XXX, S01XXX, etc.)
-                import re
-                pedido_pattern = r'S\d{5}'
-                pedido_match = re.search(pedido_pattern, search_upper)
-                if pedido_match:
-                    search_pedido = pedido_match.group()
+            # Buscar facturas del pedido específico si hay búsqueda de pedido
+            searched_move_ids = []
             
             if search_pedido:
                 try:
@@ -386,7 +417,8 @@ class OdooManager:
             
             # SOLUCIÓN MEJORADA: Detectar TODOS los pedidos multi-factura automáticamente
             # Funciona tanto con búsqueda como sin ella
-            if date_from and date_to:
+            # PERO: Si se está buscando una factura específica, NO usar lógica multi-factura
+            if date_from and date_to and not search_factura:
                 try:
                     # Si estamos buscando un pedido específico, NO hacer la detección automática
                     if not search_pedido:
@@ -474,6 +506,41 @@ class OdooManager:
                 query_options
             )
             
+            print(f"DEBUG: Total líneas obtenidas de account.move.line: {len(sales_lines_base)}")
+            
+            # DEBUG: Si hay partner_id, verificar por qué solo trae pocas líneas
+            if partner_id and len(sales_lines_base) < 20:
+                print(f"DEBUG FILTRO CLIENTE: Solo {len(sales_lines_base)} líneas para {len(client_moves) if 'client_moves' in locals() else 0} facturas")
+                # Probar sin filtros de producto para ver cuántas líneas hay realmente
+                domain_test = [
+                    ('move_id', 'in', client_moves),
+                    ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
+                    ('move_id.state', '=', 'posted')
+                ]
+                if date_from:
+                    domain_test.append(('move_id.invoice_date', '>=', date_from))
+                if date_to:
+                    domain_test.append(('move_id.invoice_date', '<=', date_to))
+                
+                test_lines_full = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'account.move.line', 'search_read',
+                    [domain_test],
+                    {'fields': ['display_type', 'product_id', 'balance'], 'limit': 100}
+                )
+                print(f"DEBUG FILTRO CLIENTE: Sin filtros de producto/display hay {len(test_lines_full)} líneas totales")
+                
+                # Contar por display_type
+                display_types = {}
+                con_producto = 0
+                for line in test_lines_full:
+                    dt = line.get('display_type') or 'False/None'
+                    display_types[dt] = display_types.get(dt, 0) + 1
+                    if line.get('product_id'):
+                        con_producto += 1
+                
+                print(f"DEBUG FILTRO CLIENTE: Display types: {display_types}")
+                print(f"DEBUG FILTRO CLIENTE: Líneas con producto: {con_producto}")
+            
             
             if not sales_lines_base:
                 return []
@@ -481,7 +548,8 @@ class OdooManager:
             # Obtener IDs únicos para consultas relacionadas
             move_ids = list(set([line['move_id'][0] for line in sales_lines_base if line.get('move_id')]))
             product_ids = list(set([line['product_id'][0] for line in sales_lines_base if line.get('product_id')]))
-            partner_ids = list(set([line['partner_id'][0] for line in sales_lines_base if line.get('partner_id')]))
+            # partner_ids se obtiene después de consultar los moves
+            partner_ids = []  # Inicializar vacío
             
             
             # Obtener datos de facturas (account.move) - Asientos contables
@@ -495,12 +563,15 @@ class OdooManager:
                             'payment_state', 'team_id', 'invoice_user_id', 'invoice_origin',
                             'invoice_date', 'l10n_latam_document_type_id', 'origin_number',
                             'order_id', 'name', 'ref', 'journal_id', 'amount_total', 'state',
-                            'currency_id', 'exchange_rate'
+                            'currency_id', 'exchange_rate', 'partner_id'
                         ],
                         'context': {'lang': 'es_PE'}
                     }
                 )
                 move_data = {m['id']: m for m in moves}
+                
+                # Extraer partner_ids de los moves (facturas) en lugar de las líneas
+                partner_ids = list(set([m['partner_id'][0] for m in moves if m.get('partner_id')]))
                 
                 # DEBUG: Mostrar todos los canales de venta (team_id) únicos
                 unique_teams = set()
@@ -553,21 +624,6 @@ class OdooManager:
                     }
                 )
                 order_data = {o['id']: o for o in orders}
-                
-                # DEBUG: Verificar si se obtuvo el pedido S00791
-                s00791_order = None
-                for order in orders:
-                    if order.get('name') == 'S00791':
-                        s00791_order = order
-                        break
-                
-                if not s00791_order and search and 'S00791' in search:
-                    # Buscar directamente el pedido S00791
-                    s00791_direct = self.models.execute_kw(
-                        self.db, self.uid, self.password, 'sale.order', 'search_read',
-                        [[('name', '=', 'S00791')]],
-                        {'fields': ['id', 'name'], 'limit': 1}
-                    )
             
             # Obtener datos de líneas de orden de venta con más campos
             sale_line_data = {}
@@ -614,12 +670,14 @@ class OdooManager:
             for line in sales_lines_base:
                 move_id = line.get('move_id')
                 product_id = line.get('product_id')
-                partner_id = line.get('partner_id')
                 
                 # Obtener datos relacionados
                 move = move_data.get(move_id[0], {}) if move_id else {}
                 product = product_data.get(product_id[0], {}) if product_id else {}
-                partner = partner_data.get(partner_id[0], {}) if partner_id else {}
+                
+                # Obtener partner_id desde el move (factura) en lugar de la línea
+                partner_id_from_move = move.get('partner_id')
+                partner = partner_data.get(partner_id_from_move[0], {}) if partner_id_from_move else {}
                 
                 # Obtener datos de orden de venta
                 order_id = move.get('order_id')
