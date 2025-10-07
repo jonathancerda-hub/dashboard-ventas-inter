@@ -97,7 +97,7 @@
                         <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
                             <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
                         </a>
-                        <a href="{{ url_for('export_excel_sales') }}" class="btn-export-tabla">
+                        <a href="{{ url_for('export_excel_sales', cliente_id=selected_filters.cliente_id) }}" class="btn-export-tabla">
                             <i class="bi bi-file-earmark-excel"></i> Exportar Detalle
                         </a>
                     </div>

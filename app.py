@@ -1107,58 +1107,63 @@ def export_excel_sales():
     
     try:
         # Obtener filtros de la URL
-        date_from = request.args.get('date_from')
-        date_to = request.args.get('date_to')
-        linea_id = request.args.get('linea_id')
-        partner_id = request.args.get('partner_id')
+        # Para el dashboard, solo necesitamos el cliente_id. Las fechas se manejan por defecto (año actual).
+        cliente_id = request.args.get('cliente_id')
         
         # Convertir a tipos apropiados
-        if linea_id:
+        partner_id = None
+        if cliente_id:
             try:
-                linea_id = int(linea_id)
-            except (ValueError, TypeError):
-                linea_id = None
-        
-        if partner_id:
-            try:
-                partner_id = int(partner_id)
+                partner_id = int(cliente_id)
             except (ValueError, TypeError):
                 partner_id = None
         
-        # Obtener datos
-        sales_data = data_manager.get_sales_lines(
-            date_from=date_from,
-            date_to=date_to,
+        # Obtener datos de ventas para el cliente seleccionado (o todos si no hay selección)
+        # Usando las fechas por defecto del año actual, igual que el dashboard.
+        date_from = f"{datetime.now().year}-01-01"
+        date_to = f"{datetime.now().year}-12-31"
+        
+        sales_data_raw = data_manager.get_sales_lines(
+            date_from=date_from, 
+            date_to=date_to, 
             partner_id=partner_id,
-            linea_id=linea_id,
-            limit=10000  # Más datos para export
+            limit=None # Sin límite para exportar todo
         )
         
-        # Filtrar VENTA INTERNACIONAL (exportaciones)
-        sales_data_filtered = []
-        for sale in sales_data:
-            linea_comercial = sale.get('commercial_line_national_id')
-            if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1:
-                nombre_linea = linea_comercial[1].upper()
-                if 'VENTA INTERNACIONAL' in nombre_linea:
-                    continue
-            
-            # También filtrar por canal de ventas
-            canal_ventas = sale.get('sales_channel_id')
-            if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1:
-                nombre_canal = canal_ventas[1].upper()
-                if 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                    continue
-            
-            sales_data_filtered.append(sale)
-        
         # Crear DataFrame
-        df = pd.DataFrame(sales_data_filtered)
+        df = pd.DataFrame(sales_data_raw)
+        
+        # Seleccionar y renombrar las columnas según lo solicitado
+        column_mapping = {
+            'pedido': 'Pedido',
+            'factura': 'Factura',
+            'cliente': 'Cliente',
+            'pais': 'País',
+            'fecha': 'Fecha',
+            'mes': 'Mes',
+            'codigo_odoo': 'Código Odoo',
+            'producto': 'Producto',
+            'descripcion': 'Descripcion',
+            'linea_comercial': 'Linea Comercial',
+            'clasificacion_farmacologica': 'Clasificación farmacológica',
+            'formas_farmaceuticas': 'Formas Farmacéuticas',
+            'via_administracion': 'Vía de Administración',
+            'linea_produccion': 'Línea de producción',
+            'cantidad_facturada': 'Cantidad Facturada',
+            'precio_unitario': 'Precio unitario ($)',
+            'amount_currency': 'Total ($)' # Usar amount_currency para el total
+        }
+        
+        # Filtrar el DataFrame para que solo contenga las columnas deseadas
+        df_export = df[list(column_mapping.keys())].copy()
+        
+        # Renombrar las columnas
+        df_export.rename(columns=column_mapping, inplace=True)
         
         # Crear archivo Excel en memoria
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Ventas', index=False)
+            df_export.to_excel(writer, sheet_name='Detalle_Ventas_Internacional', index=False)
         
         output.seek(0)
         
