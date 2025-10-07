@@ -1,6 +1,42 @@
 /* static/css/style.css */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
+/* === LOADING SPINNER (COMENTADO) === */
+/* .spinner-loading {
+/*  position: relative;
+/*  width: 45px;
+/*  height: 45px;
+/* }
+/* 
+/* .spinner-loading div {
+/*  position: absolute;
+/*  width: 50%;
+/*  height: 150%;
+/*  background: #875A7B;
+/*  transform: rotate(calc(var(--rotation) * 1deg)) translate(0, calc(var(--translation) * 1%));
+/*  animation: spinner-fzua35 1s calc(var(--delay) * 1s) infinite ease;
+/* }
+/* 
+/* .spinner-loading div:nth-child(1) { --delay: 0.1; --rotation: 36; --translation: 150; }
+/* .spinner-loading div:nth-child(2) { --delay: 0.2; --rotation: 72; --translation: 150; }
+/* .spinner-loading div:nth-child(3) { --delay: 0.3; --rotation: 108; --translation: 150; }
+/* .spinner-loading div:nth-child(4) { --delay: 0.4; --rotation: 144; --translation: 150; }
+/* .spinner-loading div:nth-child(5) { --delay: 0.5; --rotation: 180; --translation: 150; }
+/* .spinner-loading div:nth-child(6) { --delay: 0.6; --rotation: 216; --translation: 150; }
+/* .spinner-loading div:nth-child(7) { --delay: 0.7; --rotation: 252; --translation: 150; }
+/* .spinner-loading div:nth-child(8) { --delay: 0.8; --rotation: 288; --translation: 150; }
+/* .spinner-loading div:nth-child(9) { --delay: 0.9; --rotation: 324; --translation: 150; }
+/* .spinner-loading div:nth-child(10) { --delay: 1; --rotation: 360; --translation: 150; }
+/* 
+/* @keyframes spinner-fzua35 {
+/*  0%, 10%, 20%, 30%, 50%, 60%, 70%, 80%, 90%, 100% {
+/*    transform: rotate(calc(var(--rotation) * 1deg)) translate(0, calc(var(--translation) * 1%));
+/*  }
+/*  50% {
+/*    transform: rotate(calc(var(--rotation) * 1deg)) translate(0, calc(var(--translation) * 1.5%));
+/*  }
+/* } */
+
 :root {
     /* Colores Odoo Oficiales */
     --odoo-primary: #875A7B;      /* Color principal de Odoo */
@@ -888,22 +924,60 @@ tr:hover {
 
 .header-nav {
     display: flex;
-    gap: 15px;
+    gap: 12px;
     align-items: center;
 }
 
+/* Expanding Hover Menu Styles */
 .btn-nav, .btn-salir, .btn-nav:visited, .btn-salir:visited {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
+    justify-content: center;
+    padding: 0;
     border: none;
-    border-radius: 6px;
+    border-radius: 16px;
     cursor: pointer;
     font-weight: 600;
     font-size: 14px;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 50px;
+    height: 50px;
+    position: relative;
+    overflow: visible;
+}
+
+.btn-nav i, .btn-salir i {
+    font-size: 22px;
+    position: relative;
+    z-index: 1;
+}
+
+.btn-nav .nav-text, .btn-salir .nav-text {
+    position: absolute;
+    left: 100%;
+    white-space: nowrap;
+    padding-left: 12px;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+
+/* Hover state - expand */
+.btn-nav:hover, .btn-salir:hover {
+    width: auto;
+    padding-right: 16px;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-nav:hover .nav-text, .btn-salir:hover .nav-text {
+    position: relative;
+    left: auto;
+    padding-left: 8px;
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .btn-nav {
@@ -911,10 +985,34 @@ tr:hover {
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
-.btn-nav:hover { background-color: rgba(255, 255, 255, 0.25); transform: translateY(-1px); }
 
-.btn-salir { background: #e74c3c; color: white; }
-.btn-salir:hover { background-color: #c0392b; transform: translateY(-1px); }
+.btn-nav:hover { 
+    background-color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-salir { 
+    background: #e74c3c; 
+    color: white; 
+    border: 1px solid transparent;
+}
+
+.btn-salir:hover { 
+    background-color: #c0392b;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
+/* Animación para el texto que aparece */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
 
 .status-red { background-color: #ffe5e5; color: #b94a48; padding: 4px 8px; border-radius: 4px; }
 .status-yellow { background-color: #fff7e0; color: #bfa243; padding: 4px 8px; border-radius: 4px; }

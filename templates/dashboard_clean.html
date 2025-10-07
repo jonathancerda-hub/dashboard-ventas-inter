@@ -2,10 +2,6 @@
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 {% endblock %}
 
 {% block content %}
@@ -15,81 +11,54 @@
     <div class="header-left">
         <div class="header-info">
             <!-- El logo se movió al CSS como fondo para un look más limpio -->
-            <h1>AVANCE DE VENTAS - {{ mes_nombre.upper() }}</h1>
+            <h1>
+                <i class="bi bi-currency-dollar"></i> DASHBOARD DE VENTAS INTERNACIONAL
+            </h1>
             <span class="header-username">{{ session.user_name }}</span>
         </div>
     </div>
     
-    <!-- Calendario central -->
-    <a id="date-picker-trigger" class="calendario-dia" style="cursor: pointer; text-decoration: none;">
-        <div class="dia-numero">{{ dia_actual }}</div>
-        <div class="dia-texto">{{ mes_nombre.split()[0][:3] }}</div>
-    </a>
-    
     <div class="header-nav">
-        <select id="mes-selector" onchange="cambiarMes(this.value)">
-            {% for mes in meses_disponibles %}
-            <option value="{{ mes.key }}" {% if mes.key == mes_seleccionado %}selected{% endif %}>
-                {{ mes.nombre }}
-            </option>
-            {% endfor %}
-        </select>
-        <a href="{{ url_for('sales') }}" class="btn-nav"><i class="bi bi-table"></i> Ventas</a>
-        <a href="{{ url_for('pending') }}" class="btn-nav"><i class="bi bi-clock"></i> Pendientes</a>
-        <a href="{{ url_for('meta') }}" class="btn-nav"><i class="bi bi-bullseye"></i> Metas</a>
-        <a href="{{ url_for('metas_vendedor') }}" class="btn-nav"><i class="bi bi-people"></i> Metas Vendedor</a>
-        <a href="{{ url_for('logout') }}" class="btn-salir"><i class="bi bi-box-arrow-right"></i> Salir</a>
+        <a href="{{ url_for('sales') }}" class="btn-nav" data-text="Ventas">
+            <i class="bi bi-table"></i>
+            <span class="nav-text">Ventas</span>
+        </a>
+        <a href="{{ url_for('pending') }}" class="btn-nav" data-text="Pendientes">
+            <i class="bi bi-clock"></i>
+            <span class="nav-text">Pendientes</span>
+        </a>
+        <a href="{{ url_for('meta') }}" class="btn-nav" data-text="Metas">
+            <i class="bi bi-bullseye"></i>
+            <span class="nav-text">Metas</span>
+        </a>
+        <a href="{{ url_for('metas_vendedor') }}" class="btn-nav" data-text="Metas Vendedor">
+            <i class="bi bi-people"></i>
+            <span class="nav-text">Metas Vendedor</span>
+        </a>
+        <a href="{{ url_for('logout') }}" class="btn-salir" data-text="Salir">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="nav-text">Salir</span>
+        </a>
     </div>
 </div>
 
 <!-- Dashboard principal -->
 <div class="dashboard-container">
-    <!-- Fila superior - KPIs principales -->
-    <div class="kpi-row">
-        <div class="kpi-card kpi-meta">
-            <div class="kpi-label">Meta</div>
-            <div class="kpi-value">{{ "{:,.0f}".format(kpis.meta_total) }}</div>
-        </div>
-        
-        <div class="kpi-card">
-            <div class="kpi-label">Venta</div>  
-            <div class="kpi-value">{{ "{:,.0f}".format(kpis.venta_total) }}</div>
-        </div>
-        
-        <div class="kpi-card kpi-avance">
-            <div class="kpi-label">% Avance</div>
-            <div class="kpi-value">{{ "{:.1f} %".format(kpis.porcentaje_avance) }}</div>
-        </div>
-        
-        <div class="kpi-card">
-            <div class="kpi-label">Meta IPN</div>
-            <div class="kpi-value">{{ "{:,.0f}".format(kpis.meta_ipn) }}</div>
-        </div>
-        
-        <div class="kpi-card">
-            <div class="kpi-label">Venta IPN</div>
-            <div class="kpi-value">{{ "{:,.0f}".format(kpis.venta_ipn) }}</div>
-        </div>
-        
-        <div class="kpi-card kpi-avance">
-            <div class="kpi-label">% Avance IPN</div>
-            <div class="kpi-value">{{ "{:.1f} %".format(kpis.porcentaje_avance_ipn) }}</div>
-        </div>
-        <!-- Proyección lineal y faltante movidas a Avance Diario (ver más abajo) -->
-    </div>
-    
     <!-- NUEVO LAYOUT CON CSS GRID 2x2 -->
     <div class="dashboard-grid">
         <!-- Posición 1: Filtro de Clientes (arriba izquierda) -->
         <div class="grid-item grid-1">
             <div class="filtro-container">
                 <h3>Filtrar por Cliente</h3>
+                <!-- DEBUG: Clientes disponibles = {{ filter_options.clientes|length if filter_options and filter_options.clientes else 0 }} -->
                 <select id="filtro-cliente" class="select-filtro" onchange="cambiarCliente(this.value)">
                     <option value="">Todos los clientes</option>
                     {% if filter_options and filter_options.clientes %}
                         {% for cliente in filter_options.clientes %}
                             <option value="{{ cliente[0] }}" {% if selected_filters.cliente_id and selected_filters.cliente_id == cliente[0]|string %}selected{% endif %}>{{ cliente[1] }}</option>
                         {% endfor %}
+                    {% else %}
+                        <!-- DEBUG: No hay clientes - filter_options={{ filter_options }} -->
                     {% endif %}
                 </select>
             </div>
@@ -118,8 +87,8 @@
         <div class="grid-item grid-3">
             <div class="tabla-container">
                 <div class="tabla-header">
-                    <h3>
-                        Meta por Venta de Línea Comercial
+                    <h3 style="font-size: 20px;">
+                        Total por Línea Comercial Internacional
                         {% if nombre_cliente_seleccionado %}
                         <br><small style="font-size: 14px; color: #666;">Cliente: {{ nombre_cliente_seleccionado }}</small>
                         {% endif %}
@@ -128,7 +97,7 @@
                         <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
                             <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
                         </a>
-                        <a href="{{ url_for('export_dashboard_details', mes=mes_seleccionado) }}" class="btn-export-tabla">
+                        <a href="{{ url_for('export_excel_sales') }}" class="btn-export-tabla">
                             <i class="bi bi-file-earmark-excel"></i> Exportar Detalle
                         </a>
                     </div>
@@ -136,15 +105,10 @@
                 <table class="tabla-avance">
                     <thead>
                         <tr>
-                            <th>Línea Comercial</th>
-                            <th>Meta</th>
-                            <th>Venta</th>
-                            <th>% Cump</th>
+                            <th>Línea Comercial Internacional</th>
+                            <th>Facturado</th>
+                            <th>Por Facturar</th>
                             <th>% Total Vta.</th>
-                            <th>Meta IPN</th>
-                            <th>Venta IPN</th>
-                            <th>% Var. IPN</th>
-                            <th>Venc &lt;6 mss</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -161,27 +125,17 @@
                                     {{ linea.nombre }}
                                 </a>
                             </td>
-                            <td>{{ "{:,.0f}".format(linea.meta) }}</td>
                             <td>{{ "{:,.0f}".format(linea.venta) }}</td>
-                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_total) }}</td>
+                            <td>{{ "{:,.0f}".format(linea.por_facturar) }}</td>
                             <td class="porcentaje">{{ "%.1f%%"|format(linea.porcentaje_sobre_total) }}</td>
-                            <td>{{ "{:,.0f}".format(linea.meta_pn) }}</td>
-                            <td>{{ "{:,.0f}".format(linea.venta_pn) }}</td>
-                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_pn) }}</td>
-                            <td><strong>{{ "{:,.0f}".format(linea.vencimiento_6_meses) }}</strong></td>
                         </tr>
                         {% endfor %}
                         <!-- Fila de TOTAL -->
                         <tr class="fila-total">
                             <td><strong>Total</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.meta_total) }}</strong></td>
                             <td><strong>{{ "{:,.0f}".format(kpis.venta_total) }}</strong></td>
-                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
+                            <td><strong>{{ "{:,.0f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.meta_ipn) }}</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.venta_ipn) }}</strong></td>
-                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance_ipn) }}</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.vencimiento_6_meses) }}</strong></td>
                         </tr>
                     </tbody>
                 </table>
@@ -297,6 +251,9 @@ body {
     font-size: 24px;
     font-weight: 700;
     color: white;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .header-username {
@@ -397,69 +354,6 @@ body {
     gap: 25px;
 }
 
-/* KPIs Row */
-.kpi-row {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr); /* Ajustado a 6 columnas */
-    gap: 15px;
-}
-
-.kpi-card {
-    background: white;
-    padding: 5px 15px; /* Aumentado padding para más espacio interno */
-    border-radius: 6px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    text-align: center;
-    height: auto; /* Altura automática basada en contenido */
-    min-height: 30px; /* Aumentado de 20px a 30px */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    /* Eliminar completamente cualquier animación */
-    transition: none !important;
-    transform: none !important;
-    animation: none !important;
-    pointer-events: auto;
-}
-.kpi-card.kpi-meta {
-    border-left: 4px solid #8e44ad;
-}
-
-.kpi-card.kpi-avance {
-    border-left-color: #f39c12;
-    background: #fff3cd;
-}
-
-.kpi-card.kpi-vencimiento {
-    border-left-color: #3498db;
-    background: #d6eaf8;
-}
-
-/* Eliminar cualquier estado hover, focus, active */
-.kpi-card:hover,
-.kpi-card:focus,
-.kpi-card:active {
-    transition: none !important;
-    transform: none !important;
-    animation: none !important;
-}
-
-.kpi-label {
-    font-size: 12px; /* Tamaño normal - NO reducir */
-    color: #7f8c8d;
-    margin-bottom: 2px; /* Pequeño espacio entre label y valor */
-    font-weight: 600;
-    line-height: 1;
-}
-
-.kpi-value {
-    font-size: 18px; /* Tamaño normal - NO reducir */
-    font-weight: bold;
-    color: #2c3e50;
-    line-height: 1;
-}
-
 /* CSS GRID LAYOUT - 2x2 CON TABLA MÁS ANCHA */
 .dashboard-grid {
     display: grid;
@@ -529,53 +423,30 @@ body {
 
 #filtro-cliente {
     width: 100% !important;
+    min-width: 650px;
+    padding: 12px 16px;
+    font-size: 14px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-/* Estilos para Tom Select en el filtro de cliente */
-.filtro-container .ts-control {
-    width: 100% !important;
-    min-width: 650px !important;
-    max-width: 100% !important;
-    background: #ffffff !important;
-    border: 2px solid #ddd !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+#filtro-cliente:hover {
+    border-color: #8b5a8e;
+    box-shadow: 0 3px 6px rgba(139, 90, 142, 0.2);
 }
 
-.filtro-container .ts-control.single {
-    background: #ffffff !important;
-    color: #333 !important;
+#filtro-cliente:focus {
+    outline: none;
+    border-color: #8b5a8e;
+    box-shadow: 0 0 0 3px rgba(139, 90, 142, 0.1);
 }
 
-.filtro-container .ts-control.single .ts-item {
-    background: transparent !important;
-    color: #333 !important;
-}
-
-.filtro-container .ts-dropdown {
-    width: 100% !important;
-    min-width: 650px !important;
-    background: #ffffff !important;
-    border: 1px solid #ddd !important;
-    border-radius: 6px !important;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
-    z-index: 1000 !important;
-}
-
-.filtro-container .ts-dropdown-content {
-    background: #ffffff !important;
-}
-
-.filtro-container .ts-dropdown .option {
-    background: #ffffff !important;
-    color: #333 !important;
-    padding: 8px 12px !important;
-}
-
-.filtro-container .ts-dropdown .option:hover,
-.filtro-container .ts-dropdown .option.active {
-    background: #f8f9fa !important;
-    color: #333 !important;
+#filtro-cliente option {
+    padding: 10px;
 }
 
 .tabla-container {
@@ -655,11 +526,16 @@ body {
 }
 
 .tabla-avance th {
-    background: var(--odoo-primary);
-    color: white;
     padding: 12px 8px;
-    text-align: center;
+    border-bottom: 2px solid #e9ecef;
+    background-color: var(--odoo-primary);
     font-weight: 600;
+    text-align: center; /* Centra los títulos */
+    color: white;
+}
+
+.tabla-avance th:first-child, .tabla-avance td:first-child {
+    text-align: left; /* Alinea la primera columna a la izquierda */
 }
 
 .tabla-avance td {
@@ -1170,11 +1046,6 @@ function crearGraficoDrilldown() {
     }
 }
 
-// Función para cambiar mes
-function cambiarMes(mesSeleccionado) {
-    window.location.href = `?mes=${mesSeleccionado}`;
-}
-
 // Función para manejar cambio de cliente
 function cambiarCliente(clienteId) {
     const currentUrl = new URL(window.location.href);
@@ -1196,48 +1067,15 @@ document.addEventListener('DOMContentLoaded', function() {
     crearGraficoFormaFarmaceutica(); // ECharts
     crearGraficoDrilldown(); // ECharts
 
-    // --- Tom Select Initialization for Client Filter ---
+    // Verificar que el select de clientes tiene opciones
     const clienteSelect = document.getElementById('filtro-cliente');
     if (clienteSelect) {
-        new TomSelect(clienteSelect, {
-            placeholder: 'Seleccionar cliente...',
-            allowEmptyOption: true,
-            searchField: ['text'],
-            maxOptions: 100,
-            maxItems: 1, // Solo permite seleccionar un cliente
-            create: false, // No permite crear nuevos elementos
-            render: {
-                no_results: function(data, escape) {
-                    return '<div class="no-results">No se encontraron clientes</div>';
-                }
-            },
-            controlInput: null // Oculta el input cuando hay selección
-        });
+        console.log('=== DEBUG FILTRO CLIENTE ===');
+        console.log('Número de opciones en el select:', clienteSelect.options.length);
+        console.log('Select cargado correctamente');
+    } else {
+        console.error('ERROR: No se encontró el elemento #filtro-cliente');
     }
-
-    // --- Flatpickr Initialization ---
-    const mesSeleccionado = document.getElementById('mes-selector').value; // "YYYY-MM"
-    const [year, month] = mesSeleccionado.split('-').map(Number);
-    const lastDayOfMonth = new Date(year, month, 0).getDate();
-    const diaFinParam = new URLSearchParams(window.location.search).get('dia_fin') || '{{ dia_actual }}';
-
-    flatpickr("#date-picker-trigger", {
-        defaultDate: `${mesSeleccionado}-${String(diaFinParam).padStart(2, '0')}`,
-        minDate: `${mesSeleccionado}-01`,
-        maxDate: `${mesSeleccionado}-${lastDayOfMonth}`,
-        dateFormat: "Y-m-d",
-        onChange: function(selectedDates, dateStr, instance) {
-            if (selectedDates.length > 0) {
-                const selectedDay = selectedDates[0].getDate();
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('dia_fin', selectedDay);
-                if (!currentUrl.searchParams.has('mes')) {
-                    currentUrl.searchParams.set('mes', mesSeleccionado);
-                }
-                window.location.href = currentUrl.toString();
-            }
-        },
-    });
 });
 </script>
 

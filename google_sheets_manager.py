@@ -11,11 +11,11 @@ class GoogleSheetsManager:
             ]
             creds = Credentials.from_service_account_file(credentials_file, scopes=scopes)
             self.client = gspread.authorize(creds)
-            print(f"ℹ️ Intentando abrir la hoja de cálculo: '{sheet_name}'")
+            print(f"Intentando abrir la hoja de cálculo: '{sheet_name}'")
             self.sheet = self.client.open(sheet_name)
-            print("✅ Conexión a Google Sheets establecida exitosamente.")
+            print("Conexión a Google Sheets establecida exitosamente.")
         except Exception as e:
-            print(f"❌ Error al conectar con Google Sheets: {e}")
+            print(f"Error al conectar con Google Sheets: {e}")
             print("Asegúrate de que 'credentials.json' existe y el nombre de la hoja en .env es correcto.")
             self.client = None
             self.sheet = None

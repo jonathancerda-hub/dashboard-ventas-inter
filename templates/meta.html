@@ -9,9 +9,18 @@
         </div>
     </div>
     <div class="header-nav">
-        <a href="{{ url_for('sales') }}" class="btn-nav"><i class="bi bi-table"></i> Ventas</a>
-        <a href="{{ url_for('dashboard') }}" class="btn-nav"><i class="bi bi-speedometer2"></i> Dashboard</a>
-        <a href="{{ url_for('logout') }}" class="btn-salir"><i class="bi bi-box-arrow-right"></i> Salir</a>
+        <a href="{{ url_for('sales') }}" class="btn-nav">
+            <i class="bi bi-table"></i>
+            <span class="nav-text">Ventas</span>
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="btn-nav">
+            <i class="bi bi-speedometer2"></i>
+            <span class="nav-text">Dashboard</span>
+        </a>
+        <a href="{{ url_for('logout') }}" class="btn-salir">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="nav-text">Salir</span>
+        </a>
     </div>
 </div>
 

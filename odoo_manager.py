@@ -32,7 +32,7 @@ class OdooManager:
         # Agrupar por línea comercial
         lines = {}
         for line in sales_lines:
-            cl = line.get('commercial_line_national_id')
+            cl = line.get('commercial_line_international_id') # CAMBIO: Usar la línea internacional
             if cl and isinstance(cl, list) and len(cl) > 1:
                 line_name = cl[1]
             else:
@@ -155,37 +155,31 @@ class OdooManager:
         try:
             all_partner_ids = set()
 
-            # 1. Obtener clientes de Pedidos de Venta (pendientes)
-            order_domain = [
-                ('team_id.name', 'ilike', 'INTERNACIONAL'),
-                ('state', 'in', ['sale', 'done'])
+            # Obtener clientes directamente de las líneas de factura que ya estamos usando en el dashboard
+            # para asegurar consistencia.
+            client_fetch_domain = [
+                ('move_id.journal_id.name', '=', 'F150 (Venta exterior)'), # Diario de Venta Exterior por nombre
+                ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
+                ('move_id.state', '=', 'posted'),
+                ('account_id.code', 'like', '70%'), # La cuenta DEBE empezar con 70
+                # Filtros de producto para consistencia
+                ('product_id', '!=', False),
+                ('product_id.default_code', 'not ilike', '%SERV%'),
+                ('product_id.default_code', 'not like', '81%'),
             ]
-            orders = self.models.execute_kw(
-                self.db, self.uid, self.password, 'sale.order', 'search_read',
-                [order_domain],
-                {'fields': ['partner_id'], 'limit': 2000}
-            )
-            for order in orders:
-                if order.get('partner_id'):
-                    all_partner_ids.add(order['partner_id'][0])
-
-            # 2. Obtener clientes de Facturas (facturado)
-            invoice_domain = [
-                ('team_id.name', 'ilike', 'INTERNACIONAL'),
-                ('move_type', 'in', ['out_invoice', 'out_refund']),
-                ('state', '=', 'posted'),
-                ('partner_id', '!=', False)
-            ]
-            invoices = self.models.execute_kw(
-                self.db, self.uid, self.password, 'account.move', 'read_group',
-                [invoice_domain],
+            
+            # Usar read_group para obtener partner_id únicos de forma eficiente
+            partner_groups = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [client_fetch_domain],
                 {
                     'fields': ['partner_id'],
                     'groupby': ['partner_id'],
                     'lazy': False
                 }
             )
-            for group in invoices:
+
+            for group in partner_groups:
                 if group.get('partner_id'):
                     all_partner_ids.add(group['partner_id'][0])
 
@@ -254,19 +248,11 @@ class OdooManager:
             except Exception as product_error:
                 print(f"Error obteniendo líneas de productos: {product_error}")
 
-            # Para compatibilidad con diferentes templates
-            commercial_lines = lineas
-            
             # Obtener clientes internacionales específicos
             clientes_internacionales = self.get_international_clients()
             
-            # Mantener compatibilidad con el formato anterior
-            partners = [{'id': cliente[0], 'name': cliente[1]} for cliente in clientes_internacionales]
-            
             return {
-                'commercial_lines': commercial_lines,
                 'lineas': lineas,  # Para compatibilidad con meta.html
-                'partners': partners,
                 'clientes': clientes_internacionales  # Lista de [id, nombre] para el template
             }
             
@@ -313,22 +299,18 @@ class OdooManager:
                 return []
             
             # Obtener lista de facturas internacionales si no hay partner_id específico
-            international_invoice_ids = None
-            
-            if not partner_id:
-                # Obtener DIRECTAMENTE facturas con team_id INTERNACIONAL
-                invoices_intl = self.models.execute_kw(
-                    self.db, self.uid, self.password, 'account.move', 'search',
-                    [[
-                        ('team_id.name', 'ilike', 'INTERNACIONAL'),
-                        ('move_type', 'in', ['out_invoice', 'out_refund']),
-                        ('state', '=', 'posted')
-                    ]],
-                    {'limit': 5000}
-                )
-                
-                if invoices_intl:
-                    international_invoice_ids = invoices_intl
+            # Este filtro ahora se aplica directamente en el dominio principal
+            # para que siempre se filtren las ventas internacionales.
+            domain = [
+                ('move_id.journal_id.name', '=', 'F150 (Venta exterior)'), # Diario de Venta Exterior por nombre
+                ('move_id.state', '=', 'posted'),
+                ('account_id.code', '=like', '70%'), # La cuenta DEBE empezar con '70'.
+                ('tax_ids.name', 'ilike', 'EXE_IGV_EXP'), # Filtro por impuesto EXE_IGV_EXP
+                # Filtros para excluir productos no deseados
+                ('product_id', '!=', False),
+                ('product_id.default_code', 'not ilike', '%SERV%'), # Excluir servicios
+                ('product_id.default_code', 'not like', '81%')      # Excluir códigos que empiezan con 81
+            ]
             
             # Manejar parámetros de ambos formatos de llamada
             if filters:
@@ -356,153 +338,28 @@ class OdooManager:
                 if re.search(factura_pattern, search_upper):
                     search_factura = True
             
-            # Construir dominio de filtro
-            domain = [
-                ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
-                ('move_id.state', '=', 'posted'),
-                ('product_id', '!=', False),  # Solo líneas con producto
-            ]
-            
-            # Filtrar por facturas internacionales
-            if international_invoice_ids:
-                domain.append(('move_id', 'in', international_invoice_ids))
-            
-            # Filtros de fecha
-            if date_from:
-                domain.append(('move_id.invoice_date', '>=', date_from))
-            else:
-                # Si no hay fecha de inicio, por defecto buscar en los últimos 30 días
-                # PERO: Si hay filtro de cliente, NO aplicar límite de 30 días
-                if not date_to and not partner_id:
-                    thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-                    domain.append(('move_id.invoice_date', '>=', thirty_days_ago))
-
-            if date_to:
-                domain.append(('move_id.invoice_date', '<=', date_to))
-            
-            # Si se está buscando una factura específica, agregar filtro por nombre de factura
-            if search and search_factura:
-                domain.append(('move_name', 'ilike', search))
+            # # Aplicar filtros de fecha si se proporcionan (TEMPORALMENTE DESHABILITADO)
+            # if date_from:
+            #     domain.append(('move_id.invoice_date', '>=', date_from))
+            # if date_to:
+            #     domain.append(('move_id.invoice_date', '<=', date_to))
+            # Filtro por nombre de factura eliminado: ya no se limita por búsqueda de factura
             
             # Filtro de cliente
             if partner_id:
-                client_moves = self.models.execute_kw(
-                    self.db, self.uid, self.password, 'account.move', 'search',
-                    [[
-                        ('partner_id', '=', partner_id),
-                        ('move_type', 'in', ['out_invoice', 'out_refund']),
-                        ('state', '=', 'posted')
-                    ]]
-                )
-                if client_moves:
-                    domain.append(('move_id', 'in', client_moves))
-                else:
-                    # Si no hay facturas para este cliente, retornar vacío
-                    return []
+                # CORRECCIÓN: El filtro debe aplicarse sobre el partner_id de la factura (move_id),
+                # ya que el partner_id de la línea puede estar vacío.
+                domain.append(('move_id.partner_id', '=', int(partner_id)))
             
             # Filtro de línea comercial
             if linea_id:
                 domain.append(('product_id.commercial_line_national_id', '=', linea_id))
             
-            # Buscar facturas del pedido específico si hay búsqueda de pedido
-            searched_move_ids = []
-            
-            if search_pedido:
-                try:
-                    searched_invoices = self.models.execute_kw(
-                        self.db, self.uid, self.password, 'account.move', 'search_read',
-                        [[('invoice_origin', 'ilike', search_pedido)]], 
-                        {
-                            'fields': ['id', 'name', 'invoice_origin', 'invoice_date', 'state', 'team_id', 'move_type'],
-                            'context': {'lang': 'es_PE'}
-                        }
-                    )
-                    for inv in searched_invoices:
-                        searched_move_ids.append(inv['id'])
-                except Exception as e:
-                    pass
-            
-            # Si estamos buscando un pedido específico o detectamos sus facturas, incluir específicamente esas facturas
-            # TAMBIÉN aplicar para otros pedidos multi-factura detectados automáticamente
-            special_move_ids = searched_move_ids.copy()
-            
-            # SOLUCIÓN MEJORADA: Detectar TODOS los pedidos multi-factura automáticamente
-            # Funciona tanto con búsqueda como sin ella
-            # PERO: Si se está buscando una factura específica, NO usar lógica multi-factura
-            if date_from and date_to and not search_factura:
-                try:
-                    # Si estamos buscando un pedido específico, NO hacer la detección automática
-                    if not search_pedido:
-                        # Obtener TODAS las facturas del canal internacional
-                        all_invoices = self.models.execute_kw(
-                            self.db, self.uid, self.password, 'account.move', 'search_read',
-                            [[
-                                ('invoice_date', '>=', date_from),
-                                ('invoice_date', '<=', date_to), 
-                                ('move_type', '=', 'out_invoice'),
-                                ('state', '=', 'posted'),
-                                ('invoice_origin', '!=', False),
-                                ('team_id.name', 'ilike', 'INTERNACIONAL')
-                            ]],
-                            {'fields': ['id', 'invoice_origin'], 'limit': 500}
-                        )
-                        
-                        # Agrupar por invoice_origin para encontrar pedidos multi-factura
-                        origin_groups = {}
-                        for inv in all_invoices:
-                            origin = inv.get('invoice_origin', '')
-                            if origin not in origin_groups:
-                                origin_groups[origin] = []
-                            origin_groups[origin].append(inv['id'])
-                        
-                        # Encontrar pedidos con múltiples facturas
-                        multi_origin_move_ids = []
-                        multi_origin_count = 0
-                        for origin, move_ids in origin_groups.items():
-                            if len(move_ids) > 1:  # Más de una factura por pedido
-                                multi_origin_move_ids.extend(move_ids)
-                                multi_origin_count += 1
-                        
-                        # Si hay búsqueda general (no específica de pedido), filtrar solo las facturas relevantes
-                        if search:
-                            # Solo incluir facturas de pedidos que coincidan con la búsqueda
-                            relevant_move_ids = []
-                            search_lower = search.lower()
-                            for origin, move_ids in origin_groups.items():
-                                if len(move_ids) > 1 and search_lower in origin.lower():
-                                    relevant_move_ids.extend(move_ids)
-                            special_move_ids.extend(relevant_move_ids)
-                        else:
-                            # Sin búsqueda, incluir todos los pedidos multi-factura
-                            special_move_ids.extend(multi_origin_move_ids)
-                    else:
-                        pass
-                        
-                except Exception as e:
-                    pass
-            
-            # Usar consulta especial si hay pedidos multi-factura detectados O si se busca S00791 específicamente
-            if len(special_move_ids) > 0 and special_move_ids:
-                # REEMPLAZAR completamente el dominio para consultar facturas de pedidos multi-factura
-                domain = [
-                    ('move_id', 'in', special_move_ids),
-                    ('product_id', '!=', False),  # Solo líneas con productos
-                    ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
-                    ('move_id.state', '=', 'posted')
-                ]
-                
-                # Mantener el filtro de cliente si existe
-                if partner_id:
-                    domain.append(('partner_id', '=', partner_id))
-                
-                # Remover límite para obtener TODAS las líneas de pedidos multi-factura
-                limit = None
-            
             # Obtener líneas base con todos los campos necesarios
             query_options = {
                 'fields': [
                     'move_id', 'partner_id', 'product_id', 'balance', 'move_name',
-                    'quantity', 'price_unit', 'tax_ids'
+                    'quantity', 'price_unit', 'tax_ids', 'amount_currency'
                 ],
                 'context': {'lang': 'es_PE'}
             }
@@ -511,6 +368,7 @@ class OdooManager:
             if limit is not None:
                 query_options['limit'] = limit
             
+            print(f"DEBUG ODOO: Dominio enviado a Odoo: {domain}")
             sales_lines_base = self.models.execute_kw(
                 self.db, self.uid, self.password, 'account.move.line', 'search_read',
                 [domain],
@@ -518,41 +376,9 @@ class OdooManager:
             )
             
             print(f"DEBUG: Total líneas obtenidas de account.move.line: {len(sales_lines_base)}")
-            
-            # DEBUG: Si hay partner_id, verificar por qué solo trae pocas líneas
-            if partner_id and len(sales_lines_base) < 20:
-                print(f"DEBUG FILTRO CLIENTE: Solo {len(sales_lines_base)} líneas para {len(client_moves) if 'client_moves' in locals() else 0} facturas")
-                # Probar sin filtros de producto para ver cuántas líneas hay realmente
-                domain_test = [
-                    ('move_id', 'in', client_moves),
-                    ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
-                    ('move_id.state', '=', 'posted')
-                ]
-                if date_from:
-                    domain_test.append(('move_id.invoice_date', '>=', date_from))
-                if date_to:
-                    domain_test.append(('move_id.invoice_date', '<=', date_to))
-                
-                test_lines_full = self.models.execute_kw(
-                    self.db, self.uid, self.password, 'account.move.line', 'search_read',
-                    [domain_test],
-                    {'fields': ['display_type', 'product_id', 'balance'], 'limit': 100}
-                )
-                print(f"DEBUG FILTRO CLIENTE: Sin filtros de producto/display hay {len(test_lines_full)} líneas totales")
-                
-                # Contar por display_type
-                display_types = {}
-                con_producto = 0
-                for line in test_lines_full:
-                    dt = line.get('display_type') or 'False/None'
-                    display_types[dt] = display_types.get(dt, 0) + 1
-                    if line.get('product_id'):
-                        con_producto += 1
-                
-                print(f"DEBUG FILTRO CLIENTE: Display types: {display_types}")
-                print(f"DEBUG FILTRO CLIENTE: Líneas con producto: {con_producto}")
-            
-            
+            # Log de depuración para cada línea obtenida
+            for idx, line in enumerate(sales_lines_base):
+                print(f"Línea {idx+1}: move_name={line.get('move_name')}, product_id={line.get('product_id')}, tax_ids={line.get('tax_ids')}, commercial_line_international_id={line.get('commercial_line_international_id')}")
             if not sales_lines_base:
                 return []
             
@@ -600,6 +426,7 @@ class OdooManager:
                     {
                         'fields': [
                             'name', 'default_code', 'categ_id', 'commercial_line_national_id',
+                            'commercial_line_international_id', # <-- CAMBIO: Añadir este campo
                             'pharmacological_classification_id', 'pharmaceutical_forms_id',
                             'administration_way_id', 'production_line_id', 'product_life_cycle',
                         ],
@@ -678,9 +505,16 @@ class OdooManager:
             ecommerce_reassigned = 0
             s00791_debug_count = 0  # Contador para debug del pedido específico
             
+            print(f"DEBUG ODOO: Procesando {len(sales_lines_base)} líneas base")
+            
             for line in sales_lines_base:
                 move_id = line.get('move_id')
                 product_id = line.get('product_id')
+                
+                # Con el filtro EXE_IGV_EXP todas las líneas deben tener product_id válido
+                if not product_id:
+                    print(f"DEBUG ODOO: ADVERTENCIA - Línea sin producto encontrada: {line}")
+                    continue
                 
                 # Obtener datos relacionados
                 move = move_data.get(move_id[0], {}) if move_id else {}
@@ -807,6 +641,7 @@ class OdooManager:
                     'sales_channel_id': move.get('team_id'),
                     'team_id': move.get('team_id'),
                     'commercial_line_national_id': commercial_line_id,
+                    'commercial_line_international_id': product.get('commercial_line_international_id'), # <-- CAMBIO: Añadir este campo
                     'invoice_user_id': move.get('invoice_user_id'),
                     'partner_name': partner.get('name'),
                     'vat': partner.get('vat'),
@@ -827,8 +662,12 @@ class OdooManager:
                     'move_id': line.get('move_id'),
                     'partner_id': line.get('partner_id'),
                     'exchange_rate': move.get('exchange_rate', 1.0),
-                    'currency_id': move.get('currency_id')
+                    'currency_id': move.get('currency_id'),
+                    # Invertir el signo para que las ventas sean positivas y las devoluciones negativas.
+                    'amount_currency': -line.get('amount_currency', 0),
                 })
+            
+            print(f"DEBUG ODOO: Total líneas procesadas con filtro EXE_IGV_EXP: {len(sales_lines)}")
             
             # Líneas de S00791 procesadas correctamente
             
@@ -887,7 +726,7 @@ class OdooManager:
                 
                 # Consultar sale.order.line directamente con filtros mínimos
                 basic_domain = [
-                    ('product_id.default_code', '!=', False),  # Solo productos con código
+                    ('product_id', '!=', False), # Asegura que haya un producto, pero permite default_code vacío.
                 ]
                 
                 # Filtros de fecha en el pedido (si están disponibles)
@@ -895,13 +734,7 @@ class OdooManager:
                     basic_domain.append(('order_id.date_order', '>=', date_from))
                 if date_to:
                     basic_domain.append(('order_id.date_order', '<=', date_to))
-                else:
-                    # Si no hay fecha específica, últimos 6 meses
-                    if not date_from:
-                        six_months_ago = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
-                        basic_domain.append(('order_id.date_order', '>=', six_months_ago))
-                
-                
+
                 # Obtener líneas de pedidos de venta
                 # SIN LÍMITE para capturar todos los pedidos pendientes, incluyendo los en estado 'credit'
                 order_lines = self.models.execute_kw(
@@ -909,7 +742,7 @@ class OdooManager:
                     [basic_domain],
                     {
                         'fields': [
-                            'id', 'order_id', 'product_id', 'name', 'product_uom_qty', 
+                            'id', 'order_id', 'product_id', 'name', 'product_uom_qty',
                             'qty_delivered', 'qty_invoiced', 'qty_to_invoice',
                             'price_unit', 'price_subtotal', 'state', 'discount'
                         ],
@@ -980,9 +813,10 @@ class OdooManager:
                     order = order_data.get(order_id)
                     
                     if order:
-                        team_name = order['team_id'][1] if order.get('team_id') and len(order['team_id']) > 1 else ''
+                        # CAMBIO: Como no podemos filtrar por diario en el pedido, mantenemos el filtro por equipo de ventas aquí.
+                        team_name = order.get('team_id', [0, ''])[1]
                         
-                        if team_name == 'VENTA INTERNACIONAL':
+                        if 'INTERNACIONAL' in team_name.upper():
                             international_pending.append(line)
                 
                 
@@ -1003,7 +837,8 @@ class OdooManager:
                             {
                                 'fields': [
                                     'id', 'name', 'default_code', 'categ_id',
-                                    'commercial_line_national_id', 'pharmacological_classification_id',
+                                    'commercial_line_national_id', 'commercial_line_international_id',
+                                    'pharmacological_classification_id',
                                     'pharmaceutical_forms_id', 'administration_way_id', 'production_line_id'
                                 ]
                             }
@@ -1038,12 +873,8 @@ class OdooManager:
                         product = product_data.get(line['product_id'][0]) if line.get('product_id') else {}
                         partner = partner_data.get(order.get('partner_id')[0]) if order.get('partner_id') else {}
                         
-                        # Aplicar filtros adicionales
-                        # Excluir categorías específicas
-                        if product.get('categ_id'):
-                            category_id = product['categ_id'][0] if isinstance(product['categ_id'], list) else product['categ_id']
-                            if category_id in [315, 333, 304, 314, 318, 339]:
-                                continue
+                        # CAMBIO: Se ha eliminado el filtro que excluía productos por su categoría.
+                        # Ahora todos los productos del canal internacional aparecerán.
                         
                         # Filtro de cliente
                         if partner_id and order.get('partner_id'):
@@ -1070,8 +901,8 @@ class OdooManager:
                             except:
                                 mes = ''
                         
-                        # Extraer línea comercial
-                        commercial_line_id = product.get('commercial_line_national_id')
+                        # CAMBIO: Usar la línea comercial internacional en lugar de la nacional.
+                        commercial_line_id = product.get('commercial_line_international_id')
                         
                         pending_record = {
                             # 16 campos específicos
@@ -1090,11 +921,12 @@ class OdooManager:
                             'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and len(product.get('production_line_id')) > 1 else '',
                             'cantidad_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)),
                             'precio_unitario': line.get('price_unit', 0),
-                            'total_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)) * line.get('price_unit', 0),
                             'discount': line.get('discount', 0),
+                            'total_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)) * line.get('price_unit', 0) * (1 - (line.get('discount', 0) / 100)),
                             
                             # Campos adicionales
                             'team_id': order.get('team_id'),
+                            'commercial_line_international_id': product.get('commercial_line_international_id'),
                             'state': line.get('state'),
                             'order_state': order.get('state')
                         }
@@ -1157,23 +989,13 @@ class OdooManager:
                 limit=5000
             )
             
-            # Filtrar SOLO VENTA INTERNACIONAL (exportaciones)
-            sales_lines_internacional = []
-            for line in sales_lines:
-                # Incluir solo líneas comerciales internacionales
-                linea_comercial = line.get('commercial_line_national_id')
-                canal_ventas = line.get('sales_channel_id')
-                nombre_linea = linea_comercial[1].upper() if linea_comercial and isinstance(linea_comercial, list) and len(linea_comercial) > 1 else ''
-                nombre_canal = canal_ventas[1].upper() if canal_ventas and isinstance(canal_ventas, list) and len(canal_ventas) > 1 else ''
-                if 'VENTA INTERNACIONAL' in nombre_linea or 'VENTA INTERNACIONAL' in nombre_canal or 'INTERNACIONAL' in nombre_canal:
-                    sales_lines_internacional.append(line)
-            sales_lines = sales_lines_internacional  # Usar solo datos internacionales
-            
             if not sales_lines:
+                # get_sales_lines ya filtra por canal internacional. Si no devuelve nada, no hay datos.
                 return self._get_empty_dashboard_data()
             
             # Calcular métricas básicas
-            total_sales = sum([abs(line.get('balance', 0)) for line in sales_lines])
+            # MODIFICACIÓN: Usar 'amount_currency' para consistencia y para reflejar el valor real de la venta.
+            total_sales = sum([line.get('amount_currency', 0) for line in sales_lines])
             total_quantity = sum([line.get('quantity', 0) for line in sales_lines])
             total_lines = len(sales_lines)
             
@@ -1183,7 +1005,7 @@ class OdooManager:
                 client_name = line.get('partner_name', 'Sin Cliente')
                 if client_name not in clients_data:
                     clients_data[client_name] = {'sales': 0, 'quantity': 0}
-                clients_data[client_name]['sales'] += abs(line.get('balance', 0))
+                clients_data[client_name]['sales'] += line.get('amount_currency', 0)
                 clients_data[client_name]['quantity'] += line.get('quantity', 0)
             
             # Top clientes
@@ -1195,7 +1017,7 @@ class OdooManager:
                 product_name = line.get('name', 'Sin Producto')
                 if product_name not in products_data:
                     products_data[product_name] = {'sales': 0, 'quantity': 0}
-                products_data[product_name]['sales'] += abs(line.get('balance', 0))
+                products_data[product_name]['sales'] += line.get('amount_currency', 0)
                 products_data[product_name]['quantity'] += line.get('quantity', 0)
             
             # Top productos
@@ -1208,7 +1030,7 @@ class OdooManager:
                 channel_name = channel[1] if channel and len(channel) > 1 else 'Sin Canal'
                 if channel_name not in channels_data:
                     channels_data[channel_name] = {'sales': 0, 'quantity': 0}
-                channels_data[channel_name]['sales'] += abs(line.get('balance', 0))
+                channels_data[channel_name]['sales'] += line.get('amount_currency', 0)
                 channels_data[channel_name]['quantity'] += line.get('quantity', 0)
             
             sales_by_channel = list(channels_data.items())
@@ -1216,7 +1038,7 @@ class OdooManager:
             # Métricas por línea comercial (NUEVO)
             commercial_lines_data = {}
             for line in sales_lines:
-                commercial_line = line.get('commercial_line_national_id')
+                commercial_line = line.get('commercial_line_international_id') # CAMBIO: Usar la línea internacional
                 if commercial_line:
                     line_name = commercial_line[1] if commercial_line and len(commercial_line) > 1 else 'Sin Línea'
                 else:
@@ -1224,7 +1046,7 @@ class OdooManager:
                 
                 if line_name not in commercial_lines_data:
                     commercial_lines_data[line_name] = {'sales': 0, 'quantity': 0}
-                commercial_lines_data[line_name]['sales'] += abs(line.get('balance', 0))
+                commercial_lines_data[line_name]['sales'] += line.get('amount_currency', 0)
                 commercial_lines_data[line_name]['quantity'] += line.get('quantity', 0)
             
             # Preparar datos de líneas comerciales para el gráfico
@@ -1256,7 +1078,7 @@ class OdooManager:
                 
                 if seller_name not in sellers_data:
                     sellers_data[seller_name] = {'sales': 0, 'quantity': 0}
-                sellers_data[seller_name]['sales'] += abs(line.get('balance', 0))
+                sellers_data[seller_name]['sales'] += line.get('amount_currency', 0)
                 sellers_data[seller_name]['quantity'] += line.get('quantity', 0)
             
             # Preparar datos de vendedores para el gráfico (Top 8 vendedores)
