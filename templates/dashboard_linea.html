@@ -212,12 +212,6 @@
                 </tfoot>
             </table>
         </div>
-
-        <!-- Gráfico Ciclo de Vida -->
-        <div class="grafico-container">
-            <h3>Venta por Tipo de Producto</h3>
-            <div id="grafico-donut" style="width: 100%; height: 300px;"></div>
-        </div>
     </div>
 
     <!-- Fila Inferior: Gráficos de Barras -->
@@ -481,7 +475,6 @@ canvas {
     // Datos del backend
     const datosVendedores = {{ datos_vendedores|tojson|safe }};
     const datosProductos = {{ datos_productos|tojson|safe }};
-    const datosCicloVida = {{ datos_ciclo_vida|tojson|safe }};
     const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|tojson|safe }};
 
     // Función para cambiar de línea comercial
@@ -499,63 +492,6 @@ canvas {
         }
 
         window.location.href = `{{ url_for('dashboard_linea') }}?${params.toString()}`;
-    }
-
-    // Gráfico Donut: Ciclo de Vida
-    function crearGraficoCicloVida() {
-        const chartDom = document.getElementById('grafico-donut');
-        if (!chartDom) return;
-        const myChart = echarts.init(chartDom);
-
-        const seriesData = datosCicloVida.map(item => ({
-            name: item.ciclo || 'Sin definir',
-            value: item.venta || 0
-        }));
-
-        const option = {
-            tooltip: {
-                trigger: 'item',
-                formatter: function(params) {
-                    const value = (params.value || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-                    return `${params.seriesName}<br/>${params.name}: ${value} (${params.percent}%)`;
-                }
-            },
-            legend: {
-                top: '5%',
-                left: 'center',
-                type: 'scroll'
-            },
-            series: [
-                {
-                    name: 'Tipo de Producto',
-                    type: 'pie',
-                    radius: ['40%', '70%'],
-                    avoidLabelOverlap: false,
-                    itemStyle: {
-                        borderRadius: 10,
-                        borderColor: '#fff',
-                        borderWidth: 2
-                    },
-                    label: {
-                        show: false,
-                        position: 'center'
-                    },
-                    emphasis: {
-                        label: {
-                            show: true,
-                            fontSize: '30',
-                            fontWeight: 'bold'
-                        }
-                    },
-                    labelLine: {
-                        show: false
-                    },
-                    data: seriesData
-                }
-            ]
-        };
-
-        myChart.setOption(option);
     }
 
     // Gráfico Barras: Top Productos
@@ -726,7 +662,6 @@ canvas {
             },
         });
 
-        crearGraficoCicloVida();
         crearGraficoProductos();
         crearGraficoVendedores();
     });

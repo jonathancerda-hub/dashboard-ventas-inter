@@ -64,21 +64,24 @@
             </div>
         </div>
 
-        <!-- Posición 2: Estado de Facturación (arriba derecha) -->
+        <!-- Posición 2: KPIs (arriba derecha) -->
         <div class="grid-item grid-2">
-            <div class="opciones-container">
-                <h3>Estado de Facturación</h3>
-                <div class="opciones-grupo">
-                    <label class="opcion-item">
-                        <input type="radio" name="facturacion" value="facturado" checked>
-                        <span class="radio-custom"></span>
-                        Facturado
-                    </label>
-                    <label class="opcion-item">
-                        <input type="radio" name="facturacion" value="por_facturar">
-                        <span class="radio-custom"></span>
-                        Por Facturar
-                    </label>
+            <div class="kpi-row-compact">
+                <div class="kpi-card">
+                    <div class="kpi-label">Ventas Totales del Año</div>
+                    <div class="kpi-value">$ {{ total_sales | format_number }}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Meta</div>
+                    <div class="kpi-value">$ {{ meta_total_kpi | format_number }}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Brecha Comercial ($)</div>
+                    <div class="kpi-value">$ {{ brecha_comercial | format_number }}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">%</div>
+                    <div class="kpi-value">{{ kpis.porcentaje_avance | round(1) }}%</div>
                 </div>
             </div>
         </div>
@@ -105,47 +108,36 @@
                 <table class="tabla-avance">
                     <thead>
                         <tr>
-                            <th>Línea Comercial Internacional</th>
-                            <th>Facturado</th>
-                            <th>Por Facturar</th>
-                            <th>% Total Vta.</th>
+                            <th>Línea Comercial</th>
+                            <th>Venta Total ($)</th>
+                            <th>Por Facturar ($)</th>
+                            <th>% Sobre Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- DEBUG: Verificar si datos_lineas_tabla tiene contenido -->
-                        {% if datos_lineas_tabla %}
-                            <!-- DEBUG: {{ datos_lineas_tabla|length }} líneas comerciales -->
-                        {% else %}
-                            <!-- DEBUG: datos_lineas_tabla está vacío -->
-                        {% endif %}
                         {% for linea in datos_lineas_tabla %}
                         <tr>
-                            <td>
-                                <a href="{{ url_for('dashboard_linea', linea_nombre=linea.nombre, mes=mes_seleccionado) }}" title="Ver dashboard de vendedores para {{ linea.nombre }}">
-                                    {{ linea.nombre }}
-                                </a>
-                            </td>
-                            <td>{{ "{:,.0f}".format(linea.venta) }}</td>
-                            <td>{{ "{:,.0f}".format(linea.por_facturar) }}</td>
-                            <td class="porcentaje">{{ "%.1f%%"|format(linea.porcentaje_sobre_total) }}</td>
+                            <td class="text-left">{{ linea.nombre }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.venta) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
+                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
                         </tr>
+                        {% else %}
+                        <tr><td colspan="4" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
                         {% endfor %}
-                        <!-- Fila de TOTAL -->
-                        <tr class="fila-total">
-                            <td><strong>Total</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.venta_total) }}</strong></td>
-                            <td><strong>{{ "{:,.0f}".format(kpis.total_por_facturar) }}</strong></td>
+                    </tbody>
+                    <tfoot class="fila-total">
+                        <tr>
+                            <td class="text-left"><strong>Total</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
                         </tr>
-                    </tbody>
+                    </tfoot>
                 </table>
             </div>
         </div>
 
-        <!-- Posición 4: Vacío (abajo derecha) -->
-        <div class="grid-item grid-4">
-            <!-- Espacio vacío para futuras funcionalidades -->
-        </div>
     </div>
     
     <!-- Fila inferior con gráficos -->
@@ -180,16 +172,6 @@
         <div class="grafico-echarts">
             <h3>Venta por Clasificación Farmacológica</h3>
             <div id="grafico-forma-farmaceutica" style="width: 100%; height: 350px;"></div>
-        </div>
-    </div>
-
-    <!-- Fila final para el gráfico de Venta por tipo de Producto -->
-    <div class="grafico-extra-container">
-        <div class="grafico-echarts">
-            <h3>Venta por tipo de Producto</h3>
-            <div class="donut-container-final">
-                <div id="grafico-donut" style="width: 100%; height: 400px;"></div>
-            </div>
         </div>
     </div>
 </div>
@@ -356,32 +338,44 @@ body {
 
 /* CSS GRID LAYOUT - 2x2 CON TABLA MÁS ANCHA */
 .dashboard-grid {
-    display: grid;
-    grid-template-columns: 700px 250px 1fr;
+    display: grid;    
+    grid-template-columns: auto 1fr;
     grid-template-rows: auto auto;
     gap: 25px;
     padding: 20px;
 }
 
 /* Posiciones específicas del grid */
-.grid-1 {
+.grid-1 { /* Filtro */
     grid-column: 1;
     grid-row: 1;
 }
 
-.grid-2 {
+.grid-2 { /* KPIs */
     grid-column: 2;
     grid-row: 1;
+    align-self: start; /* Alinear arriba */
+}
+
+.kpi-row-compact {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.kpi-row-compact .kpi-card {
+    padding: 10px 15px;
+    min-height: 70px;
+}
+
+.kpi-row-compact .kpi-label {
+    font-size: 11px;
+    margin-bottom: 4px;
 }
 
 .grid-3 {
     grid-column: 1 / 4;  /* La tabla ocupa las tres columnas */
     grid-row: 2;
-}
-
-.grid-4 {
-    /* Eliminamos grid-4 ya que la tabla ocupa todo el ancho */
-    display: none;
 }
 
 /* Estilos para contenedores específicos */
@@ -391,8 +385,7 @@ body {
     border-radius: 8px !important;
     border: 2px solid #e0e0e0 !important;
     height: 100% !important;
-    width: 700px !important;
-    max-width: 700px !important;
+    width: 600px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
 }
 
@@ -404,26 +397,13 @@ body {
     text-align: left !important;
 }
 
-.opciones-container {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
-    height: 100%;
-    width: 250px;
-    max-width: 250px;
-}
-
 /* Estilos específicos para el filtro de cliente */
 .select-filtro {
     width: 100%;
-    max-width: 100%;
-    min-width: 100%;
 }
 
 #filtro-cliente {
-    width: 100% !important;
-    min-width: 650px;
+    width: 100%;
     padding: 12px 16px;
     font-size: 14px;
     border: 2px solid #ddd;
@@ -455,11 +435,6 @@ body {
     border: 1px solid #e0e0e0;
     overflow: hidden;
     width: 100%;
-}
-
-.grid-4 {
-    /* Estilo para el espacio vacío si se necesita en el futuro */
-    min-height: 100px;
 }
 
 /* Tabla Container (IZQUIERDA) */
@@ -665,7 +640,6 @@ body {
 // Datos del backend para los gráficos (con valores positivos)
 const datosLineas = {{ datos_lineas|tojson|safe }};
 const datosProductos = {{ datos_productos|tojson|safe }};
-const datosCicloVida = {{ datos_ciclo_vida|tojson|safe }};
 const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|tojson|safe }};
 const drilldownData = {{ drilldown_data|tojson|safe }};
 const drilldownTitles = {{ drilldown_titles|tojson|safe }};
@@ -680,62 +654,6 @@ console.log('Longitud de datos:', datosLineas ? datosLineas.length : 'undefined'
 // Debug: Verificar datos de productos
 console.log('Datos productos:', datosProductos);
 console.log('Longitud de productos:', datosProductos ? datosProductos.length : 'undefined');
-
-// Gráfico de Ciclo de Vida (Donut)
-function crearGraficoCicloVida() {
-    const chartDom = document.getElementById('grafico-donut');
-    const myChart = echarts.init(chartDom);
-
-    const seriesData = datosCicloVida.map(item => ({
-        name: item.ciclo || 'Sin definir',
-        value: item.venta || 0
-    }));
-
-    const option = {
-        tooltip: {
-            trigger: 'item',
-            formatter: function(params) {
-                const value = (params.value || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 0, maximumFractionDigits: 0 });
-                return `${params.seriesName}<br/>${params.name}: ${value} (${params.percent}%)`;
-            }
-        },
-        legend: {
-            top: '5%',
-            left: 'center',
-            type: 'scroll'
-        },
-        series: [
-            {
-                name: 'Tipo de Producto',
-                type: 'pie',
-                radius: ['40%', '70%'],
-                avoidLabelOverlap: false,
-                itemStyle: {
-                    borderRadius: 10,
-                    borderColor: '#fff',
-                    borderWidth: 2
-                },
-                label: {
-                    show: false,
-                    position: 'center'
-                },
-                emphasis: {
-                    label: {
-                        show: true,
-                        fontSize: '30',
-                        fontWeight: 'bold'
-                    }
-                },
-                labelLine: {
-                    show: false
-                },
-                data: seriesData
-            }
-        ]
-    };
-
-    myChart.setOption(option);
-}
 
 // Gráfico de Productos (Barras Horizontales)
 let productosChart = null; // Variable global para la instancia del gráfico
@@ -1061,7 +979,6 @@ function cambiarCliente(clienteId) {
 
 // Inicializar gráficos cuando la página carga
 document.addEventListener('DOMContentLoaded', function() {
-    crearGraficoCicloVida(); // ECharts
     crearGraficoProductos(); // Chart.js - Carga inicial
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica(); // ECharts

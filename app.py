@@ -19,6 +19,17 @@ app.secret_key = os.getenv('SECRET_KEY')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
+# --- Registrar filtro Jinja personalizado ---
+@app.template_filter('format_number')
+def format_number_filter(value):
+    """Formatea un número con comas como separadores de miles."""
+    if value is None:
+        return ''
+    try:
+        return "{:,.0f}".format(int(value))
+    except (ValueError, TypeError):
+        return value
+
 # --- Inicialización de Managers ---
 data_manager = OdooManager()
 gs_manager = GoogleSheetsManager(
@@ -478,6 +489,103 @@ def dashboard():
                     'venta': venta
                 })
         
+        # Calcular KPIs adicionales
+        unique_clients = len(set(sale['cliente'] for sale in sales_data_international if sale.get('cliente')))
+        total_products = len(set(sale['producto'] for sale in sales_data_international if sale.get('producto')))
+        total_invoices = len(set(sale['factura'] for sale in sales_data_international if sale.get('factura')))
+
+        # Calcular Brecha Comercial (Meta - Venta). Meta es 0 por ahora.
+        meta_total_kpi = 0
+        brecha_comercial = meta_total_kpi - total_sales_year
+
+
+        # --- LÓGICA PARA GRÁFICOS ADICIONALES (Ciclo de Vida, Forma Farmacéutica) ---
+        ventas_por_forma_farmaceutica = {}
+        
+        for sale in sales_data_international:
+            venta_amount = sale.get('amount_currency', 0)
+            
+            # Agrupar por forma farmacéutica
+            forma_farma = sale.get('pharmaceutical_forms_id')
+            nombre_forma = forma_farma[1] if forma_farma and len(forma_farma) > 1 else 'Instrumental'
+            ventas_por_forma_farmaceutica[nombre_forma] = ventas_por_forma_farmaceutica.get(nombre_forma, 0) + venta_amount
+
+        datos_forma_farmaceutica = [{'forma': f, 'venta': v} for f, v in ventas_por_forma_farmaceutica.items()]
+        # --- LÓGICA PARA GRÁFICO DRILLDOWN JERÁRQUICO ---
+        drilldown_data = {}
+        drilldown_titles = {}
+        top_products_by_level = {}
+        pie_chart_data_by_level = {}
+
+        if sales_data_international:
+            df_sales = pd.DataFrame(sales_data_international)
+            
+            # Asegurarse de que la columna de venta exista y sea numérica
+            if 'amount_currency' in df_sales.columns:
+                df_sales['venta'] = pd.to_numeric(df_sales['amount_currency'], errors='coerce').fillna(0)
+
+                # Extraer nombres de campos relacionados
+                def extract_name(field):
+                    if isinstance(field, list) and len(field) > 1:
+                        return field[1]
+                    return 'No Definido'
+
+                df_sales['linea_comercial_nombre'] = df_sales['commercial_line_international_id'].apply(extract_name)
+                df_sales['clasificacion_farma_nombre'] = df_sales['pharmacological_classification_id'].apply(extract_name)
+                df_sales['producto_nombre'] = df_sales['name']
+
+                # Nivel 0: Agrupación por Línea Comercial (root)
+                level0_data = df_sales.groupby('linea_comercial_nombre')['venta'].sum().reset_index()
+                drilldown_data['root'] = [
+                    [row['linea_comercial_nombre'], row['venta'], 'root', f"level1_{row['linea_comercial_nombre']}"]
+                    for _, row in level0_data.iterrows()
+                ]
+                drilldown_titles['root'] = 'Ventas por Línea Comercial'
+                top_products_by_level['root'] = datos_productos # Top productos general
+                pie_chart_data_by_level['root'] = datos_forma_farmaceutica
+
+                # Niveles 1 y 2: Agrupación por Clasificación y Producto
+                for linea, group_linea in df_sales.groupby('linea_comercial_nombre'):
+                    # Nivel 1: Clasificación Farmacológica para esta línea
+                    level1_id = f"level1_{linea}"
+                    level1_data = group_linea.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
+                    drilldown_data[level1_id] = [
+                        [row['clasificacion_farma_nombre'], row['venta'], level1_id, f"level2_{linea}_{row['clasificacion_farma_nombre']}"]
+                        for _, row in level1_data.iterrows()
+                    ]
+                    drilldown_titles[level1_id] = f'Ventas en {linea} por Clasificación'
+                    
+                    # Top productos para este nivel
+                    top_products_linea = group_linea.groupby('producto_nombre')['venta'].sum().nlargest(7).reset_index()
+                    top_products_by_level[level1_id] = top_products_linea.to_dict('records')
+
+                    # Pie chart para este nivel
+                    pie_data_linea = group_linea.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
+                    pie_chart_data_by_level[level1_id] = [{'name': r['clasificacion_farma_nombre'], 'value': r['venta']} for _, r in pie_data_linea.iterrows()]
+
+
+                    for clasificacion, group_clasificacion in group_linea.groupby('clasificacion_farma_nombre'):
+                        # Nivel 2: Productos para esta clasificación
+                        level2_id = f"level2_{linea}_{clasificacion}"
+                        level2_data = group_clasificacion.groupby('producto_nombre')['venta'].sum().reset_index()
+                        drilldown_data[level2_id] = [
+                            [row['producto_nombre'], row['venta'], level2_id, None] # Último nivel, no hay childGroupId
+                            for _, row in level2_data.iterrows()
+                        ]
+                        drilldown_titles[level2_id] = f'Ventas de {clasificacion} en {linea}'
+                        
+                        # Top productos para este nivel (son todos los productos de la clasificación)
+                        top_products_by_level[level2_id] = level2_data.to_dict('records')
+
+                        # Pie chart para este nivel
+                        pie_data_clasif = group_clasificacion.groupby('producto_nombre')['venta'].sum().reset_index()
+                        pie_chart_data_by_level[level2_id] = [{'name': r['producto_nombre'], 'value': r['venta']} for _, r in pie_data_clasif.iterrows()]
+
+        # Convertir todos los datos de gráficos a JSON
+        all_stacked_chart_data = json.dumps(
+            data_manager.get_commercial_lines_stacked_data(date_from=date_from, date_to=date_to, partner_id=partner_id)
+        )
+
         # Para la tabla (agregar datos adicionales si es necesario)
         datos_lineas_tabla = datos_lineas.copy()
         for linea in datos_lineas_tabla:
@@ -534,13 +642,18 @@ def dashboard():
                              datos_lineas=datos_lineas,
                              datos_lineas_tabla=datos_lineas_tabla,
                              datos_productos=datos_productos,
-                             datos_ciclo_vida=[],
-                             datos_forma_farmaceutica=[],
-                             drilldown_data={},
-                             drilldown_titles={},
-                             top_products_by_level={},
-                             pie_chart_data_by_level={},
-                             all_stacked_chart_data="{}",
+                             datos_forma_farmaceutica=datos_forma_farmaceutica,
+                             drilldown_data=drilldown_data,
+                             total_sales=total_sales_year,
+                             unique_clients=unique_clients,
+                             total_products=total_products,
+                             total_invoices=total_invoices,
+                             meta_total_kpi=meta_total_kpi,
+                             brecha_comercial=brecha_comercial,
+                             drilldown_titles=drilldown_titles,
+                             top_products_by_level=top_products_by_level,
+                             pie_chart_data_by_level=pie_chart_data_by_level,
+                             all_stacked_chart_data=all_stacked_chart_data,
                              avance_lineal_pct=0,
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
@@ -588,8 +701,13 @@ def dashboard():
                              datos_lineas=[],
                              datos_lineas_tabla=[],
                              datos_productos=[],
-                             datos_ciclo_vida=[],
                              datos_forma_farmaceutica=[],
+                             total_sales=0,
+                             unique_clients=0,
+                             total_products=0,
+                             total_invoices=0,
+                             meta_total_kpi=0,
+                             brecha_comercial=0,
                              drilldown_data={},
                              drilldown_titles={},
                              top_products_by_level={},
@@ -693,7 +811,6 @@ def dashboard_linea():
         ventas_ipn_por_vendedor = {}
         ventas_vencimiento_por_vendedor = {}
         ventas_por_producto = {}
-        ventas_por_ciclo_vida = {}
         ventas_por_forma = {}
         ajustes_sin_vendedor = 0 # Para notas de crédito sin vendedor
         nombres_vendedores_con_ventas = {} # BUGFIX: Guardar nombres de vendedores con ventas
@@ -734,9 +851,6 @@ def dashboard_linea():
                     producto_nombre = sale.get('name', '').strip()
                     if producto_nombre:
                         ventas_por_producto[producto_nombre] = ventas_por_producto.get(producto_nombre, 0) + balance
-
-                    ciclo_vida = sale.get('product_life_cycle', 'No definido')
-                    ventas_por_ciclo_vida[ciclo_vida] = ventas_por_ciclo_vida.get(ciclo_vida, 0) + balance
 
                     forma_farma = sale.get('pharmaceutical_forms_id')
                     nombre_forma = forma_farma[1] if forma_farma and len(forma_farma) > 1 else 'Instrumental'
@@ -886,7 +1000,6 @@ def dashboard_linea():
         productos_ordenados = sorted(ventas_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
         datos_productos = [{'nombre': n, 'venta': v} for n, v in productos_ordenados]
 
-        datos_ciclo_vida = [{'ciclo': c, 'venta': v} for c, v in ventas_por_ciclo_vida.items()]
         datos_forma_farmaceutica = [{'forma': f, 'venta': v} for f, v in ventas_por_forma.items()]
 
         # Lista dinámica de todas las líneas para el selector (a partir de ventas y metas)
@@ -920,7 +1033,6 @@ def dashboard_linea():
                                kpis=kpis,
                                datos_vendedores=datos_vendedores_final,
                                datos_productos=datos_productos,
-                               datos_ciclo_vida=datos_ciclo_vida,
                                datos_forma_farmaceutica=datos_forma_farmaceutica,
                                lineas_disponibles=lineas_disponibles,
                                fecha_actual=fecha_actual,
@@ -954,7 +1066,6 @@ def dashboard_linea():
                                kpis=kpis_default,
                                datos_vendedores=[],
                                datos_productos=[],
-                               datos_ciclo_vida=[],
                                datos_forma_farmaceutica=[],
                                lineas_disponibles=lineas_disponibles,
                                fecha_actual=fecha_actual,
