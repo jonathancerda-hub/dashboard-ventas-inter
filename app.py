@@ -609,6 +609,34 @@ def dashboard():
             'total_brecha': total_brecha
         }
         
+        # --- LÓGICA PARA GRÁFICO DE AVANCE POR CLIENTE ---
+        facturado_por_cliente = {}
+        for sale in sales_data_international:
+            cliente_nombre = sale.get('cliente')
+            if cliente_nombre:
+                facturado_por_cliente[cliente_nombre] = facturado_por_cliente.get(cliente_nombre, 0) + sale.get('amount_currency', 0)
+
+        pendiente_por_cliente = {}
+        for pending in pending_data:
+            cliente_nombre = pending.get('cliente')
+            if cliente_nombre:
+                pendiente_por_cliente[cliente_nombre] = pendiente_por_cliente.get(cliente_nombre, 0) + pending.get('total_pendiente', 0)
+
+        # Unir todos los clientes que tienen datos facturados o pendientes
+        all_clients = set(facturado_por_cliente.keys()) | set(pendiente_por_cliente.keys())
+        
+        bullet_chart_data = []
+        for cliente in all_clients:
+            facturado = facturado_por_cliente.get(cliente, 0)
+            pendiente = pendiente_por_cliente.get(cliente, 0)
+            total_pedido = facturado + pendiente
+            if total_pedido > 0:
+                bullet_chart_data.append({
+                    'cliente': cliente,
+                    'total_pedido': total_pedido,
+                    'facturado': facturado
+                })
+        
         # Variables para el template
         fecha_actual = datetime.now()
         mes_nombre = fecha_actual.strftime('%B %Y').title()  # Ejemplo: "October 2025"
@@ -638,13 +666,14 @@ def dashboard():
                              datos_lineas_tabla=datos_lineas_tabla,
                              datos_productos=datos_productos,
                              datos_forma_farmaceutica=datos_forma_farmaceutica,
-                             drilldown_data=drilldown_data,
-                             total_sales=total_sales_year,
+                             drilldown_data=drilldown_data,                             
+                             total_sales=total_sales_year + total_por_facturar, # Suma de facturado + por facturar
                              unique_clients=unique_clients,
                              total_products=total_products,
                              total_invoices=total_invoices,
                              meta_total_kpi=meta_total_kpi,
                              brecha_comercial=brecha_comercial,
+                             bullet_chart_data=bullet_chart_data,
                              drilldown_titles=drilldown_titles,
                              top_products_by_level=top_products_by_level,
                              pie_chart_data_by_level=pie_chart_data_by_level,
@@ -696,6 +725,7 @@ def dashboard():
                              total_invoices=0,
                              meta_total_kpi=0,
                              brecha_comercial=0,
+                             bullet_chart_data=[],
                              drilldown_data={},
                              drilldown_titles={},
                              top_products_by_level={},

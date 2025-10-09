@@ -152,8 +152,8 @@
 
     </div>
     
-    <!-- Fila inferior con gráficos -->
-    <div class="graficos-inferiores">
+    <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
+    <div class="dashboard-charts-grid">
         <!-- Gráfico de Productos (Barras Horizontales) -->
         <div class="grafico-productos">
             <h3>Top 7 Productos Más Vendidos</h3>
@@ -161,7 +161,7 @@
                 <canvas id="grafico-productos"></canvas>
             </div>
         </div>
-        
+
         <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
         <div class="grafico-lineas">
             <h3>Venta Internacional del Año por Línea Comercial</h3>
@@ -169,21 +169,25 @@
                 <canvas id="grafico-lineas"></canvas>
             </div>
         </div>
-    </div>
 
-    <!-- Fila para el nuevo gráfico Drilldown -->
-    <div class="grafico-extra-container">
+        <!-- Gráfico Drilldown -->
         <div class="grafico-echarts">
             <h3>Análisis Jerárquico de Ventas</h3>
             <div id="grafico-drilldown" style="width: 100%; height: 400px;"></div>
         </div>
-    </div>
 
-    <!-- Fila extra para el gráfico de Forma Farmacéutica -->
-    <div class="grafico-extra-container">
+        <!-- Gráfico de Forma Farmacéutica -->
         <div class="grafico-echarts">
             <h3>Venta por Clasificación Farmacológica</h3>
             <div id="grafico-forma-farmaceutica" style="width: 100%; height: 350px;"></div>
+        </div>
+
+    </div>
+    <!-- Fila separada para el Bullet Chart para que ocupe todo el ancho -->
+    <div class="grafico-extra-container">
+        <div class="grafico-echarts">
+            <h3>Avance de Facturación por Cliente</h3>
+            <div id="grafico-bullet-clientes" style="width: 100%; min-height: 600px;"></div>
         </div>
     </div>
 </div>
@@ -613,6 +617,13 @@ body {
     text-align: center;
 }
 
+.dashboard-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+    margin-top: 25px;
+}
+
 .chart-container {
     position: relative;
     height: 300px;
@@ -666,6 +677,7 @@ const drilldownTitles = {{ drilldown_titles|tojson|safe }};
 const topProductsByLevel = {{ top_products_by_level|tojson|safe }};
 const pieChartDataByLevel = {{ pie_chart_data_by_level|tojson|safe }};
 const allStackedChartData = JSON.parse({{ all_stacked_chart_data|tojson|safe }});
+const bulletChartData = {{ bullet_chart_data|tojson|safe }};
 
 // Debug: Verificar datos de líneas comerciales
 console.log('Datos líneas comerciales:', datosLineas);
@@ -984,6 +996,166 @@ function crearGraficoDrilldown() {
     }
 }
 
+// Gráfico Bullet Chart para Clientes (Recreado)
+function crearGraficoBullet() {
+    const chartDom = document.getElementById('grafico-bullet-clientes');
+    if (!chartDom) return;
+    const myChart = echarts.init(chartDom);
+
+    // Ordenar datos por total de pedido descendente para mejor visualización
+    bulletChartData.sort((a, b) => b.total_pedido - a.total_pedido);
+
+    // Ajustar altura del gráfico dinámicamente
+    const barHeight = 25; // Altura por barra
+    const initialDataCount = 20; // Clientes a mostrar inicialmente
+    const chartHeight = Math.max(600, bulletChartData.length * barHeight);
+    chartDom.style.height = chartHeight + 'px';
+    myChart.resize();
+
+    const startPercent = bulletChartData.length > initialDataCount 
+        ? 100 - (initialDataCount / bulletChartData.length * 100) 
+        : 0;
+
+    // Preparar datos para el gráfico
+    const clientes = bulletChartData.map(d => d.cliente);
+    const datosMeta = bulletChartData.map(d => d.total_pedido);
+    const datosFacturado = bulletChartData.map(d => d.facturado);
+
+    // Calcular porcentaje y asignar color según umbrales
+    const porcentajes = datosMeta.map((meta, i) => {
+        const fact = datosFacturado[i] || 0;
+        return meta > 0 ? Math.min(100, Math.round((fact / meta) * 1000) / 10) : 0;
+    });
+
+    const facturadoSeriesData = datosFacturado.map((valor, i) => {
+        const pct = porcentajes[i];
+        let color = '#3498db'; // bueno
+        if (pct < 40) color = '#e74c3c'; // rojo
+        else if (pct < 80) color = '#f1c40f'; // amarillo
+        else color = '#2ecc71'; // verde
+
+        return {
+            value: valor,
+            itemStyle: { color: color },
+            label: {
+                show: true,
+                position: 'right',
+                color: '#333',
+                formatter: function(params) { return porcentajes[params.dataIndex] + '%'; }
+            }
+        };
+    });
+
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: function (params) {
+                const idx = params[0].dataIndex;
+                const cliente = clientes[idx];
+                const fact = datosFacturado[idx] || 0;
+                const meta = datosMeta[idx] || 0;
+                const pct = porcentajes[idx] || 0;
+                return `${cliente}<br/>` +
+                    `Facturado: S/ ${fact.toLocaleString('es-PE', {minimumFractionDigits:0})}<br/>` +
+                    `Total Pedido: S/ ${meta.toLocaleString('es-PE', {minimumFractionDigits:0})}<br/>` +
+                    `Avance: ${pct}%`;
+            }
+        },
+        grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
+        xAxis: {
+            type: 'value',
+            axisLabel: { formatter: value => 'S/ ' + value.toLocaleString() },
+            splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+        },
+        yAxis: {
+            type: 'category',
+            data: clientes,
+            axisLabel: {
+                interval: 0,
+                formatter: value => value.length > 30 ? value.substring(0, 30) + '...' : value,
+                rich: { ellipsis: { color: '#666' } }
+            }
+        },
+        dataZoom: [{
+            type: 'inside', yAxisIndex: 0, filterMode: 'empty', start: startPercent, end: 100
+        }],
+        series: [
+            {
+                name: 'Total Pedido (Meta)',
+                type: 'bar',
+                barGap: '-100%',
+                barWidth: '22px',
+                itemStyle: { color: '#e9ecef' },
+                data: datosMeta,
+                animation: false,
+                emphasis: { itemStyle: { color: '#d6d6d6' } },
+                markLine: { silent: true }
+            },
+            {
+                name: 'Facturado',
+                type: 'bar',
+                barWidth: '22px',
+                z: 10,
+                data: facturadoSeriesData,
+                itemStyle: { barBorderRadius: 6 },
+                emphasis: { scale: true }
+            }
+        ],
+        animationDuration: 600
+    };
+
+    myChart.setOption(option, true);
+
+    // Mapear nombres de cliente a sus IDs (desde filter_options para poder aplicar el filtro)
+    const clienteOptions = {{ filter_options.clientes|tojson|safe }} || [];
+    const nameToId = {};
+    clienteOptions.forEach(item => {
+        // item es [id, name]
+        if (item && item.length >= 2) {
+            nameToId[item[1]] = item[0];
+        }
+    });
+
+    // Manejar clicks: si el usuario hace click sobre una barra o etiqueta de eje Y, aplicar el filtro
+    myChart.on('click', function(params) {
+        try {
+            let clienteName = null;
+            if (!params) return;
+            if (params.componentType === 'series') {
+                // click sobre la barra -> dataIndex disponible
+                clienteName = clientes[params.dataIndex];
+            } else if (params.componentType === 'yAxis') {
+                // click sobre etiqueta del eje Y
+                clienteName = params.value || params.name;
+            } else if (params && params.name) {
+                clienteName = params.name;
+            }
+
+            if (clienteName) {
+                // Intentar coincidencia exacta primero
+                const id = nameToId[clienteName];
+                if (id !== undefined && id !== null) {
+                    cambiarCliente(id);
+                    return;
+                }
+
+                // Si no hay coincidencia exacta, intentar coincidencia por contains (por si hay trimming)
+                for (const [name, cid] of Object.entries(nameToId)) {
+                    if (name && clienteName && (name.includes(clienteName) || clienteName.includes(name))) {
+                        cambiarCliente(cid);
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error manejando click en bullet chart:', e);
+        }
+    });
+
+    window.addEventListener('resize', () => myChart.resize());
+}
+
 // Función para manejar cambio de cliente
 function cambiarCliente(clienteId) {
     const currentUrl = new URL(window.location.href);
@@ -1003,6 +1175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica(); // ECharts
     crearGraficoDrilldown(); // ECharts
+    crearGraficoBullet(); // Llamada a la función recreada
 
     // Verificar que el select de clientes tiene opciones
     const clienteSelect = document.getElementById('filtro-cliente');
