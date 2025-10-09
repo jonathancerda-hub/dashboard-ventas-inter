@@ -577,29 +577,36 @@ def dashboard():
         # Para la tabla (agregar datos adicionales si es necesario)
         datos_lineas_tabla = datos_lineas.copy()
         for linea in datos_lineas_tabla:
+            venta_total_linea = linea.get('venta', 0)
+            por_facturar_linea = por_facturar_por_linea.get(linea['nombre'], 0)
+            meta_linea = 0  # Meta se establece en 0 por ahora
+            
+            # Calcular brecha y avance
+            venta_proyectada = venta_total_linea + por_facturar_linea
+            brecha = venta_proyectada - meta_linea
+            porcentaje_avance_meta = (venta_proyectada / meta_linea * 100) if meta_linea > 0 else 0
+
             linea.update({
-                'por_facturar': por_facturar_por_linea.get(linea['nombre'], 0),
-                'porcentaje_total': 0,
-                'porcentaje_sobre_total': (linea['venta'] / total_sales_year * 100) if total_sales_year > 0 else 0,
-                'meta_pn': 0,
-                'venta_pn': 0,
-                'porcentaje_pn': 0,
-                'vencimiento_6_meses': 0
+                'por_facturar': por_facturar_linea,
+                'porcentaje_sobre_total': (venta_total_linea / total_sales_year * 100) if total_sales_year > 0 else 0,
+                'meta': meta_linea,
+                'brecha': brecha,
+                'porcentaje_avance_meta': porcentaje_avance_meta
             })
         
+        # Calcular KPIs totales
+        meta_total_general = 0 # Meta total se establece en 0 por ahora
+        venta_proyectada_total = total_sales_year + total_por_facturar
+        total_brecha = venta_proyectada_total - meta_total_general
+        porcentaje_avance_total = (venta_proyectada_total / meta_total_general * 100) if meta_total_general > 0 else 0
+
         kpis = {
             # KPIs que el template espera (usando total_sales_year para consistencia con la tabla)
-            'meta_total': 0,  # Sin metas configuradas por ahora
+            'meta_total': meta_total_general,
             'venta_total': total_sales_year,  # Usar el total del año que coincide con la suma de líneas comerciales
             'total_por_facturar': total_por_facturar,
-            'porcentaje_avance': 0,  # Sin metas, no se puede calcular
-            'meta_ipn': 0,
-            'venta_ipn': 0,
-            'porcentaje_avance_ipn': 0,
-            'vencimiento_6_meses': 0,
-            'avance_diario_total': 0,
-            'avance_diario_ipn': 0,
-            'ritmo_diario_requerido': 0
+            'porcentaje_avance': porcentaje_avance_total,
+            'total_brecha': total_brecha
         }
         
         # Variables para el template
@@ -670,14 +677,7 @@ def dashboard():
                                  'meta_total': 0,
                                  'venta_total': 0,
                                  'total_por_facturar': 0,
-                                 'porcentaje_avance': 0,
-                                 'meta_ipn': 0,
-                                 'venta_ipn': 0,
-                                 'porcentaje_avance_ipn': 0,
-                                 'vencimiento_6_meses': 0,
-                                 'avance_diario_total': 0,
-                                 'avance_diario_ipn': 0,
-                                 'ritmo_diario_requerido': 0
+                                 'porcentaje_avance': 0
                              },
                              filter_options=filter_options,
                              selected_filters=selected_filters,

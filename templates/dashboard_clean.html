@@ -115,6 +115,9 @@
                             <th>Venta Total ($)</th>
                             <th>Por Facturar ($)</th>
                             <th>% Sobre Total</th>
+                            <th>Meta</th>
+                            <th>Brecha</th>
+                            <th>% Avance</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -124,9 +127,12 @@
                             <td>{{ "$ {:,.2f}".format(linea.venta) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                             <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.meta) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.brecha) }}</td>
+                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_avance_meta) }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
+                        <tr><td colspan="7" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="fila-total">
@@ -135,6 +141,9 @@
                             <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.meta_total) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_brecha) }}</strong></td>
+                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
                         </tr>
                     </tfoot>
                 </table>
