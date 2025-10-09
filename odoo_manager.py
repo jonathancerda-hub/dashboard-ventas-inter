@@ -368,17 +368,11 @@ class OdooManager:
             if limit is not None:
                 query_options['limit'] = limit
             
-            print(f"DEBUG ODOO: Dominio enviado a Odoo: {domain}")
             sales_lines_base = self.models.execute_kw(
                 self.db, self.uid, self.password, 'account.move.line', 'search_read',
                 [domain],
                 query_options
             )
-            
-            print(f"DEBUG: Total líneas obtenidas de account.move.line: {len(sales_lines_base)}")
-            # Log de depuración para cada línea obtenida
-            for idx, line in enumerate(sales_lines_base):
-                print(f"Línea {idx+1}: move_name={line.get('move_name')}, product_id={line.get('product_id')}, tax_ids={line.get('tax_ids')}, commercial_line_international_id={line.get('commercial_line_international_id')}")
             if not sales_lines_base:
                 return []
             
@@ -504,8 +498,6 @@ class OdooManager:
             sales_lines = []
             ecommerce_reassigned = 0
             s00791_debug_count = 0  # Contador para debug del pedido específico
-            
-            print(f"DEBUG ODOO: Procesando {len(sales_lines_base)} líneas base")
             
             for line in sales_lines_base:
                 move_id = line.get('move_id')
@@ -667,8 +659,6 @@ class OdooManager:
                     'amount_currency': -line.get('amount_currency', 0),
                 })
             
-            print(f"DEBUG ODOO: Total líneas procesadas con filtro EXE_IGV_EXP: {len(sales_lines)}")
-            
             # Líneas de S00791 procesadas correctamente
             
             # Si se solicita paginación, devolver tupla (datos, paginación)
@@ -713,14 +703,13 @@ class OdooManager:
                 date_from = filters.get('date_from')
                 date_to = filters.get('date_to')
                 partner_id = filters.get('partner_id')
-                search = filters.get('search_term')
+                search = filters.get('search_term') # CORRECCIÓN: Usar el search_term del filtro
             
             # NUEVA ESTRATEGIA: Usar los datos de sale.order.line que ya se obtienen en get_sales_lines
             # Pero consultando directamente sin pasar por filtros problemáticos
             
             try:
                 # 1. Obtener las líneas de order que tienen sale.order.line con datos disponibles
-                
                 # Usar la misma lógica que get_sales_lines pero enfocada en sale.order.line
                 sale_order_lines_data = []
                 
@@ -734,6 +723,21 @@ class OdooManager:
                     basic_domain.append(('order_id.date_order', '>=', date_from))
                 if date_to:
                     basic_domain.append(('order_id.date_order', '<=', date_to))
+                
+                # Incluir filtro de cliente si se proporciona
+                if partner_id:
+                    basic_domain.append(('order_id.partner_id', '=', int(partner_id)))
+
+                # Incluir filtro de búsqueda si se proporciona
+                if search:
+                    # CORRECCIÓN: El dominio de búsqueda debe estar bien anidado para Odoo (n-1 '|' para n condiciones)
+                    basic_domain += [
+                        '|', '|', '|',
+                        ('order_id.partner_id.name', 'ilike', search),
+                        ('product_id.default_code', 'ilike', search),
+                        ('product_id.name', 'ilike', search),
+                        ('order_id.name', 'ilike', search)
+                    ]
 
                 # Obtener líneas de pedidos de venta
                 # SIN LÍMITE para capturar todos los pedidos pendientes, incluyendo los en estado 'credit'
@@ -750,6 +754,8 @@ class OdooManager:
                     }
                 )
                 
+                print(f"DEBUG PENDING: Dominio enviado a Odoo: {basic_domain}")
+                print(f"DEBUG PENDING: {len(order_lines)} líneas de pedido obtenidas inicialmente.")
                 
                 if not order_lines:
                     if page is not None and per_page is not None:
@@ -758,7 +764,7 @@ class OdooManager:
                 
                 # 2. Filtrar solo las que tienen cantidad pendiente > 0
                 # INCLUIR también pedidos en estado 'credit' calculando qty_to_invoice manualmente
-                pending_lines = []
+                all_pending_lines = []
                 for line in order_lines:
                     qty_to_invoice = line.get('qty_to_invoice', 0)
                     line_state = line.get('state', '')
@@ -772,10 +778,12 @@ class OdooManager:
                         line['qty_to_invoice_calculated'] = qty_to_invoice
                     
                     if qty_to_invoice > 0:
-                        pending_lines.append(line)
+                        all_pending_lines.append(line)
                 
+                print(f"DEBUG PENDING: {len(all_pending_lines)} líneas con cantidad pendiente de facturar.")
+
                 # 3. Obtener información de pedidos para filtrar por equipo INTERNACIONAL
-                order_ids = list(set([line['order_id'][0] for line in pending_lines if line.get('order_id')]))
+                order_ids = list(set([line['order_id'][0] for line in all_pending_lines if line.get('order_id')]))
                 
                 if not order_ids:
                     if page is not None and per_page is not None:
@@ -807,18 +815,18 @@ class OdooManager:
                 
                 # 4. Filtrar solo pedidos del canal INTERNACIONAL
                 international_pending = []
-                
-                for line in pending_lines:
+                for line in all_pending_lines:
                     order_id = line['order_id'][0] if line.get('order_id') else None
                     order = order_data.get(order_id)
                     
                     if order:
-                        # CAMBIO: Como no podemos filtrar por diario en el pedido, mantenemos el filtro por equipo de ventas aquí.
                         team_name = order.get('team_id', [0, ''])[1]
-                        
-                        if 'INTERNACIONAL' in team_name.upper():
+                        order_state = order.get('state')
+                        # Solo permitir estados credit, sale, done y equipo INTERNACIONAL
+                        if 'INTERNACIONAL' in team_name.upper() and order_state in ['credit', 'sale', 'done']:
                             international_pending.append(line)
                 
+                print(f"DEBUG PENDING: {len(international_pending)} líneas pertenecen al equipo INTERNACIONAL y tienen estado 'sale' o 'done'.")
                 
                 if not international_pending:
                     if page is not None and per_page is not None:
@@ -937,44 +945,28 @@ class OdooManager:
                         continue
                 
                 # Aplicar filtro de búsqueda
-                if search:
-                    search_lower = search.lower()
-                    filtered_lines = []
-                    for line in final_pending_lines:
-                        if (search_lower in line.get('pedido', '').lower() or
-                            search_lower in line.get('cliente', '').lower() or
-                            search_lower in line.get('codigo_odoo', '').lower() or
-                            search_lower in line.get('producto', '').lower()):
-                            filtered_lines.append(line)
-                    final_pending_lines = filtered_lines
+                # ESTA LÓGICA SE MOVIÓ AL DOMINIO DE LA CONSULTA PARA MAYOR EFICIENCIA
+                # if search:
+                #     search_lower = search.lower()
+                #     filtered_lines = []
+                #     for line in final_pending_lines:
+                #         if (search_lower in line.get('pedido', '').lower() or
+                #             search_lower in line.get('cliente', '').lower() or
+                #             search_lower in line.get('codigo_odoo', '').lower() or
+                #             search_lower in line.get('producto', '').lower()):
+                #             filtered_lines.append(line)
+                #     final_pending_lines = filtered_lines
+
+                # La búsqueda ahora se aplica en el dominio principal, por lo que no es necesario
+                # un segundo filtrado aquí.
                 
-                
-                # Manejo de paginación
-                if page is not None and per_page is not None:
-                    total_items = len(final_pending_lines)
-                    start_idx = (page - 1) * per_page
-                    end_idx = start_idx + per_page
-                    paginated_data = final_pending_lines[start_idx:end_idx]
-                    
-                    pagination = {
-                        'page': page,
-                        'per_page': per_page,
-                        'total': total_items,
-                        'pages': (total_items + per_page - 1) // per_page
-                    }
-                    
-                    return paginated_data, pagination
                 
                 return final_pending_lines
                 
             except Exception as e:
-                if page is not None and per_page is not None:
-                    return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 return []
                 
         except Exception as e:
-            if page is not None and per_page is not None:
-                return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
             return []
 
     def get_sales_dashboard_data(self, date_from=None, date_to=None, linea_id=None, partner_id=None):

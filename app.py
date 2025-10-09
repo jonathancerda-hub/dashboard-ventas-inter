@@ -10,6 +10,7 @@ import json
 import io
 import calendar
 from datetime import datetime, timedelta
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 load_dotenv()
 app = Flask(__name__)
@@ -313,19 +314,6 @@ def pending():
         pending_data = data_manager.get_pending_orders(filters=selected_filters)
         
         # Filtrar solo por canal INTERNACIONAL (ya filtrado en la función)
-        
-        # Aplicar búsqueda adicional si está presente
-        search_query = selected_filters.get('search_term', '')
-        if search_query and pending_data:
-            search_lower = search_query.lower()
-            filtered_data = []
-            for item in pending_data:
-                if (search_lower in item.get('pedido', '').lower() or
-                    search_lower in item.get('cliente', '').lower() or
-                    search_lower in item.get('codigo_odoo', '').lower() or
-                    search_lower in item.get('producto', '').lower()):
-                    filtered_data.append(item)
-            pending_data = filtered_data
         
         return render_template('pending.html', 
                              pending_data=pending_data,
@@ -1275,12 +1263,24 @@ def export_excel_sales():
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df_export.to_excel(writer, sheet_name='Detalle_Ventas_Internacional', index=False)
-        
+
+            # Aplicar estilo de tabla
+            workbook = writer.book
+            worksheet = writer.sheets['Detalle_Ventas_Internacional']
+            
+            (max_row, max_col) = df_export.shape
+            # El rango de la tabla es desde A1 hasta la última celda con datos
+            table_ref = f"A1:{chr(ord('A') + max_col - 1)}{max_row + 1}"
+            table = Table(displayName="VentasFacturadas", ref=table_ref)
+            style = TableStyleInfo(name="TableStyleLight9", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+            table.tableStyleInfo = style
+            worksheet.add_table(table)
+
         output.seek(0)
         
-        # Generar nombre de archivo con timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'ventas_farmaceuticas_{timestamp}.xlsx'
+        # Generar nombre de archivo con fecha en formato dd-mm-yyyy
+        timestamp = datetime.now().strftime("%d-%m-%Y")
+        filename = f'Pedidos_Facturados_{timestamp}.xlsx'
         
         return send_file(
             output,
@@ -1292,6 +1292,84 @@ def export_excel_sales():
     except Exception as e:
         flash(f'Error al exportar datos: {str(e)}', 'danger')
         return redirect(url_for('sales'))
+
+@app.route('/export/excel/pending')
+def export_excel_pending():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        # Obtener el cliente_id de la URL
+        cliente_id = request.args.get('cliente_id')
+        
+        partner_id = None
+        if cliente_id:
+            try:
+                partner_id = int(cliente_id)
+            except (ValueError, TypeError):
+                partner_id = None
+        
+        # Obtener datos de pedidos pendientes para el cliente seleccionado
+        pending_data_raw = data_manager.get_pending_orders(
+            filters={'partner_id': partner_id}
+        )
+        
+        if not pending_data_raw:
+            flash('No hay datos pendientes de facturar para exportar.', 'info')
+            return redirect(url_for('dashboard', cliente_id=cliente_id))
+
+        # Crear DataFrame
+        df = pd.DataFrame(pending_data_raw)
+        
+        # Seleccionar y renombrar las columnas para el export
+        # Usamos un subconjunto de las columnas disponibles en pending_data
+        column_mapping = {
+            'pedido': 'Pedido',
+            'cliente': 'Cliente',
+            'pais': 'País',
+            'fecha': 'Fecha Pedido',
+            'codigo_odoo': 'Código Odoo',
+            'producto': 'Producto',
+            'linea_comercial': 'Linea Comercial',
+            'cantidad_pendiente': 'Cantidad Pendiente',
+            'precio_unitario': 'Precio unitario ($)',
+            'total_pendiente': 'Total Pendiente ($)'
+        }
+        
+        df_export = df[list(column_mapping.keys())].copy()
+        df_export.rename(columns=column_mapping, inplace=True)
+        
+        # Crear archivo Excel en memoria
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_export.to_excel(writer, sheet_name='Pendiente_Facturar', index=False)
+
+            # Aplicar estilo de tabla
+            workbook = writer.book
+            worksheet = writer.sheets['Pendiente_Facturar']
+
+            (max_row, max_col) = df_export.shape
+            table_ref = f"A1:{chr(ord('A') + max_col - 1)}{max_row + 1}"
+            table = Table(displayName="PendienteFacturar", ref=table_ref)
+            style = TableStyleInfo(name="TableStyleLight9", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+            table.tableStyleInfo = style
+            worksheet.add_table(table)
+
+        output.seek(0)
+        
+        timestamp = datetime.now().strftime("%d-%m-%Y")
+        filename = f'Pedidos_Pendientes_{timestamp}.xlsx'
+        
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        flash(f'Error al exportar datos pendientes: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
 
 @app.route('/metas_vendedor', methods=['GET', 'POST'])
 def metas_vendedor():

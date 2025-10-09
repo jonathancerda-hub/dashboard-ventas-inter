@@ -73,6 +73,7 @@
     <table class="table">
         <thead>
             <tr>
+                <th>Estado del Pedido</th>
                 <th>Pedido</th>
                 <th>Cliente</th>
                 <th>País</th>
@@ -95,6 +96,7 @@
         <tbody>
             {% for line in pending_data %}
             <tr>
+                <td><span class="badge badge--info">{{ line.order_state or 'N/A' }}</span></td>
                 <td>{{ line.pedido or 'N/A' }}</td>
                 <td>{{ line.cliente or 'N/A' }}</td>
                 <td>{{ line.pais or 'N/A' }}</td>
@@ -111,11 +113,11 @@
                 <td class="text-right">{{ line.cantidad_pendiente or 0 }}</td>
                 <td class="text-right">{{ "{:,.2f}".format(line.precio_unitario if line.precio_unitario else 0) }}</td>
                 <td class="text-right">{{ line.discount or 0 }}</td>
-                <td class="text-right">{{ "{:,.2f}".format(line.total_pendiente * (1 - (line.discount or 0) / 100)) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(line.total_pendiente) }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="17" style="text-align: center; padding: var(--space-4);">No se encontraron pedidos pendientes de facturación.</td>
+                <td colspan="18" style="text-align: center; padding: var(--space-4);">No se encontraron pedidos pendientes de facturación.</td>
             </tr>
             {% endfor %}
         </tbody>
