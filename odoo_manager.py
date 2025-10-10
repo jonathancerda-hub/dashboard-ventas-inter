@@ -916,6 +916,8 @@ class OdooManager:
                             # 16 campos específicos
                             'pedido': order.get('name', ''),
                             'cliente': partner.get('name', ''),
+                            'partner_id': order.get('partner_id'),
+                            'cliente_id': order.get('partner_id')[0] if order.get('partner_id') and isinstance(order.get('partner_id'), (list, tuple)) else None,
                             'pais': partner_country,
                             'fecha': order.get('date_order', '').split(' ')[0] if order.get('date_order') else '',
                             'mes': mes,
@@ -961,6 +963,88 @@ class OdooManager:
                 # un segundo filtrado aquí.
                 
                 
+                # Si se pidió un partner en los filtros, asegurarnos de incluir
+                # todos los pedidos del cliente seleccionado aunque no tengan
+                # líneas pendientes (total_pendiente = 0).
+                if partner_id:
+                    try:
+                        # Buscar pedidos del cliente en el canal INTERNACIONAL y estados permitidos
+                        domain_orders = [
+                            ('partner_id', '=', int(partner_id)),
+                            ('state', 'in', ['credit', 'sale', 'done']),
+                        ]
+                        # Intentar filtrar por equipo INTERNACIONAL si el campo existe
+                        # Nota: usar search_read para evitar límites
+                        partner_orders = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'sale.order', 'search_read',
+                            [domain_orders],
+                            {
+                                'fields': ['id', 'name', 'partner_id', 'date_order', 'state', 'amount_total', 'team_id', 'user_id']
+                            }
+                        )
+                    except Exception:
+                        partner_orders = []
+
+                    # Construir set de order ids que ya tenemos con pendientes
+                    existing_order_ids = set(order_ids) if order_ids else set()
+
+                    for order in partner_orders:
+                        try:
+                            oid = order.get('id')
+                            # Si ya lo tenemos (porque tenía líneas pendientes), saltar
+                            if oid in existing_order_ids:
+                                continue
+
+                            # Preparar registro con totales a 0 (no hay líneas pendientes)
+                            cliente_name = ''
+                            if order.get('partner_id') and isinstance(order.get('partner_id'), (list, tuple)) and len(order.get('partner_id')) > 1:
+                                cliente_name = order.get('partner_id')[1]
+
+                            fecha = order.get('date_order', '').split(' ')[0] if order.get('date_order') else ''
+                            # Intentar obtener mes amigable
+                            mes = ''
+                            if order.get('date_order'):
+                                try:
+                                    fecha_obj = datetime.strptime(order['date_order'], '%Y-%m-%d %H:%M:%S')
+                                    meses_es = {
+                                        1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+                                        5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+                                        9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+                                    }
+                                    mes = f"{meses_es.get(fecha_obj.month, '')} {fecha_obj.year}"
+                                except Exception:
+                                    mes = ''
+
+                            pending_record = {
+                                'pedido': order.get('name', ''),
+                                'cliente': cliente_name,
+                                'partner_id': order.get('partner_id'),
+                                'cliente_id': order.get('partner_id')[0] if order.get('partner_id') and isinstance(order.get('partner_id'), (list, tuple)) else None,
+                                'order_id': oid,
+                                'pais': '',
+                                'fecha': fecha,
+                                'mes': mes,
+                                'codigo_odoo': '',
+                                'producto': '',
+                                'descripcion': '',
+                                'linea_comercial': '',
+                                'clasificacion_farmacologica': '',
+                                'formas_farmaceuticas': '',
+                                'via_administracion': '',
+                                'linea_produccion': '',
+                                'cantidad_pendiente': 0,
+                                'precio_unitario': 0,
+                                'discount': 0,
+                                'total_pendiente': 0,
+                                'team_id': order.get('team_id'),
+                                'commercial_line_international_id': None,
+                                'state': '',
+                                'order_state': order.get('state')
+                            }
+                            final_pending_lines.append(pending_record)
+                        except Exception:
+                            continue
+
                 return final_pending_lines
                 
             except Exception as e:

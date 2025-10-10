@@ -189,6 +189,11 @@
             <h3>Avance de Facturación por Cliente</h3>
             <div id="grafico-bullet-clientes" style="width: 100%; min-height: 600px;"></div>
         </div>
+        <!-- Gráfico adicional por Pedidos (se muestra solo si se selecciona un cliente) -->
+        <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
+            <h3>Avance por Pedido {% if nombre_cliente_seleccionado %}({{ nombre_cliente_seleccionado }}){% else %}(Cliente seleccionado){% endif %}</h3>
+            <div id="grafico-bullet-pedidos" style="width: 100%; min-height: 500px;"></div>
+        </div>
     </div>
 </div>
 
@@ -669,15 +674,161 @@ body {
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // Datos del backend para los gráficos (con valores positivos)
-const datosLineas = {{ datos_lineas|tojson|safe }};
-const datosProductos = {{ datos_productos|tojson|safe }};
-const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|tojson|safe }};
-const drilldownData = {{ drilldown_data|tojson|safe }};
-const drilldownTitles = {{ drilldown_titles|tojson|safe }};
-const topProductsByLevel = {{ top_products_by_level|tojson|safe }};
-const pieChartDataByLevel = {{ pie_chart_data_by_level|tojson|safe }};
-const allStackedChartData = JSON.parse({{ all_stacked_chart_data|tojson|safe }});
-const bulletChartData = {{ bullet_chart_data|tojson|safe }};
+const datosLineas = {{ datos_lineas|default([])|tojson|safe }};
+const datosProductos = {{ datos_productos|default([])|tojson|safe }};
+const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|default([])|tojson|safe }};
+const drilldownData = {{ drilldown_data|default({})|tojson|safe }};
+const drilldownTitles = {{ drilldown_titles|default({})|tojson|safe }};
+const topProductsByLevel = {{ top_products_by_level|default({})|tojson|safe }};
+const pieChartDataByLevel = {{ pie_chart_data_by_level|default({})|tojson|safe }};
+const allStackedChartData = {{ all_stacked_chart_data|default({})|tojson|safe }};
+const bulletChartData = {{ bullet_chart_data|default([])|tojson|safe }};
+// Datos para gráfico de pedidos
+const salesDataAll = {{ sales_data|default([])|tojson|safe }};
+const pendingDataAll = {{ pending_data|default([])|tojson|safe }};
+const selectedClienteId = {{ selected_filters.cliente_id|default('')|tojson|safe }};
+const ordersChartDataBackend = {{ orders_chart_data|default([])|tojson|safe }};
+const selectedClienteName = {{ nombre_cliente_seleccionado|default('')|tojson|safe }};
+
+// Crear gráfico por pedidos para un cliente seleccionado
+function crearGraficoPedidos(clienteId) {
+    try {
+        const chartDom = document.getElementById('grafico-bullet-pedidos');
+        const container = document.getElementById('container-grafico-pedidos');
+        if (!chartDom || !container) return;
+
+        // Si el backend nos dio ordersChartData ya agregada para el cliente, usarla (más fiable)
+        const backendOrders = (ordersChartDataBackend || []).filter(o => {
+            if (!clienteId) return true;
+            // match by cliente_id if available
+            if (o.cliente_id && String(o.cliente_id) === String(clienteId)) return true;
+            // Also match by partner array/id if available (some records store partner as [id, name])
+            if (o.partner) {
+                try {
+                    if (Array.isArray(o.partner) && String(o.partner[0]) === String(clienteId)) return true;
+                    if (!Array.isArray(o.partner) && String(o.partner) === String(clienteId)) return true;
+                } catch (e) {}
+            }
+            // match by cliente name if backend has it and we have selected name
+            if (selectedClienteName && o.cliente && String(o.cliente).toLowerCase().includes(String(selectedClienteName).toLowerCase())) return true;
+            return false;
+        });
+        if (backendOrders && backendOrders.length > 0) {
+            // Mostrar directamente usando la data del backend
+            const pedidos = backendOrders.map(o => o.pedido || o.order_name || 'SIN_PEDIDO');
+            const datosTotal = backendOrders.map(o => Math.max(0, Number(o.total || 0)));
+            const datosFacturado = backendOrders.map(o => Math.max(0, Number(o.facturado || 0)));
+            const container = document.getElementById('container-grafico-pedidos');
+            if (pedidos.length === 0) { container.style.display = 'none'; return; }
+            container.style.display = 'block';
+            chartDom.style.height = Math.max(300, pedidos.length * 30) + 'px';
+            const myChart = echarts.init(chartDom);
+            const pct = pedidos.map((p, i) => { const t = datosTotal[i] || 0; const f = datosFacturado[i] || 0; return t>0 ? Math.round((f/t)*1000)/10 : 0; });
+            const seriesFact = datosFacturado.map((v, i) => ({ value: v, label: { show: true, position: 'right', formatter: pct[i] + '%' } }));
+            const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: { type: 'shadow' },
+                        formatter: function(params) {
+                            // params is an array when trigger=axis
+                            const name = params && params[0] && params[0].name ? params[0].name : '';
+                            const lines = (params || []).map(p => `${p.seriesName}: $ ${Math.round(p.value).toLocaleString('en-US')}`);
+                            return name + '<br/>' + lines.join('<br/>');
+                        }
+                    },
+                    grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
+                    xAxis: { type: 'value', min: 0, axisLabel: { formatter: v => '$ ' + Math.round(v).toLocaleString('en-US') } },
+                    yAxis: { type: 'category', data: pedidos },
+                    series: [
+                        { name: 'Total Pedido', type: 'bar', barGap: '-100%', itemStyle: { color: '#e9ecef' }, data: datosTotal },
+                        { name: 'Facturado', type: 'bar', data: seriesFact, itemStyle: { color: '#3498db', barBorderRadius: 6 } }
+                    ]
+                };
+            myChart.setOption(option);
+            window.addEventListener('resize', () => myChart.resize());
+            return; // ya renderizado
+        }
+
+        // Construir map de pendientes por pedido a partir de pendingDataAll
+        const pendingByPedido = {};
+        (pendingDataAll || []).forEach(p => {
+            const pedidoName = p.pedido || p.order_name || p.move_name || 'SIN_PEDIDO';
+            const montoPend = Number(p.total_pendiente || 0);
+            if (!pendingByPedido[pedidoName]) pendingByPedido[pedidoName] = 0;
+            pendingByPedido[pedidoName] += montoPend;
+        });
+
+        // Construir map de facturado por pedido filtrando por partner_id == clienteId
+        const facturadoByPedido = {};
+        (salesDataAll || []).forEach(s => {
+            // Obtener partner id de la línea
+            let partnerId = null;
+            if (s.partner_id) {
+                if (Array.isArray(s.partner_id)) partnerId = s.partner_id[0];
+                else partnerId = s.partner_id;
+            } else if (s.partner) {
+                if (Array.isArray(s.partner)) partnerId = s.partner[0];
+                else partnerId = s.partner;
+            }
+
+            // Comparar partnerId con clienteId (ambos como strings o numbers)
+            if (partnerId == clienteId || String(s.cliente) == String(clienteId) || String(s.cliente_id) == String(clienteId)) {
+                const pedidoName = s.pedido || s.order_name || s.move_name || 'SIN_PEDIDO';
+                const monto = Number(s.amount_currency || 0);
+                if (!facturadoByPedido[pedidoName]) facturadoByPedido[pedidoName] = 0;
+                facturadoByPedido[pedidoName] += monto;
+            }
+        });
+
+        // Unión de pedidos (los de facturado y/o los con pendiente)
+        const allPedidos = new Set([...Object.keys(facturadoByPedido), ...Object.keys(pendingByPedido)]);
+        const pedidosMap = {};
+        allPedidos.forEach(pedidoName => {
+            const fact = Number(facturadoByPedido[pedidoName] || 0);
+            const pend = Number(pendingByPedido[pedidoName] || 0);
+            const total = fact + pend;
+            pedidosMap[pedidoName] = { total: total, facturado: fact, pendiente: pend };
+        });
+
+        const pedidos = Object.keys(pedidosMap);
+        if (pedidos.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        chartDom.style.height = Math.max(300, pedidos.length * 30) + 'px';
+        const myChart = echarts.init(chartDom);
+
+        const datosTotal = pedidos.map(p => pedidosMap[p].total || 0);
+        const datosFacturado = pedidos.map(p => pedidosMap[p].facturado || 0);
+
+        // Calcular porcentajes
+        const pct = pedidos.map((p, i) => {
+            const t = datosTotal[i] || 0;
+            const f = datosFacturado[i] || 0;
+            return t > 0 ? Math.round((f / t) * 1000) / 10 : 0;
+        });
+
+        const seriesFact = datosFacturado.map((v, i) => ({ value: v, label: { show: true, position: 'right', formatter: pct[i] + '%' } }));
+
+        const option = {
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
+            xAxis: { type: 'value', min: 0, axisLabel: { formatter: v => 'S/ ' + v.toLocaleString() } },
+            yAxis: { type: 'category', data: pedidos },
+            series: [
+                { name: 'Total Pedido', type: 'bar', barGap: '-100%', itemStyle: { color: '#e9ecef' }, data: datosTotal },
+                { name: 'Facturado', type: 'bar', data: seriesFact, itemStyle: { color: '#3498db', barBorderRadius: 6 } }
+            ]
+        };
+
+        myChart.setOption(option);
+        window.addEventListener('resize', () => myChart.resize());
+    } catch (e) {
+        console.error('Error crearGraficoPedidos:', e);
+    }
+}
 
 // Debug: Verificar datos de líneas comerciales
 console.log('Datos líneas comerciales:', datosLineas);
@@ -727,7 +878,7 @@ function crearGraficoProductos(productosData) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context) => 'Ventas: S/ ' + (context.parsed.x || 0).toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                        label: (context) => 'Ventas: $ ' + Math.round(context.parsed.x || 0).toLocaleString('en-US')
                     }
                 }
             },
@@ -782,7 +933,7 @@ function crearGraficoLineas() {
                 tooltip: {
                     callbacks: {
                         label: (context) =>
-                            `${context.dataset.label}: S/ ${(context.parsed.y || 0).toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                            `${context.dataset.label}: $ ${Math.round(context.parsed.y || 0).toLocaleString('en-US')}`
                     }
                 }
             },
@@ -791,12 +942,13 @@ function crearGraficoLineas() {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            if (value >= 1000000) {
-                                return 'S/ ' + (value / 1000000).toFixed(1) + 'M';
-                            } else if (value >= 1000) {
-                                return 'S/ ' + (value / 1000).toFixed(0) + 'K';
+                            const rounded = Math.round(value);
+                            if (rounded >= 1000000) {
+                                return '$ ' + (rounded / 1000000).toFixed(1) + 'M';
+                            } else if (rounded >= 1000) {
+                                return '$ ' + (rounded / 1000).toFixed(0) + 'K';
                             }
-                            return 'S/ ' + value.toLocaleString();
+                            return '$ ' + rounded.toLocaleString('en-US');
                         }
                     }
                 },
@@ -835,8 +987,8 @@ function crearGraficoFormaFarmaceutica(chartData, title) {
     const option = {
         tooltip: {
             trigger: 'item',
-            formatter: function(params) {
-                const value = (params.value || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                formatter: function(params) {
+                const value = '$ ' + Math.round(params.value || 0).toLocaleString('en-US');
                 return `${params.seriesName}<br/>${params.name}: ${value} (${params.percent}%)`;
             }
         },
@@ -908,7 +1060,7 @@ function crearGraficoDrilldown() {
             tooltip: {
                 trigger: 'item',
                 formatter: function(params) {
-                    const value = (params.value[1] || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                    const value = '$ ' + Math.round(params.value[1] || 0).toLocaleString('en-US');
                     return `${params.name}<br/>Venta: ${value}`;
                 }
             },
@@ -1018,8 +1170,8 @@ function crearGraficoBullet() {
 
     // Preparar datos para el gráfico
     const clientes = bulletChartData.map(d => d.cliente);
-    const datosMeta = bulletChartData.map(d => d.total_pedido);
-    const datosFacturado = bulletChartData.map(d => d.facturado);
+    const datosMeta = bulletChartData.map(d => Math.max(0, Number(d.total_pedido || 0)));
+    const datosFacturado = bulletChartData.map(d => Math.max(0, Number(d.facturado || 0)));
 
     // Calcular porcentaje y asignar color según umbrales
     const porcentajes = datosMeta.map((meta, i) => {
@@ -1050,21 +1202,22 @@ function crearGraficoBullet() {
         tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
-            formatter: function (params) {
+                formatter: function (params) {
                 const idx = params[0].dataIndex;
                 const cliente = clientes[idx];
-                const fact = datosFacturado[idx] || 0;
-                const meta = datosMeta[idx] || 0;
+                const fact = Math.round(datosFacturado[idx] || 0);
+                const meta = Math.round(datosMeta[idx] || 0);
                 const pct = porcentajes[idx] || 0;
                 return `${cliente}<br/>` +
-                    `Facturado: S/ ${fact.toLocaleString('es-PE', {minimumFractionDigits:0})}<br/>` +
-                    `Total Pedido: S/ ${meta.toLocaleString('es-PE', {minimumFractionDigits:0})}<br/>` +
+                    `Facturado: $ ${fact.toLocaleString('en-US')}<br/>` +
+                    `Total Pedido: $ ${meta.toLocaleString('en-US')}<br/>` +
                     `Avance: ${pct}%`;
             }
         },
         grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
         xAxis: {
             type: 'value',
+            min: 0,
             axisLabel: { formatter: value => 'S/ ' + value.toLocaleString() },
             splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
         },
@@ -1108,7 +1261,7 @@ function crearGraficoBullet() {
     myChart.setOption(option, true);
 
     // Mapear nombres de cliente a sus IDs (desde filter_options para poder aplicar el filtro)
-    const clienteOptions = {{ filter_options.clientes|tojson|safe }} || [];
+    const clienteOptions = {{ (filter_options.clientes if filter_options and filter_options.clientes else [])|tojson|safe }} || [];
     const nameToId = {};
     clienteOptions.forEach(item => {
         // item es [id, name]
@@ -1176,6 +1329,11 @@ document.addEventListener('DOMContentLoaded', function() {
     crearGraficoFormaFarmaceutica(); // ECharts
     crearGraficoDrilldown(); // ECharts
     crearGraficoBullet(); // Llamada a la función recreada
+
+    // Si hay cliente seleccionado, crear gráfico por pedidos
+    if (selectedClienteId) {
+        crearGraficoPedidos(selectedClienteId);
+    }
 
     // Verificar que el select de clientes tiene opciones
     const clienteSelect = document.getElementById('filtro-cliente');

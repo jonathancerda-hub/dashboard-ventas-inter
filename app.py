@@ -389,6 +389,102 @@ def dashboard():
         pending_data = data_manager.get_pending_orders(
             filters={'partner_id': partner_id}
         )
+
+        # --- Agregación por pedido (backend) para gráfico de pedidos del cliente seleccionado ---
+        orders_chart_data = []
+        if partner_id:
+            # Agrupar facturado por pedido desde sales_data_year
+            facturado_by_pedido = {}
+            pedido_cliente_map = {}  # mapa pedido -> (cliente_id, cliente_name)
+            for s in sales_data_year:
+                pedido_name = s.get('pedido') or s.get('order_name') or s.get('move_name') or s.get('pedido') or ''
+                if not pedido_name:
+                    continue
+                facturado_by_pedido[pedido_name] = facturado_by_pedido.get(pedido_name, 0) + (s.get('amount_currency', 0) or 0)
+                # intentar obtener cliente id y nombre desde la línea de venta
+                partner = s.get('partner_id') or s.get('partner') or s.get('cliente_id') or s.get('cliente')
+                cliente_id = None
+                cliente_name = None
+                if partner:
+                    if isinstance(partner, (list, tuple)) and len(partner) > 0:
+                        cliente_id = partner[0]
+                        if len(partner) > 1:
+                            cliente_name = partner[1]
+                    else:
+                        # partner puede ser solo id o nombre
+                        try:
+                            cliente_id = int(partner)
+                        except Exception:
+                            cliente_name = str(partner)
+                if pedido_name and (cliente_id or cliente_name):
+                    # solo setear si no existe para no sobreescribir con valores distintos
+                    if pedido_name not in pedido_cliente_map:
+                        pedido_cliente_map[pedido_name] = {
+                            'cliente_id': cliente_id,
+                            'cliente': cliente_name,
+                            'order_id': s.get('order_id')[0] if s.get('order_id') else None,
+                            'partner': s.get('partner_id') or s.get('partner')
+                        }
+
+            # Agrupar pendiente por pedido desde pending_data
+            pendiente_by_pedido = {}
+            for p in pending_data:
+                pedido_name = p.get('pedido') or p.get('order_name') or p.get('move_name') or ''
+                if not pedido_name:
+                    continue
+                pendiente_by_pedido[pedido_name] = pendiente_by_pedido.get(pedido_name, 0) + (p.get('total_pendiente', 0) or 0)
+                # intentar obtener cliente desde pending
+                partner = p.get('partner_id') or p.get('partner') or p.get('cliente_id') or p.get('cliente')
+                cliente_id = None
+                cliente_name = None
+                if partner:
+                    if isinstance(partner, (list, tuple)) and len(partner) > 0:
+                        cliente_id = partner[0]
+                        if len(partner) > 1:
+                            cliente_name = partner[1]
+                    else:
+                        try:
+                            cliente_id = int(partner)
+                        except Exception:
+                            cliente_name = str(partner)
+                if pedido_name and (cliente_id or cliente_name):
+                    if pedido_name not in pedido_cliente_map:
+                        pedido_cliente_map[pedido_name] = {
+                            'cliente_id': cliente_id,
+                            'cliente': cliente_name,
+                            'order_id': p.get('order_id') if p.get('order_id') else None,
+                            'partner': p.get('partner_id') or p.get('partner')
+                        }
+
+            # Unión de pedidos
+            all_pedidos = set(list(facturado_by_pedido.keys()) + list(pendiente_by_pedido.keys()))
+            for ped in all_pedidos:
+                fact = facturado_by_pedido.get(ped, 0)
+                pend = pendiente_by_pedido.get(ped, 0)
+                total = fact + pend
+                cliente_info = pedido_cliente_map.get(ped, {})
+                orders_chart_data.append({
+                    'pedido': ped,
+                    'total': total,
+                    'facturado': fact,
+                    'pendiente': pend,
+                    'cliente_id': cliente_info.get('cliente_id'),
+                    'cliente': cliente_info.get('cliente'),
+                    'order_id': cliente_info.get('order_id') or None,
+                    'partner': cliente_info.get('partner')
+                })
+
+            # Ordenar por total descendente
+            orders_chart_data = sorted(orders_chart_data, key=lambda x: x['total'], reverse=True)
+            # LOG DEBUG: mostrar resumen de orders_chart_data para inspección
+            try:
+                app.logger.info(f"DEBUG ORDERS_CHART_DATA for partner_id={partner_id}: count={len(orders_chart_data)}")
+                for i, od in enumerate(orders_chart_data[:50]):
+                    app.logger.info(f"  [{i}] pedido={od.get('pedido')} total={od.get('total')} facturado={od.get('facturado')} pendiente={od.get('pendiente')} cliente_id={od.get('cliente_id')} cliente={od.get('cliente')}")
+            except Exception:
+                app.logger.exception('Error logging orders_chart_data')
+        else:
+            orders_chart_data = []
         
         sales_data = sales_data_year
         sales_data_international = sales_data_year
@@ -627,8 +723,8 @@ def dashboard():
         
         bullet_chart_data = []
         for cliente in all_clients:
-            facturado = facturado_por_cliente.get(cliente, 0)
-            pendiente = pendiente_por_cliente.get(cliente, 0)
+            facturado = max(0, facturado_por_cliente.get(cliente, 0))
+            pendiente = max(0, pendiente_por_cliente.get(cliente, 0))
             total_pedido = facturado + pendiente
             if total_pedido > 0:
                 bullet_chart_data.append({
@@ -674,10 +770,12 @@ def dashboard():
                              meta_total_kpi=meta_total_kpi,
                              brecha_comercial=brecha_comercial,
                              bullet_chart_data=bullet_chart_data,
+                             orders_chart_data=orders_chart_data,
                              drilldown_titles=drilldown_titles,
                              top_products_by_level=top_products_by_level,
                              pie_chart_data_by_level=pie_chart_data_by_level,
                              all_stacked_chart_data=all_stacked_chart_data,
+                             pending_data=pending_data,
                              avance_lineal_pct=0,
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
