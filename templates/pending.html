@@ -23,10 +23,10 @@
             <i class="bi bi-clock"></i>
             <span class="nav-text">Pendientes</span>
         </a>
-        <a href="{{ url_for('meta') }}" class="btn-nav">
+        <span class="btn-nav disabled-link">
             <i class="bi bi-bullseye"></i>
             <span class="nav-text">Metas</span>
-        </a>
+        </span>
         <a href="{{ url_for('logout') }}" class="btn-salir">
             <i class="bi bi-box-arrow-right"></i>
             <span class="nav-text">Salir</span>
@@ -228,6 +228,11 @@
 .btn-nav.active {
     background-color: rgba(255, 255, 255, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.disabled-link {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .btn-salir { background: #e74c3c; color: white; }

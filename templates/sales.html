@@ -23,10 +23,10 @@
             <i class="bi bi-clock"></i>
             <span class="nav-text">Pendientes</span>
         </a>
-        <a href="{{ url_for('meta') }}" class="btn-nav">
+        <span class="btn-nav disabled-link">
             <i class="bi bi-bullseye"></i>
             <span class="nav-text">Metas</span>
-        </a>
+        </span>
         <a href="{{ url_for('logout') }}" class="btn-salir">
             <i class="bi bi-box-arrow-right"></i>
             <span class="nav-text">Salir</span>
@@ -170,6 +170,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 .pagination-controls {
+.disabled-link {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
     display: flex;
     justify-content: space-between;
     align-items: center;
