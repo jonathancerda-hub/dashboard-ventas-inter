@@ -815,7 +815,7 @@ function crearGraficoPedidos(clienteId) {
         const option = {
             tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
             grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
-            xAxis: { type: 'value', min: 0, axisLabel: { formatter: v => 'S/ ' + v.toLocaleString() } },
+            xAxis: { type: 'value', min: 0, axisLabel: { formatter: v => '$ ' + Math.round(v).toLocaleString('en-US') } },
             yAxis: { type: 'category', data: pedidos },
             series: [
                 { name: 'Total Pedido', type: 'bar', barGap: '-100%', itemStyle: { color: '#e9ecef' }, data: datosTotal },
@@ -887,7 +887,7 @@ function crearGraficoProductos(productosData) {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return 'S/ ' + value.toLocaleString();
+                            return '$ ' + Math.round(value).toLocaleString('en-US');
                         }
                     }
                 }
@@ -1053,7 +1053,7 @@ function crearGraficoDrilldown() {
                 minInterval: 1,
                 axisLabel: {
                     formatter: function (value) {
-                        return 'S/ ' + Math.round(value).toLocaleString('es-PE');
+                        return '$ ' + Math.round(value).toLocaleString('en-US');
                     }
                 }
             },
@@ -1218,7 +1218,7 @@ function crearGraficoBullet() {
         xAxis: {
             type: 'value',
             min: 0,
-            axisLabel: { formatter: value => 'S/ ' + value.toLocaleString() },
+            axisLabel: { formatter: value => '$ ' + Math.round(value).toLocaleString('en-US') },
             splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
         },
         yAxis: {

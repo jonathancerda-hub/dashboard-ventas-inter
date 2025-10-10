@@ -1284,7 +1284,7 @@ def meta():
             }
             gs_manager.write_metas_por_linea(metas_historicas)
             
-            flash(f'Metas guardadas exitosamente para {mes_nombre_formulario}. Total: S/ {total_meta:,.0f}', 'success')
+            flash(f'Metas guardadas exitosamente para {mes_nombre_formulario}. Total: $ {total_meta:,.0f}', 'success')
             
             # Actualizar mes seleccionado después de guardar
             mes_seleccionado = mes_formulario

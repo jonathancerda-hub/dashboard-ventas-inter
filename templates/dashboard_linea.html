@@ -87,11 +87,11 @@
     <div class="kpi-row">
         <div class="kpi-card kpi-meta">
             <div class="kpi-label">Meta</div>
-            <div class="kpi-value">{% if kpis.meta_total > 0 %}S/ {{ "{:,.0f}".format(kpis.meta_total) }}{% else %}-{% endif %}</div>
+            <div class="kpi-value">{% if kpis.meta_total > 0 %}$ {{ "{:,.0f}".format(kpis.meta_total) }}{% else %}-{% endif %}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Venta</div>
-            <div class="kpi-value">{% if kpis.venta_total > 0 %}S/ {{ "{:,.0f}".format(kpis.venta_total) }}{% else %}-{% endif %}</div>
+            <div class="kpi-value">{% if kpis.venta_total > 0 %}$ {{ "{:,.0f}".format(kpis.venta_total) }}{% else %}-{% endif %}</div>
         </div>
         <div class="kpi-card kpi-avance">
             <div class="kpi-label">% Avance</div>
@@ -99,11 +99,11 @@
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Meta IPN</div>
-            <div class="kpi-value">{% if kpis.meta_ipn > 0 %}S/ {{ "{:,.0f}".format(kpis.meta_ipn) }}{% else %}-{% endif %}</div>
+            <div class="kpi-value">{% if kpis.meta_ipn > 0 %}$ {{ "{:,.0f}".format(kpis.meta_ipn) }}{% else %}-{% endif %}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Venta IPN</div>
-            <div class="kpi-value">{% if kpis.venta_ipn > 0 %}S/ {{ "{:,.0f}".format(kpis.venta_ipn) }}{% else %}-{% endif %}</div>
+            <div class="kpi-value">{% if kpis.venta_ipn > 0 %}$ {{ "{:,.0f}".format(kpis.venta_ipn) }}{% else %}-{% endif %}</div>
         </div>
         <div class="kpi-card kpi-avance">
             <div class="kpi-label">% Avance IPN</div>
@@ -145,8 +145,8 @@
 
         <!-- FILA 2 -->
         <div class="avance-card">
-            <div class="avance-label">Brecha Comercial (S/)</div>
-            <div class="avance-value">{% if faltante_meta is defined and faltante_meta > 0 %}S/ {{ "{:,.0f}".format(faltante_meta) }}{% else %}-{% endif %}</div>
+            <div class="avance-label">Brecha Comercial ($)</div>
+            <div class="avance-value">{% if faltante_meta is defined and faltante_meta > 0 %}$ {{ "{:,.0f}".format(faltante_meta) }}{% else %}-{% endif %}</div>
         </div>
 
         <div class="avance-card-spacer"></div>
@@ -154,8 +154,8 @@
         <div class="avance-card-spacer"></div>
 
         <div class="avance-card">
-            <div class="avance-label">Brecha Comercial IPN (S/)</div>
-            <div class="avance-value">{% if faltante_meta_ipn is defined and faltante_meta_ipn > 0 %}S/ {{ "{:,.0f}".format(faltante_meta_ipn) }}{% else %}-{% endif %}</div>
+            <div class="avance-label">Brecha Comercial IPN ($)</div>
+            <div class="avance-value">{% if faltante_meta_ipn is defined and faltante_meta_ipn > 0 %}$ {{ "{:,.0f}".format(faltante_meta_ipn) }}{% else %}-{% endif %}</div>
         </div>
     </div>
 
@@ -530,7 +530,7 @@ canvas {
                     legend: { display: false },
                     tooltip: { 
                         callbacks: { 
-                            label: (context) => `Venta: S/ ${(context.parsed.x || 0).toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` 
+                            label: (context) => `Venta: $ ${Math.round(context.parsed.x || 0).toLocaleString('en-US')}` 
                         } 
                     }
                 },
@@ -606,7 +606,7 @@ canvas {
                     },
                     tooltip: { 
                         callbacks: { 
-                            label: (context) => `${context.dataset.label}: S/ ${(context.parsed.y || 0).toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` 
+                            label: (context) => `${context.dataset.label}: $ ${Math.round(context.parsed.y || 0).toLocaleString('en-US')}` 
                         } 
                     }
                 },
@@ -627,7 +627,7 @@ canvas {
                             color: 'rgba(0,0,0,0.1)'
                         },
                         ticks: { 
-                            callback: value => 'S/ ' + value.toLocaleString()
+                            callback: value => '$ ' + Math.round(value).toLocaleString('en-US')
                         }
                     }
                 }

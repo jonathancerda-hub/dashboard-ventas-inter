@@ -34,7 +34,7 @@
                  onclick="seleccionarMes('{{ mes.key }}')">
                 <span class="mes-nombre">{{ mes.nombre }}</span>
                 {% if metas_historicas.get(mes.key) %}
-                <span class="mes-total">S/ {{ "{:,.0f}".format(metas_historicas.get(mes.key).total) }}</span>
+                <span class="mes-total">$ {{ "{:,.0f}".format(metas_historicas.get(mes.key).total) }}</span>
                 {% else %}
                 <span class="mes-total sin-meta">Sin meta</span>
                 {% endif %}
