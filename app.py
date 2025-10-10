@@ -1337,11 +1337,13 @@ def export_excel_sales():
         date_from = f"{datetime.now().year}-01-01"
         date_to = f"{datetime.now().year}-12-31"
         
-        sales_data_raw = data_manager.get_sales_lines(
+        # CORRECCIÓN: Desempaquetar la tupla devuelta por get_sales_lines
+        sales_data_raw, _ = data_manager.get_sales_lines(
             date_from=date_from, 
             date_to=date_to, 
             partner_id=partner_id,
-            limit=None # Sin límite para exportar todo
+            page=1,
+            per_page=99999 # Sin límite para exportar todo
         )
         
         # Crear DataFrame
@@ -1425,8 +1427,11 @@ def export_excel_pending():
                 partner_id = None
         
         # Obtener datos de pedidos pendientes para el cliente seleccionado
-        pending_data_raw = data_manager.get_pending_orders(
-            filters={'partner_id': partner_id}
+        # CORRECCIÓN: Desempaquetar la tupla y pedir todos los registros
+        pending_data_raw, _ = data_manager.get_pending_orders(
+            filters={'partner_id': partner_id},
+            page=1,
+            per_page=99999 # Sin límite para exportar todo
         )
         
         if not pending_data_raw:
