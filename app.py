@@ -1,5 +1,6 @@
 # app.py - Dashboard de Ventas Farmacéuticas
 
+from flask_caching import Cache
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from dotenv import load_dotenv
 from odoo_manager import OdooManager
@@ -11,14 +12,29 @@ import io
 import calendar
 from datetime import datetime, timedelta
 from openpyxl.worksheet.table import Table, TableStyleInfo
+import logging
 
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 
+# --- Configuración de Caché ---
+cache_config = {
+    "CACHE_TYPE": "SimpleCache",  # Almacenamiento en memoria simple
+    "CACHE_DEFAULT_TIMEOUT": 600  # 10 minutos de caché por defecto
+}
+cache = Cache(config=cache_config)
+cache.init_app(app)
+
 # Configuración para deshabilitar cache de templates
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# Logging configuration: keep server output concise unless an error occurs
+logging.basicConfig(level=logging.INFO)
+# Reduce verbosity of the Flask/Werkzeug request logger
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+app.logger.setLevel(logging.INFO)
 
 # --- Registrar filtro Jinja personalizado ---
 @app.template_filter('format_number')
@@ -160,6 +176,7 @@ def sales():
                 'date_from': request.form.get('date_from'),
                 'date_to': request.form.get('date_to'),
                 'search_term': request.form.get('search_term'),
+                'partner_id': request.form.get('partner_id'),
                 'per_page': request.form.get('per_page', '1000')
             }
         else:
@@ -168,6 +185,7 @@ def sales():
                 'date_from': request.args.get('date_from'),
                 'date_to': request.args.get('date_to'),
                 'search_term': request.args.get('search_term'),
+                'partner_id': request.args.get('partner_id'),
                 'per_page': request.args.get('per_page', '1000')
             }
 
@@ -178,71 +196,22 @@ def sales():
         for key, value in query_filters.items():
             if not value:  # Handles empty strings and None
                 query_filters[key] = None
-        
-        # Si no hay filtros de fecha, buscar en todo el año 2025
-        if not query_filters.get('date_from') and not query_filters.get('date_to'):
-            query_filters['date_from'] = '2025-01-01'
-            query_filters['date_to'] = '2025-12-31'
-        
-        # Obtener datos básicos de ventas
-        sales_data_raw = data_manager.get_sales_lines(
-            date_from=query_filters.get('date_from'),
-            date_to=query_filters.get('date_to'),
-            partner_id=None,
-            linea_id=None,
-            search=query_filters.get('search_term'),  # Pasar el término de búsqueda
-            limit=None  # Sin límite para obtener todos los datos
-        )
-        
-        
-        # Filtrar por canal INTERNACIONAL
-        sales_data_filtered = []
-        international_count = 0
-        canales_unicos = set()
-        search_term = query_filters.get('search_term', '').lower() if query_filters.get('search_term') else None
-        
-        for sale in sales_data_raw:
-            team_id = sale.get('team_id')
-            nombre_canal = ''
-            
-            # Obtener información del pedido y factura
-            pedido = sale.get('pedido', '')
-            factura = sale.get('factura', '')
-            
-            if team_id and isinstance(team_id, list) and len(team_id) > 1:
-                nombre_canal = team_id[1]
-                canales_unicos.add(nombre_canal)
-                
-                if 'INTERNACIONAL' in nombre_canal.upper():
-                    
-                    # Aplicar filtro de búsqueda después del filtro de canal
-                    if search_term:
-                        # Validar tipos y convertir a string de forma segura
-                        producto = str(sale.get('producto', '') or '').lower()
-                        codigo = str(sale.get('codigo_odoo', '') or '').lower()
-                        cliente = str(sale.get('cliente', '') or '').lower()
-                        pedido_lower = str(pedido or '').lower()
-                        factura_lower = str(factura or '').lower()
-                        
-                        if (search_term in producto or 
-                            search_term in codigo or 
-                            search_term in cliente or
-                            search_term in pedido_lower or
-                            search_term in factura_lower):
-                            
-                            sales_data_filtered.append(sale)
-                            international_count += 1
-                    else:
-                        sales_data_filtered.append(sale)
-                        international_count += 1
-            else:
-                # Líneas sin canal válido se excluyen
-                pass
-        
-        # --- PAGINACIÓN ---
+
+        # --- PAGINACIÓN (se pasa a OdooManager) ---
         page = int(request.args.get('page', 1))
         per_page = int(selected_filters.get('per_page', 1000))
-        total = len(sales_data_filtered)
+
+        # Obtener datos y paginación directamente de OdooManager
+        sales_data_filtered, pagination_data = data_manager.get_sales_lines(
+            page=page,
+            per_page=per_page,
+            date_from=query_filters.get('date_from'),
+            date_to=query_filters.get('date_to'),
+            partner_id=query_filters.get('partner_id'),
+            search=query_filters.get('search_term')
+        )
+
+        total = pagination_data.get('total', 0)
         pages = max(1, (total + per_page - 1) // per_page)
         showing_from = (page - 1) * per_page + 1 if total > 0 else 0
         showing_to = min(page * per_page, total)
@@ -258,24 +227,26 @@ def sales():
             'has_next': page < pages
         }
 
-        # Filtrar los datos para la página actual
-        sales_data_filtered = sales_data_filtered[showing_from-1:showing_to]
-        
         return render_template(
             'sales.html',
             sales_data=sales_data_filtered,
-            filter_options=filter_options,
+            filter_options=filter_options, # filter_options contiene la lista de clientes
             selected_filters=selected_filters,
             fecha_actual=datetime.now(),
             pagination=pagination
         )
     except Exception as e:
         flash(f'Error al obtener datos: {str(e)}', 'danger')
+        pagination_default = {
+            'page': 1, 'per_page': 1000, 'total': 0, 'pages': 0,
+            'showing_from': 0, 'showing_to': 0, 'has_prev': False, 'has_next': False
+        }
         return render_template('sales.html', 
                              sales_data=[],
                              filter_options={'lineas': [], 'clientes': []},
                              selected_filters={},
-                             fecha_actual=datetime.now())
+                             fecha_actual=datetime.now(),
+                             pagination=pagination_default)
 
 @app.route('/pending', methods=['GET', 'POST'])
 def pending():
@@ -309,27 +280,56 @@ def pending():
             
             # Remove empty values
             selected_filters = {k: v for k, v in selected_filters.items() if v}
-        
-        # Obtener datos de pedidos pendientes
-        pending_data = data_manager.get_pending_orders(filters=selected_filters)
-        
-        # Filtrar solo por canal INTERNACIONAL (ya filtrado en la función)
+
+        # --- PAGINACIÓN (se pasa a OdooManager) ---
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 1000))
+
+        # Obtener datos y paginación directamente de OdooManager
+        pending_data, pagination_data = data_manager.get_pending_orders(
+            page=page,
+            per_page=per_page,
+            filters=selected_filters
+        )
+
+        total = pagination_data.get('total', 0)
+        pages = max(1, (total + per_page - 1) // per_page)
+        showing_from = (page - 1) * per_page + 1 if total > 0 else 0
+        showing_to = min(page * per_page, total)
+
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'pages': pages,
+            'showing_from': showing_from,
+            'showing_to': showing_to,
+            'has_prev': page > 1,
+            'has_next': page < pages
+        }
         
         return render_template('pending.html', 
                              pending_data=pending_data,
+                             pagination=pagination,
                              filter_options=filter_options,
                              selected_filters=selected_filters,
                              fecha_actual=datetime.now()
         )
     except Exception as e:
         flash(f'Error al obtener datos de pedidos pendientes: {str(e)}', 'danger')
+        pagination_default = {
+            'page': 1, 'per_page': 1000, 'total': 0, 'pages': 0,
+            'showing_from': 0, 'showing_to': 0, 'has_prev': False, 'has_next': False
+        }
         return render_template('pending.html', 
                              pending_data=[],
                              filter_options={'lineas': [], 'clientes': []},
                              selected_filters={},
-                             fecha_actual=datetime.now())
+                             fecha_actual=datetime.now(),
+                             pagination=pagination_default)
 
 @app.route('/dashboard', methods=['GET', 'POST'])
+@cache.cached(timeout=600, query_string=True) # Cachea la respuesta por 10 mins, diferenciando por URL params
 def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
@@ -364,30 +364,33 @@ def dashboard():
             except ValueError:
                 partner_id = None
         
-        # --- DEBUG START ---
-        print(f"\n--- DEBUG DASHBOARD: Iniciando procesamiento para partner_id={partner_id} ---")
-        # --- DEBUG END ---
+    # Debug info removed
         
         # MODIFICACIÓN: Usar fechas dinámicas. Si no se especifican, usar el año actual por defecto.
         date_from = selected_filters.get('date_from') or f"{datetime.now().year}-01-01"
         date_to = selected_filters.get('date_to') or f"{datetime.now().year}-12-31"
         
-        sales_data_year = data_manager.get_sales_lines(
+        # CORRECCIÓN: get_sales_lines ahora devuelve una tupla (datos, paginación).
+        # Desempaquetamos y solo usamos los datos.
+        sales_data_year, _ = data_manager.get_sales_lines(
             # Pasar las fechas dinámicas a la función.
             date_from=date_from,
             date_to=date_to,
             partner_id=partner_id,
-            limit=None
+            page=1,
+            per_page=99999 # Pedir un número muy grande para obtener todos los registros
         )
-        # --- DEBUG START ---
-        print(f"--- DEBUG DASHBOARD: get_sales_lines devolvió {len(sales_data_year)} registros. ---")
-        # --- DEBUG END ---
+    # Debug info removed
         
         # Los datos para KPIs y gráficos ahora provienen de la misma fuente
         sales_data_raw = sales_data_year
 
-        pending_data = data_manager.get_pending_orders(
-            filters={'partner_id': partner_id}
+        # CORRECCIÓN: get_pending_orders ahora devuelve una tupla (datos, paginación).
+        # Desempaquetamos y solo usamos los datos.
+        pending_data, _ = data_manager.get_pending_orders(
+            filters={'partner_id': partner_id},
+            page=1,
+            per_page=99999  # Pedir un número muy grande para obtener todos los registros
         )
 
         # --- Agregación por pedido (backend) para gráfico de pedidos del cliente seleccionado ---
@@ -476,13 +479,7 @@ def dashboard():
 
             # Ordenar por total descendente
             orders_chart_data = sorted(orders_chart_data, key=lambda x: x['total'], reverse=True)
-            # LOG DEBUG: mostrar resumen de orders_chart_data para inspección
-            try:
-                app.logger.info(f"DEBUG ORDERS_CHART_DATA for partner_id={partner_id}: count={len(orders_chart_data)}")
-                for i, od in enumerate(orders_chart_data[:50]):
-                    app.logger.info(f"  [{i}] pedido={od.get('pedido')} total={od.get('total')} facturado={od.get('facturado')} pendiente={od.get('pendiente')} cliente_id={od.get('cliente_id')} cliente={od.get('cliente')}")
-            except Exception:
-                app.logger.exception('Error logging orders_chart_data')
+            # Removed verbose debug logging for orders_chart_data
         else:
             orders_chart_data = []
         
@@ -495,18 +492,7 @@ def dashboard():
         # NUEVA LÓGICA: Primero agrupar por factura (move_name) para cancelar positivos/negativos
         ventas_por_factura = {}
         
-        # --- DEBUG START ---
-        app.logger.info(f"\n--- DEBUG DASHBOARD: Iterando sobre {len(sales_data_international)} ventas para calcular ventas_por_linea ---")
-        app.logger.info(f"--- DEBUG: partner_id seleccionado = {partner_id} ---")
-        
-        # Mostrar las primeras 5 líneas para debug
-        for i, sale in enumerate(sales_data_international[:5]):
-            app.logger.info(f"  DEBUG Línea {i+1}:")
-            app.logger.info(f"    Cliente: {sale.get('cliente', 'N/A')}")
-            app.logger.info(f"    Factura: {sale.get('factura', 'N/A')}")
-            app.logger.info(f"    Amount Currency: {sale.get('amount_currency', 0)}")
-            app.logger.info(f"    Línea Comercial: {sale.get('commercial_line_international_id', 'N/A')}")
-        # --- DEBUG END ---
+        # Debug logs removed: sales_data_international sampling
         
         todas_las_lineas = set()
         por_facturar_por_linea = {} # Inicializar para evitar errores
@@ -782,22 +768,23 @@ def dashboard():
                              faltante_meta_ipn=0)
     
     except Exception as e:
-        flash(f'Error al cargar dashboard: {str(e)}', 'danger')
-        print(f"ERROR EN DASHBOARD: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
+        # Informar al usuario y registrar el error
+        flash('Ocurrió un error inesperado al cargar el dashboard. Por favor, intente de nuevo más tarde.', 'danger')
+        app.logger.error(f"ERROR EN DASHBOARD: {str(e)}")
+        app.logger.exception(e)
+
+        # Preparar datos por defecto para renderizar la plantilla de error
         fecha_actual = datetime.now()
         mes_nombre = fecha_actual.strftime('%B %Y').title()
         dia_actual = fecha_actual.day
-        
+
         # Obtener filter_options incluso en caso de error si no se pudo antes
         if not filter_options or filter_options == {'lineas': [], 'clientes': []}:
             try:
                 filter_options = data_manager.get_filter_options()
-            except:
+            except Exception:
                 filter_options = {'lineas': [], 'clientes': []}
-        
+
         return render_template('dashboard_clean.html',
                              sales_data=[],
                              kpis={
@@ -1694,7 +1681,8 @@ def export_dashboard_details():
 
 
 if __name__ == '__main__':
-    print("Iniciando Dashboard de Ventas Farmacéuticas...")
-    print("Disponible en: http://127.0.0.1:5000")
-    print("Usuario: configurado en .env")
-    app.run(debug=True)
+    # Startup info via logger instead of print
+    app.logger.info("Iniciando Dashboard de Ventas Farmacéuticas...")
+    app.logger.info("Disponible en: http://127.0.0.1:5000")
+    app.logger.info("Usuario: configurado en .env")
+    app.run(debug=False)

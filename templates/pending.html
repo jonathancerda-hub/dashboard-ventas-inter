@@ -35,38 +35,45 @@
 </div>
 
 <div class="filter-bar">
-    <div class="filter-bar__content">
-        <form method="GET" action="{{ url_for('pending') }}" style="display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-end; width: 100%;">
-            
-            <div>
-                <label for="date_from">Desde</label>
-                <input type="date" name="date_from" id="date_from" value="{{ selected_filters.date_from or '' }}" class="form-control">
-            </div>
-            
-            <div>
-                <label for="date_to">Hasta</label>
-                <input type="date" name="date_to" id="date_to" value="{{ selected_filters.date_to or '' }}" class="form-control">
-            </div>
-            
-            <div style="flex-grow: 1;">
-                <label for="search_term">Búsqueda</label>
-                <input type="text" name="search_term" placeholder="Producto, código..." value="{{ selected_filters.search_term or '' }}" class="form-control">
-            </div>
-            
-            <div>
-                <label for="per_page">Resultados</label>
-                <select name="per_page" id="per_page" class="form-select">
-                    <option value="500" {% if request.values.get('per_page', '1000') == '500' %}selected{% endif %}>500</option>
-                    <option value="1000" {% if request.values.get('per_page', '1000') == '1000' %}selected{% endif %}>1,000</option>
-                    <option value="2000" {% if request.values.get('per_page', '1000') == '2000' %}selected{% endif %}>2,000</option>
-                    <option value="5000" {% if request.values.get('per_page', '1000') == '5000' %}selected{% endif %}>5,000</option>
-                </select>
-            </div>
-            
-            <button type="submit" class="btn btn--primary">Buscar</button>
-            <a href="{{ url_for('pending') }}" class="btn">Limpiar</a>
-        </form>
-    </div>
+	<div class="filter-bar__content">
+		<form method="GET" action="{{ url_for('pending') }}" style="display: flex; gap: var(--space-4); align-items: flex-end; width: 100%;">
+			
+			<div>
+				<label for="date_from">Desde</label>
+				<input type="date" name="date_from" id="date_from" value="{{ selected_filters.date_from or '' }}" class="form-control">
+			</div>
+			
+			<div>
+				<label for="date_to">Hasta</label>
+				<input type="date" name="date_to" id="date_to" value="{{ selected_filters.date_to or '' }}" class="form-control">
+			</div>
+			
+			<div>
+				<label for="partner_id">Cliente</label>
+				<select name="partner_id" id="partner_id" class="form-select">
+					<option value="">Todos</option>
+					{% for cliente in filter_options.clientes %}
+						<option value="{{ cliente[0] }}" {% if selected_filters.partner_id and selected_filters.partner_id == cliente[0]|string %}selected{% endif %}>{{ cliente[1] }}</option>
+					{% endfor %}
+				</select>
+			</div>
+
+			<!-- Agrupador para campo de búsqueda y botón -->
+			<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 8px;">
+				<div style="flex-grow: 1;">
+					<label for="search_term">Búsqueda</label>
+					<input type="text" name="search_term" placeholder="Producto, código..." value="{{ selected_filters.search_term or '' }}" class="form-control">
+				</div>
+				<button type="submit" class="btn btn--primary" title="Buscar" style="display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; min-width: auto; flex-shrink: 0;">
+					<i class="bi bi-search"></i>
+				</button>
+			</div>
+			
+			<a href="{{ url_for('pending') }}" class="btn" title="Limpiar filtros" style="display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 12px; min-width: auto; flex-shrink: 0;">
+				<i class="bi bi-arrow-clockwise"></i>
+			</a>
+		</form>
+	</div>
 </div>
 
 <div class="table-container">
@@ -122,6 +129,38 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<!-- Controles de Paginación -->
+<div class="pagination-controls">
+    <div class="pagination-info">
+        Mostrando <strong>{{ pagination.showing_from }}</strong> a <strong>{{ pagination.showing_to }}</strong> de <strong>{{ pagination.total }}</strong> resultados
+    </div>
+    <div class="pagination-links">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('pending', page=pagination.page - 1, **selected_filters) }}" class="pagination-link">&laquo; Anterior</a>
+        {% else %}
+            <span class="pagination-link disabled">&laquo; Anterior</span>
+        {% endif %}
+
+        {% for p in range(1, pagination.pages + 1) %}
+            {% if p == pagination.page %}
+                <span class="pagination-link active">{{ p }}</span>
+            {% elif p > pagination.page - 3 and p < pagination.page + 3 %}
+                <a href="{{ url_for('pending', page=p, **selected_filters) }}" class="pagination-link">{{ p }}</a>
+            {% elif p == 1 or p == pagination.pages %}
+                <a href="{{ url_for('pending', page=p, **selected_filters) }}" class="pagination-link">{{ p }}</a>
+            {% elif p == pagination.page - 3 or p == pagination.page + 3 %}
+                <span class="pagination-link">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('pending', page=pagination.page + 1, **selected_filters) }}" class="pagination-link">Siguiente &raquo;</a>
+        {% else %}
+            <span class="pagination-link disabled">Siguiente &raquo;</span>
+        {% endif %}
+    </div>
 </div>
 
 <style>
@@ -299,6 +338,40 @@
     background-color: #f8f9fa;
 }
 
+.pagination-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-top: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.pagination-info {
+    font-size: 14px;
+    color: #555;
+}
+
+.pagination-links {
+    display: flex;
+    gap: 5px;
+}
+
+.pagination-link {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--odoo-primary);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+.pagination-link:hover { background-color: #f0eaf3; }
+.pagination-link.active { background-color: var(--odoo-primary); color: white; border-color: var(--odoo-primary); }
+.pagination-link.disabled { color: #aaa; background-color: #f9f9f9; cursor: not-allowed; }
+
 
 </style>
 
@@ -341,7 +414,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Si el usuario está cerca del final, preparar la próxima carga
                 if (scrollTop + clientHeight > scrollHeight * 0.8) {
-                    console.log('🚀 Usuario cerca del final, preparando optimizaciones...');
+                    // Usuario cerca del final - preloading hint (silenciado)
+                    // console.log('🚀 Usuario cerca del final, preparando optimizaciones...');
                 }
                 ticking = false;
             });

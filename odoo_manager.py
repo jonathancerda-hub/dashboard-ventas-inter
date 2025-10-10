@@ -7,6 +7,7 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import logging
 
 # Load environment variables
 load_dotenv()
@@ -14,12 +15,12 @@ load_dotenv()
 class OdooManager:
     def get_commercial_lines_stacked_data(self, date_from=None, date_to=None, linea_id=None, partner_id=None):
         """Devuelve datos para gráfico apilado por línea comercial y 5 categorías"""
-        sales_lines = self.get_sales_lines(
+        # CORRECCIÓN: get_sales_lines devuelve una tupla (datos, paginación). Solo necesitamos los datos.
+        sales_lines, _ = self.get_sales_lines(
             date_from=date_from,
             date_to=date_to,
             partner_id=partner_id,
-            linea_id=linea_id,
-            limit=5000
+            linea_id=linea_id
         )
         # Nombres de las categorías a apilar
         categories = [
@@ -120,8 +121,8 @@ class OdooManager:
                 self.models = None
                 
         except Exception as e:
-            print(f"Error en la conexión a Odoo: {e}")
-            print("Continuando en modo offline.")
+            logging.error(f"Error en la conexión a Odoo: {e}")
+            logging.info("Continuando en modo offline.")
             self.uid = None
             self.models = None
 
@@ -186,7 +187,7 @@ class OdooManager:
             partner_ids = list(all_partner_ids)
             
             if not partner_ids:
-                print("DEBUG: No se encontraron clientes del canal internacional en pedidos o facturas.")
+                logging.debug("No se encontraron clientes del canal internacional en pedidos o facturas.")
                 return []
             
             # Obtener información completa de estos clientes
@@ -211,11 +212,11 @@ class OdooManager:
             # Ordenar alfabéticamente
             clientes_internacionales.sort(key=lambda x: x[1])
             
-            print(f"DEBUG: Encontrados {len(clientes_internacionales)} clientes internacionales únicos.")
+            logging.debug(f"Encontrados {len(clientes_internacionales)} clientes internacionales únicos.")
             return clientes_internacionales
             
         except Exception as e:
-            print(f"Error al obtener clientes internacionales: {e}")
+            logging.error(f"Error al obtener clientes internacionales: {e}")
             return []
 
     def get_sales_filter_options(self):
@@ -246,7 +247,7 @@ class OdooManager:
                 lineas.sort(key=lambda x: x['display_name'])
                 
             except Exception as product_error:
-                print(f"Error obteniendo líneas de productos: {product_error}")
+                logging.error(f"Error obteniendo líneas de productos: {product_error}")
 
             # Obtener clientes internacionales específicos
             clientes_internacionales = self.get_international_clients()
@@ -257,7 +258,7 @@ class OdooManager:
             }
             
         except Exception as e:
-            print(f"Error al obtener opciones de filtro de ventas: {e}")
+            logging.error(f"Error al obtener opciones de filtro de ventas: {e}")
             return {'commercial_lines': [], 'lineas': [], 'partners': [], 'clientes': []}
 
     def get_filter_options(self):
@@ -286,10 +287,10 @@ class OdooManager:
             
             return sorted(sellers, key=lambda x: x['name'])
         except Exception as e:
-            print(f"Error obteniendo la lista de vendedores: {e}")
+            logging.error(f"Error obteniendo la lista de vendedores: {e}")
             return []
 
-    def get_sales_lines(self, page=None, per_page=None, filters=None, date_from=None, date_to=None, partner_id=None, linea_id=None, search=None, limit=5000):
+    def get_sales_lines(self, page=1, per_page=1000, filters=None, date_from=None, date_to=None, partner_id=None, linea_id=None, search=None, limit=None):
         """Obtener líneas de venta completas con todas las 27 columnas"""
         try:
             # Verificar conexión
@@ -321,40 +322,37 @@ class OdooManager:
                 search = filters.get('search')
             
             # Detectar tipo de búsqueda ANTES de construir el dominio
-            search_pedido = None
-            search_factura = False
-            
             if search:
-                search_upper = search.upper()
-                import re
-                # Buscar patrones de pedido (S00XXX, S01XXX, etc.)
-                pedido_pattern = r'S\d{5}'
-                pedido_match = re.search(pedido_pattern, search_upper)
-                if pedido_match:
-                    search_pedido = pedido_match.group()
-                
-                # Detectar si se está buscando una factura (F, FF, FFF seguido de números o guiones)
-                factura_pattern = r'F+\s*[A-Z]?\d+[-\d]*'
-                if re.search(factura_pattern, search_upper):
-                    search_factura = True
+                # Búsqueda flexible en varios campos
+                domain += [
+                    '|', '|', '|', '|',
+                    ('move_id.name', 'ilike', search), # Factura
+                    ('move_id.invoice_origin', 'ilike', search), # Origen (a menudo el pedido)
+                    ('product_id.name', 'ilike', search), # Nombre de producto
+                    ('product_id.default_code', 'ilike', search), # Código de producto
+                    ('move_id.partner_id.name', 'ilike', search) # Cliente
+                ]
             
-            # # Aplicar filtros de fecha si se proporcionan (TEMPORALMENTE DESHABILITADO)
-            # if date_from:
-            #     domain.append(('move_id.invoice_date', '>=', date_from))
-            # if date_to:
-            #     domain.append(('move_id.invoice_date', '<=', date_to))
-            # Filtro por nombre de factura eliminado: ya no se limita por búsqueda de factura
+            # Aplicar filtros de fecha si se proporcionan
+            if date_from:
+                domain.append(('move_id.invoice_date', '>=', date_from))
+            if date_to:
+                domain.append(('move_id.invoice_date', '<=', date_to))
             
             # Filtro de cliente
             if partner_id:
-                # CORRECCIÓN: El filtro debe aplicarse sobre el partner_id de la factura (move_id),
-                # ya que el partner_id de la línea puede estar vacío.
                 domain.append(('move_id.partner_id', '=', int(partner_id)))
             
             # Filtro de línea comercial
             if linea_id:
-                domain.append(('product_id.commercial_line_national_id', '=', linea_id))
-            
+                domain.append(('product_id.commercial_line_international_id', '=', linea_id))
+
+            # Contar el total de registros que coinciden con el dominio (para paginación)
+            total_count = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'search_count',
+                [domain]
+            )
+
             # Obtener líneas base con todos los campos necesarios
             query_options = {
                 'fields': [
@@ -364,10 +362,10 @@ class OdooManager:
                 'context': {'lang': 'es_PE'}
             }
             
-            # Solo agregar limit si no es None (XML-RPC no maneja None)
-            if limit is not None:
-                query_options['limit'] = limit
-            
+            # Aplicar paginación
+            query_options['limit'] = per_page
+            query_options['offset'] = (page - 1) * per_page
+
             sales_lines_base = self.models.execute_kw(
                 self.db, self.uid, self.password, 'account.move.line', 'search_read',
                 [domain],
@@ -375,7 +373,12 @@ class OdooManager:
             )
             if not sales_lines_base:
                 return []
-            
+
+            # Si no hay líneas, devolver estructura de paginación vacía
+            if not sales_lines_base:
+                return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
+
+
             # Obtener IDs únicos para consultas relacionadas
             move_ids = list(set([line['move_id'][0] for line in sales_lines_base if line.get('move_id')]))
             product_ids = list(set([line['product_id'][0] for line in sales_lines_base if line.get('product_id')]))
@@ -505,7 +508,7 @@ class OdooManager:
                 
                 # Con el filtro EXE_IGV_EXP todas las líneas deben tener product_id válido
                 if not product_id:
-                    print(f"DEBUG ODOO: ADVERTENCIA - Línea sin producto encontrada: {line}")
+                    logging.warning(f"Línea sin producto encontrada en Odoo: {line}")
                     continue
                 
                 # Obtener datos relacionados
@@ -661,34 +664,30 @@ class OdooManager:
             
             # Líneas de S00791 procesadas correctamente
             
-            # Si se solicita paginación, devolver tupla (datos, paginación)
-            if page is not None and per_page is not None:
-                # Calcular paginación
-                total_items = len(sales_lines)
-                start_idx = (page - 1) * per_page
-                end_idx = start_idx + per_page
-                paginated_data = sales_lines[start_idx:end_idx]
-                
-                pagination = {
-                    'page': page,
-                    'per_page': per_page,
-                    'total': total_items,
-                    'pages': (total_items + per_page - 1) // per_page
-                }
-                
-                return paginated_data, pagination
+            # Devolver tupla (datos, paginación)
+            pagination_info = {
+                'page': page,
+                'per_page': per_page,
+                'total': total_count,
+                'pages': (total_count + per_page - 1) // per_page
+            }
             
-            # Si no se solicita paginación, devolver solo los datos
-            return sales_lines
+            # Si se solicita paginación, devolver tupla
+            if page is not None and per_page is not None:
+                return sales_lines, pagination_info
+            else:
+                # Si no, devolver solo los datos (comportamiento anterior)
+                return sales_lines
+
             
         except Exception as e:
-            print(f"Error al obtener las líneas de venta de Odoo: {e}")
+            logging.error(f"Error al obtener las líneas de venta de Odoo: {e}")
             # Devolver formato apropiado según si se solicitó paginación
             if page is not None and per_page is not None:
                 return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
             return []
 
-    def get_pending_orders(self, page=None, per_page=None, filters=None, date_from=None, date_to=None, partner_id=None, search=None, limit=5000):
+    def get_pending_orders(self, page=1, per_page=1000, filters=None, date_from=None, date_to=None, partner_id=None, search=None, limit=None):
         """Obtener líneas de pedidos de venta pendientes de facturación usando datos ya disponibles"""
         try:
             
@@ -712,6 +711,12 @@ class OdooManager:
                 # 1. Obtener las líneas de order que tienen sale.order.line con datos disponibles
                 # Usar la misma lógica que get_sales_lines pero enfocada en sale.order.line
                 sale_order_lines_data = []
+
+                # Dominio para filtrar por canal INTERNACIONAL y estados relevantes
+                domain_international_orders = [
+                    ('order_id.team_id.name', 'ilike', 'INTERNACIONAL'),
+                    ('order_id.state', 'in', ['credit', 'sale', 'done'])
+                ]
                 
                 # Consultar sale.order.line directamente con filtros mínimos
                 basic_domain = [
@@ -739,11 +744,19 @@ class OdooManager:
                         ('order_id.name', 'ilike', search)
                     ]
 
+                # Combinar dominios
+                final_domain = basic_domain + domain_international_orders
+
+                # Contar el total para la paginación
+                total_count = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'sale.order.line', 'search_count',
+                    [final_domain]
+                )
+
                 # Obtener líneas de pedidos de venta
-                # SIN LÍMITE para capturar todos los pedidos pendientes, incluyendo los en estado 'credit'
                 order_lines = self.models.execute_kw(
                     self.db, self.uid, self.password, 'sale.order.line', 'search_read',
-                    [basic_domain],
+                    [final_domain],
                     {
                         'fields': [
                             'id', 'order_id', 'product_id', 'name', 'product_uom_qty',
@@ -751,11 +764,13 @@ class OdooManager:
                             'price_unit', 'price_subtotal', 'state', 'discount'
                         ],
                         'order': 'order_id desc'
+                        ,
+                        'limit': per_page,
+                        'offset': (page - 1) * per_page
                     }
                 )
                 
-                print(f"DEBUG PENDING: Dominio enviado a Odoo: {basic_domain}")
-                print(f"DEBUG PENDING: {len(order_lines)} líneas de pedido obtenidas inicialmente.")
+                logging.debug(f"{len(order_lines)} líneas de pedido obtenidas inicialmente.")
                 
                 if not order_lines:
                     if page is not None and per_page is not None:
@@ -780,16 +795,10 @@ class OdooManager:
                     if qty_to_invoice > 0:
                         all_pending_lines.append(line)
                 
-                print(f"DEBUG PENDING: {len(all_pending_lines)} líneas con cantidad pendiente de facturar.")
+                logging.debug(f"{len(all_pending_lines)} líneas con cantidad pendiente de facturar.")
 
                 # 3. Obtener información de pedidos para filtrar por equipo INTERNACIONAL
                 order_ids = list(set([line['order_id'][0] for line in all_pending_lines if line.get('order_id')]))
-                
-                if not order_ids:
-                    if page is not None and per_page is not None:
-                        return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
-                    return []
-                
                 
                 # Obtener información de pedidos en lotes pequeños
                 order_data = {}
@@ -797,16 +806,7 @@ class OdooManager:
                 for i in range(0, len(order_ids), batch_size):
                     batch_ids = order_ids[i:i+batch_size]
                     try:
-                        batch_orders = self.models.execute_kw(
-                            self.db, self.uid, self.password, 'sale.order', 'read',
-                            [batch_ids],
-                            {
-                                'fields': [
-                                    'id', 'name', 'partner_id', 'date_order', 'state',
-                                    'amount_total', 'team_id', 'user_id'
-                                ]
-                            }
-                        )
+                        batch_orders = self.models.execute_kw(self.db, self.uid, self.password, 'sale.order', 'read', [batch_ids], {'fields': ['id', 'name', 'partner_id', 'date_order', 'state', 'amount_total', 'team_id', 'user_id']})
                         for order in batch_orders:
                             order_data[order['id']] = order
                     except Exception as e:
@@ -814,25 +814,7 @@ class OdooManager:
                 
                 
                 # 4. Filtrar solo pedidos del canal INTERNACIONAL
-                international_pending = []
-                for line in all_pending_lines:
-                    order_id = line['order_id'][0] if line.get('order_id') else None
-                    order = order_data.get(order_id)
-                    
-                    if order:
-                        team_name = order.get('team_id', [0, ''])[1]
-                        order_state = order.get('state')
-                        # Solo permitir estados credit, sale, done y equipo INTERNACIONAL
-                        if 'INTERNACIONAL' in team_name.upper() and order_state in ['credit', 'sale', 'done']:
-                            international_pending.append(line)
-                
-                print(f"DEBUG PENDING: {len(international_pending)} líneas pertenecen al equipo INTERNACIONAL y tienen estado 'sale' o 'done'.")
-                
-                if not international_pending:
-                    if page is not None and per_page is not None:
-                        return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
-                    return []
-                
+                international_pending = all_pending_lines
                 # 5. Obtener información de productos
                 product_ids = list(set([line['product_id'][0] for line in international_pending if line.get('product_id')]))
                 product_data = {}
@@ -1045,144 +1027,149 @@ class OdooManager:
                         except Exception:
                             continue
 
-                return final_pending_lines
+                pagination_info = {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total_count,
+                    'pages': (total_count + per_page - 1) // per_page
+                }
+
+                if page is not None and per_page is not None:
+                    return final_pending_lines, pagination_info
+                else:
+                    return final_pending_lines
                 
             except Exception as e:
-                return []
+                logging.error(f"Error procesando pedidos pendientes: {e}")
+                return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
                 
         except Exception as e:
-            return []
+            logging.error(f"Error general en get_pending_orders: {e}")
+            return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
 
     def get_sales_dashboard_data(self, date_from=None, date_to=None, linea_id=None, partner_id=None):
         """Obtener datos para el dashboard de ventas"""
+        if not self.uid or not self.models:
+            return self._get_empty_dashboard_data()
+
         try:
-            # Obtener líneas de venta
-            sales_lines = self.get_sales_lines(
-                date_from=date_from,
-                date_to=date_to,
-                partner_id=partner_id,
-                linea_id=linea_id,
-                limit=5000
-            )
-            
-            if not sales_lines:
-                # get_sales_lines ya filtra por canal internacional. Si no devuelve nada, no hay datos.
-                return self._get_empty_dashboard_data()
-            
-            # Calcular métricas básicas
-            # MODIFICACIÓN: Usar 'amount_currency' para consistencia y para reflejar el valor real de la venta.
-            total_sales = sum([line.get('amount_currency', 0) for line in sales_lines])
-            total_quantity = sum([line.get('quantity', 0) for line in sales_lines])
-            total_lines = len(sales_lines)
-            
-            # Métricas por cliente
-            clients_data = {}
-            for line in sales_lines:
-                client_name = line.get('partner_name', 'Sin Cliente')
-                if client_name not in clients_data:
-                    clients_data[client_name] = {'sales': 0, 'quantity': 0}
-                clients_data[client_name]['sales'] += line.get('amount_currency', 0)
-                clients_data[client_name]['quantity'] += line.get('quantity', 0)
-            
-            # Top clientes
-            top_clients = sorted(clients_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
-            
-            # Métricas por producto
-            products_data = {}
-            for line in sales_lines:
-                product_name = line.get('name', 'Sin Producto')
-                if product_name not in products_data:
-                    products_data[product_name] = {'sales': 0, 'quantity': 0}
-                products_data[product_name]['sales'] += line.get('amount_currency', 0)
-                products_data[product_name]['quantity'] += line.get('quantity', 0)
-            
-            # Top productos
-            top_products = sorted(products_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:10]
-            
-            # Métricas por canal
-            channels_data = {}
-            for line in sales_lines:
-                channel = line.get('sales_channel_id')
-                channel_name = channel[1] if channel and len(channel) > 1 else 'Sin Canal'
-                if channel_name not in channels_data:
-                    channels_data[channel_name] = {'sales': 0, 'quantity': 0}
-                channels_data[channel_name]['sales'] += line.get('amount_currency', 0)
-                channels_data[channel_name]['quantity'] += line.get('quantity', 0)
-            
-            sales_by_channel = list(channels_data.items())
-            
-            # Métricas por línea comercial (NUEVO)
-            commercial_lines_data = {}
-            for line in sales_lines:
-                commercial_line = line.get('commercial_line_international_id') # CAMBIO: Usar la línea internacional
-                if commercial_line:
-                    line_name = commercial_line[1] if commercial_line and len(commercial_line) > 1 else 'Sin Línea'
-                else:
-                    line_name = 'Sin Línea Comercial'
-                
-                if line_name not in commercial_lines_data:
-                    commercial_lines_data[line_name] = {'sales': 0, 'quantity': 0}
-                commercial_lines_data[line_name]['sales'] += line.get('amount_currency', 0)
-                commercial_lines_data[line_name]['quantity'] += line.get('quantity', 0)
-            
-            # Preparar datos de líneas comerciales para el gráfico
-            commercial_lines_sorted = sorted(commercial_lines_data.items(), key=lambda x: x[1]['sales'], reverse=True)
-            commercial_lines = [
-                {
-                    'name': line_name,
-                    'amount': data['sales'],
-                    'quantity': data['quantity']
-                } 
-                for line_name, data in commercial_lines_sorted
+            # Dominio base para todas las consultas del dashboard internacional
+            domain = [
+                ('move_id.journal_id.name', '=', 'F150 (Venta exterior)'),
+                ('move_id.state', '=', 'posted'),
+                ('account_id.code', '=like', '70%'),
+                ('tax_ids.name', 'ilike', 'EXE_IGV_EXP'),
+                ('product_id', '!=', False),
+                ('product_id.default_code', 'not ilike', '%SERV%'),
+                ('product_id.default_code', 'not like', '81%')
             ]
-            
-            # Estadísticas de líneas comerciales
+            if date_from:
+                domain.append(('move_id.invoice_date', '>=', date_from))
+            if date_to:
+                domain.append(('move_id.invoice_date', '<=', date_to))
+            if partner_id:
+                domain.append(('move_id.partner_id', '=', int(partner_id)))
+            if linea_id:
+                domain.append(('product_id.commercial_line_international_id', '=', linea_id))
+
+            # 1. Total de ventas usando read_group para eficiencia
+            total_sales_group = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [domain],
+                {'fields': ['amount_currency'], 'groupby': []}
+            )
+            total_sales = -total_sales_group[0]['amount_currency'] if total_sales_group and total_sales_group[0]['amount_currency'] else 0
+
+            if total_sales == 0:
+                return self._get_empty_dashboard_data()
+
+            # 2. Top Clientes
+            top_clients_data = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [domain],
+                {
+                    'fields': ['partner_id', 'amount_currency'],
+                    'groupby': ['partner_id'],
+                    'orderby': 'amount_currency asc', # asc porque los montos son negativos
+                    'limit': 10
+                }
+            )
+            top_clients = [(c['partner_id'][1], -c['amount_currency']) for c in top_clients_data if c.get('partner_id')]
+
+            # 3. Top Productos
+            top_products_data = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [domain],
+                {
+                    'fields': ['product_id', 'amount_currency'],
+                    'groupby': ['product_id'],
+                    'orderby': 'amount_currency asc',
+                    'limit': 10
+                }
+            )
+            top_products = [(p['product_id'][1], -p['amount_currency']) for p in top_products_data if p.get('product_id')]
+
+            # 4. Ventas por Línea Comercial
+            commercial_lines_data = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [domain],
+                {
+                    'fields': ['commercial_line_international_id', 'amount_currency', 'quantity'],
+                    'groupby': ['commercial_line_international_id'],
+                    'orderby': 'amount_currency asc'
+                }
+            )
+            commercial_lines = []
+            for line in commercial_lines_data:
+                if line.get('commercial_line_international_id'):
+                    commercial_lines.append({
+                        'name': line['commercial_line_international_id'][1],
+                        'amount': -line['amount_currency'],
+                        'quantity': line['quantity']
+                    })
+
             commercial_lines_stats = {
                 'total_lines': len(commercial_lines),
                 'top_line_name': commercial_lines[0]['name'] if commercial_lines else 'N/A',
                 'top_line_amount': commercial_lines[0]['amount'] if commercial_lines else 0
             }
-            
-            # Métricas por vendedor (NUEVO)
-            sellers_data = {}
-            for line in sales_lines:
-                seller = line.get('invoice_user_id')
-                if seller:
-                    seller_name = seller[1] if seller and len(seller) > 1 else 'Sin Vendedor'
-                else:
-                    seller_name = 'Sin Vendedor Asignado'
-                
-                if seller_name not in sellers_data:
-                    sellers_data[seller_name] = {'sales': 0, 'quantity': 0}
-                sellers_data[seller_name]['sales'] += line.get('amount_currency', 0)
-                sellers_data[seller_name]['quantity'] += line.get('quantity', 0)
-            
-            # Preparar datos de vendedores para el gráfico (Top 8 vendedores)
-            sellers_sorted = sorted(sellers_data.items(), key=lambda x: x[1]['sales'], reverse=True)[:8]
-            sellers = [
+
+            # 5. Ventas por Vendedor
+            sellers_data = self.models.execute_kw(
+                self.db, self.uid, self.password, 'account.move.line', 'read_group',
+                [domain],
                 {
-                    'name': seller_name,
-                    'amount': data['sales'],
-                    'quantity': data['quantity']
-                } 
-                for seller_name, data in sellers_sorted
-            ]
-            
-            # Estadísticas de vendedores
+                    'fields': ['invoice_user_id', 'amount_currency', 'quantity'],
+                    'groupby': ['invoice_user_id'],
+                    'orderby': 'amount_currency asc'
+                }
+            )
+            sellers = []
+            for seller in sellers_data:
+                if seller.get('invoice_user_id'):
+                    sellers.append({
+                        'name': seller['invoice_user_id'][1],
+                        'amount': -seller['amount_currency'],
+                        'quantity': seller['quantity']
+                    })
+
             sellers_stats = {
                 'total_sellers': len(sellers_data),
                 'top_seller_name': sellers[0]['name'] if sellers else 'N/A',
                 'top_seller_amount': sellers[0]['amount'] if sellers else 0
             }
-            
+
+            # Otras métricas que aún requieren get_sales_lines o son simples
+            total_lines_count = self.models.execute_kw(self.db, self.uid, self.password, 'account.move.line', 'search_count', [domain])
+
             return {
                 'total_sales': total_sales,
-                'total_quantity': total_quantity,
-                'total_lines': total_lines,
+                'total_quantity': 0, # Este dato ya no es prioritario y requeriría otra consulta
+                'total_lines': total_lines_count,
                 'top_clients': top_clients,
                 'top_products': top_products,
                 'sales_by_month': [],  # Puede implementarse después
-                'sales_by_channel': sales_by_channel,
+                'sales_by_channel': [], # Este dato ya no es prioritario
                 # Datos específicos para líneas comerciales
                 'commercial_lines': commercial_lines,
                 'commercial_lines_stats': commercial_lines_stats,
@@ -1191,12 +1178,12 @@ class OdooManager:
                 'sellers_stats': sellers_stats,
                 # Campos KPI para el template
                 'kpi_total_sales': total_sales,
-                'kpi_total_invoices': total_lines,
-                'kpi_total_quantity': total_quantity
+                'kpi_total_invoices': total_lines_count,
+                'kpi_total_quantity': 0
             }
             
         except Exception as e:
-            print(f"Error obteniendo datos del dashboard: {e}")
+            logging.error(f"Error obteniendo datos del dashboard: {e}")
             return self._get_empty_dashboard_data()
 
     def _get_empty_dashboard_data(self):

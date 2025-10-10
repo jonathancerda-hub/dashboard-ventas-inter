@@ -1,6 +1,7 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
+import logging
 
 class GoogleSheetsManager:
     def __init__(self, credentials_file, sheet_name):
@@ -11,12 +12,12 @@ class GoogleSheetsManager:
             ]
             creds = Credentials.from_service_account_file(credentials_file, scopes=scopes)
             self.client = gspread.authorize(creds)
-            print(f"Intentando abrir la hoja de cálculo: '{sheet_name}'")
+            logging.info(f"Intentando abrir la hoja de cálculo: '{sheet_name}'")
             self.sheet = self.client.open(sheet_name)
-            print("Conexión a Google Sheets establecida exitosamente.")
+            logging.info("Conexión a Google Sheets establecida exitosamente.")
         except Exception as e:
-            print(f"Error al conectar con Google Sheets: {e}")
-            print("Asegúrate de que 'credentials.json' existe y el nombre de la hoja en .env es correcto.")
+            logging.error(f"Error al conectar con Google Sheets: {e}")
+            logging.info("Asegúrate de que 'credentials.json' existe y el nombre de la hoja en .env es correcto.")
             self.client = None
             self.sheet = None
 
@@ -38,13 +39,13 @@ class GoogleSheetsManager:
                         equipos_dict[equipo_id].append(int(vendedor_id))
             return equipos_dict
         except gspread.exceptions.WorksheetNotFound:
-            print("⚠️ Pestaña 'Equipos' no encontrada en Google Sheet. Creándola...")
+            logging.warning("Pestaña 'Equipos' no encontrada en Google Sheet. Creándola...")
             self.sheet.add_worksheet(title="Equipos", rows="200", cols="3")
             worksheet = self.sheet.worksheet("Equipos")
             worksheet.update('A1:C1', [['equipo_id', 'vendedor_id', 'vendedor_nombre']])
             return {}
         except Exception as e:
-            print(f"Error al leer la pestaña 'Equipos': {e}")
+            logging.error(f"Error al leer la pestaña 'Equipos': {e}")
             return {}
 
     def write_equipos(self, equipos_data, todos_los_vendedores):
@@ -65,7 +66,7 @@ class GoogleSheetsManager:
             worksheet.clear()
             worksheet.update(rows, value_input_option='USER_ENTERED')
         except Exception as e:
-            print(f"Error al escribir en la pestaña 'Equipos': {e}")
+            logging.error(f"Error al escribir en la pestaña 'Equipos': {e}")
 
     def read_metas(self):
         """Lee las metas desde la pestaña 'Metas' y las transforma a la estructura anidada."""
@@ -95,13 +96,13 @@ class GoogleSheetsManager:
                 }
             return metas_anidadas
         except gspread.exceptions.WorksheetNotFound:
-            print("⚠️ Pestaña 'Metas' no encontrada en Google Sheet. Creándola...")
+            logging.warning("Pestaña 'Metas' no encontrada en Google Sheet. Creándola...")
             self.sheet.add_worksheet(title="Metas", rows="1000", cols="5")
             worksheet = self.sheet.worksheet("Metas")
             worksheet.update('A1:E1', [['equipo_id', 'vendedor_id', 'mes', 'meta', 'meta_ipn']])
             return {}
         except Exception as e:
-            print(f"Error al leer la pestaña 'Metas': {e}")
+            logging.error(f"Error al leer la pestaña 'Metas': {e}")
             return {}
 
     def write_metas(self, metas_anidadas):
@@ -164,10 +165,10 @@ class GoogleSheetsManager:
                     }
             return metas_por_linea
         except gspread.exceptions.WorksheetNotFound:
-            print("⚠️ Pestaña 'MetasPorLinea' no encontrada. Por favor, créala manualmente.")
+            logging.warning("Pestaña 'MetasPorLinea' no encontrada. Por favor, créala manualmente.")
             return {}
         except Exception as e:
-            print(f"Error al leer la pestaña 'MetasPorLinea': {e}")
+            logging.error(f"Error al leer la pestaña 'MetasPorLinea': {e}")
             return {}
 
     def write_metas_por_linea(self, metas_data):
