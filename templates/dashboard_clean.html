@@ -1153,8 +1153,8 @@ function crearGraficoBullet() {
     if (!chartDom) return;
     const myChart = echarts.init(chartDom);
 
-    // Ordenar datos por total de pedido descendente para mejor visualización
-    bulletChartData.sort((a, b) => b.total_pedido - a.total_pedido);
+    // Ordenar datos por nombre de cliente alfabéticamente
+    bulletChartData.sort((a, b) => a.cliente.localeCompare(b.cliente));
 
     // Ajustar altura del gráfico dinámicamente
     const barHeight = 25; // Altura por barra
