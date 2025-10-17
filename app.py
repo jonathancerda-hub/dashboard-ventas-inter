@@ -1444,15 +1444,17 @@ def export_excel_pending():
         # Seleccionar y renombrar las columnas para el export
         # Usamos un subconjunto de las columnas disponibles en pending_data
         column_mapping = {
-            'pedido': 'Pedido',
-            'cliente': 'Cliente',
-            'pais': 'País',
-            'fecha': 'Fecha Pedido',
-            'codigo_odoo': 'Código Odoo',
-            'producto': 'Producto',
+            'pedido': 'Pedido', 'cliente': 'Cliente', 'pais': 'País',
+            'fecha': 'Fecha Pedido', 'codigo_odoo': 'Código Odoo',
+            'producto': 'Producto', 'descripcion': 'Descripcion',
             'linea_comercial': 'Linea Comercial',
-            'cantidad_pendiente': 'Cantidad Pendiente',
-            'precio_unitario': 'Precio unitario ($)',
+            # --- NUEVAS COLUMNAS ---
+            'clasificacion_farmacologica': 'Clasificación farmacológica',
+            'formas_farmaceuticas': 'Formas Farmacéuticas',
+            'via_administracion': 'Vía de Administración',
+            'linea_produccion': 'Línea de producción',
+            # --- FIN NUEVAS COLUMNAS ---
+            'cantidad_pendiente': 'Cantidad Pendiente', 'precio_unitario': 'Precio unitario ($)',
             'total_pendiente': 'Total Pendiente ($)'
         }
         

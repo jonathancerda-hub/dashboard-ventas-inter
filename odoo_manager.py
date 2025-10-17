@@ -357,7 +357,7 @@ class OdooManager:
             query_options = {
                 'fields': [
                     'move_id', 'partner_id', 'product_id', 'balance', 'move_name',
-                    'quantity', 'price_unit', 'tax_ids', 'amount_currency'
+                    'quantity', 'price_unit', 'tax_ids', 'amount_currency', 'display_name'
                 ],
                 'context': {'lang': 'es_PE'}
             }
@@ -423,6 +423,7 @@ class OdooManager:
                     {
                         'fields': [
                             'name', 'default_code', 'categ_id', 'commercial_line_national_id',
+                            'display_name', # <-- CAMBIO: Añadir display_name
                             'commercial_line_international_id', # <-- CAMBIO: Añadir este campo
                             'pharmacological_classification_id', 'pharmaceutical_forms_id',
                             'administration_way_id', 'production_line_id', 'product_life_cycle',
@@ -600,8 +601,8 @@ class OdooManager:
                     # 7. Producto
                     'producto': product.get('name', ''),
                     
-                    # 8. Descripción (mismo que producto en este caso)
-                    'descripcion': product.get('name', ''),
+                    # 8. Descripción (usando el nombre del producto, igual que el campo 'producto')
+                    'descripcion': product.get('display_name', ''),
                     
                     # 9. Línea Comercial
                     'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
@@ -826,7 +827,7 @@ class OdooManager:
                             [product_ids],
                             {
                                 'fields': [
-                                    'id', 'name', 'default_code', 'categ_id',
+                                    'id', 'name', 'display_name', 'default_code', 'categ_id', # <-- CAMBIO: Añadir display_name
                                     'commercial_line_national_id', 'commercial_line_international_id',
                                     'pharmacological_classification_id',
                                     'pharmaceutical_forms_id', 'administration_way_id', 'production_line_id'
@@ -905,12 +906,12 @@ class OdooManager:
                             'mes': mes,
                             'codigo_odoo': product.get('default_code', ''),
                             'producto': product.get('name', ''),
-                            'descripcion': product.get('name', ''),
+                            'descripcion': product.get('display_name', ''),
                             'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
-                            'clasificacion_farmacologica': product.get('pharmacological_classification_id')[1] if product.get('pharmacological_classification_id') and len(product.get('pharmacological_classification_id')) > 1 else '',
-                            'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and len(product.get('pharmaceutical_forms_id')) > 1 else '',
-                            'via_administracion': product.get('administration_way_id')[1] if product.get('administration_way_id') and len(product.get('administration_way_id')) > 1 else '',
-                            'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and len(product.get('production_line_id')) > 1 else '',
+                            'clasificacion_farmacologica': product.get('pharmacological_classification_id')[1] if product.get('pharmacological_classification_id') and isinstance(product.get('pharmacological_classification_id'), list) and len(product.get('pharmacological_classification_id')) > 1 else '',
+                            'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and isinstance(product.get('pharmaceutical_forms_id'), list) and len(product.get('pharmaceutical_forms_id')) > 1 else '',
+                            'via_administracion': product.get('administration_way_id')[1] if product.get('administration_way_id') and isinstance(product.get('administration_way_id'), list) and len(product.get('administration_way_id')) > 1 else '',
+                            'linea_produccion': product.get('production_line_id')[1] if product.get('production_line_id') and isinstance(product.get('production_line_id'), list) and len(product.get('production_line_id')) > 1 else '',
                             'cantidad_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)),
                             'precio_unitario': line.get('price_unit', 0),
                             'discount': line.get('discount', 0),
