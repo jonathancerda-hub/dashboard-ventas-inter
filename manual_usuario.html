@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario - Dashboard de Ventas</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+        :root {
+            --odoo-primary: #875A7B;
+            --odoo-primary-dark: #6B4563;
+            --text-primary: #2c3e50;
+            --text-secondary: #555;
+            --bg-light: #f8f9fa;
+            --border-color: #e0e6ed;
+            --accent-color: #3498db;
+        }
+
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            background-color: #fdfdff;
+            margin: 0;
+            display: flex;
+        }
+
+        #toc {
+            width: 280px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            background: var(--bg-light);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        #toc h2 {
+            color: var(--odoo-primary);
+            font-size: 1.5rem;
+            margin-top: 0;
+            border-bottom: 2px solid var(--odoo-primary-dark);
+            padding-bottom: 10px;
+        }
+
+        #toc ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #toc li a {
+            display: block;
+            padding: 10px 15px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.2s ease-in-out;
+            font-weight: 500;
+        }
+
+        #toc li a:hover, #toc li a.active {
+            background-color: var(--odoo-primary);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        main {
+            margin-left: 320px;
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        section {
+            margin-bottom: 60px;
+            padding-top: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 30px;
+        }
+
+        h1, h2, h3 {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            color: var(--odoo-primary-dark);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            font-size: 2rem;
+            border-bottom: 2px solid var(--odoo-primary);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            color: var(--odoo-primary);
+            margin-top: 30px;
+        }
+
+        p, li {
+            font-size: 1rem;
+        }
+
+        code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #c7254e;
+        }
+
+        .note {
+            background-color: #e7f3fe;
+            border-left: 5px solid var(--accent-color);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .note strong {
+            color: var(--accent-color);
+        }
+
+        .screenshot {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-top: 15px;
+        }
+
+        .bi {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav id="toc">
+        <h2><i class="bi bi-book"></i>Manual</h2>
+        <ul>
+            <li><a href="#introduccion">Introducción</a></li>
+            <li><a href="#inicio-sesion">Inicio de Sesión</a></li>
+            <li><a href="#dashboard-internacional">Dashboard Internacional</a></li>
+            <li><a href="#dashboard-nacional">Dashboard Nacional</a></li>
+            <li><a href="#gestion-metas-linea">Gestión de Metas (Línea)</a></li>
+            <li><a href="#gestion-metas-vendedor">Gestión de Metas (Vendedor)</a></li>
+            <li><a href="#vistas-detalladas">Vistas Detalladas</a></li>
+            <li><a href="#exportacion">Exportación de Datos</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <h1><i class="bi bi-graph-up-arrow"></i>Manual de Usuario: Dashboard de Ventas</h1>
+
+        <section id="introduccion">
+            <h2><i class="bi bi-rocket-takeoff"></i>Introducción</h2>
+            <p>
+                Bienvenido al manual del Dashboard de Ventas. Esta aplicación ha sido diseñada para proporcionar una visión clara y en tiempo real del rendimiento comercial de la empresa, tanto a nivel nacional como internacional.
+            </p>
+            <p>
+                El sistema se conecta directamente con <strong>Odoo</strong> para obtener datos de ventas y con <strong>Google Sheets</strong> para gestionar las metas comerciales, ofreciendo una herramienta centralizada para el análisis y la toma de decisiones.
+            </p>
+        </section>
+
+        <section id="inicio-sesion">
+            <h2><i class="bi bi-box-arrow-in-right"></i>Inicio de Sesión</h2>
+            <p>
+                Para acceder al sistema, deberás utilizar las mismas credenciales (usuario y contraseña) que usas para ingresar a Odoo.
+            </p>
+            <div class="note">
+                <strong><i class="bi bi-key-fill"></i>Credenciales:</strong> Si tienes problemas para acceder, verifica que tu usuario y contraseña de Odoo sean correctos. El sistema valida la autenticación directamente con el ERP.
+            </div>
+        </section>
+
+        <section id="dashboard-internacional">
+            <h2><i class="bi bi-globe2"></i>Dashboard Internacional</h2>
+            <p>
+                Esta es la pantalla principal de la aplicación. Ofrece una vista panorámica de las ventas internacionales del año en curso.
+            </p>
+            <h3><i class="bi bi-funnel-fill"></i>Filtro por Cliente</h3>
+            <p>
+                En la parte superior izquierda, encontrarás un menú desplegable para filtrar todos los datos del dashboard por un cliente específico. Al seleccionar un cliente, todos los KPIs, tablas y gráficos se recalcularán para mostrar únicamente la información de ese cliente. Para ver los datos de todos los clientes, selecciona la opción "Todos los clientes".
+            </p>
+            <h3><i class="bi bi-bar-chart-line-fill"></i>KPIs Principales</h3>
+            <p>
+                La fila superior muestra los indicadores clave de rendimiento:
+                <ul>
+                    <li><strong>Ventas Totales del Año:</strong> Suma de todo lo facturado en el año.</li>
+                    <li><strong>Meta:</strong> La meta de ventas definida para el período.</li>
+                    <li><strong>Brecha Comercial:</strong> La diferencia entre la Venta Proyectada (Facturado + Por Facturar) y la Meta.</li>
+                    <li><strong>% Avance:</strong> El porcentaje de la meta que se ha alcanzado con la venta proyectada.</li>
+                </ul>
+            </p>
+            <h3><i class="bi bi-table"></i>Tabla de Ventas por Línea Comercial</h3>
+            <p>
+                Esta tabla desglosa el rendimiento por cada línea comercial internacional:
+                <ul>
+                    <li><strong>Venta Total ($):</strong> Lo que ya ha sido facturado para esa línea.</li>
+                    <li><strong>Por Facturar ($):</strong> El valor de los pedidos de venta que están confirmados pero aún no se han facturado.</li>
+                    <li><strong>% Sobre Total:</strong> Qué porcentaje de la venta total representa esa línea.</li>
+                    <li><strong>Meta:</strong> La meta específica para esa línea.</li>
+                    <li><strong>Brecha:</strong> La diferencia entre la proyección (Venta + Por Facturar) y la meta de la línea.</li>
+                </ul>
+            </p>
+            <h3><i class="bi bi-pie-chart-fill"></i>Gráficos de Análisis</h3>
+            <p>
+                La parte inferior del dashboard contiene varios gráficos interactivos para un análisis más profundo:
+                <ul>
+                    <li><strong>Top 7 Productos Más Vendidos:</strong> Muestra los productos con mayor volumen de venta.</li>
+                    <li><strong>Venta Internacional por Línea Comercial:</strong> Un resumen visual de la tabla principal.</li>
+                    <li><strong>Análisis Jerárquico de Ventas:</strong> Un gráfico "drill-down" que te permite explorar las ventas desde la Línea Comercial, pasando por la Clasificación Farmacológica, hasta llegar al producto específico. Simplemente haz clic en una barra para profundizar.</li>
+                    <li><strong>Avance de Facturación por Cliente:</strong> Un gráfico de tipo "bullet" que compara lo facturado contra el total de pedidos para cada cliente, mostrando el porcentaje de avance.</li>
+                </ul>
+            </p>
+        </section>
+
+        <section id="dashboard-nacional">
+            <h2><i class="bi bi-flag-fill"></i>Dashboard Nacional por Línea</h2>
+            <p>
+                Accesible desde el menú de navegación, este dashboard se enfoca en el rendimiento de las ventas nacionales, desglosado por línea comercial y por vendedor.
+            </p>
+            <h3><i class="bi bi-calendar-month"></i>Filtros</h3>
+            <p>
+                Puedes filtrar los datos por <strong>Mes</strong> y por <strong>Línea Comercial</strong> para analizar períodos y equipos específicos.
+            </p>
+            <h3><i class="bi bi-people-fill"></i>Tabla de Rendimiento de Vendedores</h3>
+            <p>
+                El componente principal de esta vista es una tabla que muestra el rendimiento individual de cada vendedor del equipo seleccionado:
+                <ul>
+                    <li>Compara la <strong>Venta Total</strong> y la <strong>Venta IPN</strong> de cada vendedor contra sus metas mensuales correspondientes.</li>
+                    <li>Muestra el <strong>% de Avance</strong> para cada tipo de meta.</li>
+                </ul>
+            </p>
+        </section>
+
+        <section id="gestion-metas-linea">
+            <h2><i class="bi bi-bullseye"></i>Gestión de Metas (por Línea)</h2>
+            <p>
+                Esta sección (<code>/meta</code>) permite establecer las metas de venta mensuales para cada línea comercial nacional y para E-commerce.
+            </p>
+            <ol>
+                <li><strong>Selecciona un mes:</strong> Usa el selector de la parte superior para elegir el mes para el cual deseas definir las metas.</li>
+                <li><strong>Ingresa las metas:</strong> Rellena los campos "Meta Total" y "Meta IPN" para cada línea comercial. Los totales se calculan automáticamente en la parte inferior.</li>
+                <li><strong>Guarda los cambios:</strong> Haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Google Sheets.</li>
+            </ol>
+            <div class="note">
+                <strong><i class="bi bi-calculator-fill"></i>Cálculo Rápido de IPN:</strong> Puedes usar la calculadora de porcentaje en el encabezado de la columna "Meta IPN" para calcular rápidamente este valor como un porcentaje de la "Meta Total".
+            </div>
+        </section>
+
+        <section id="gestion-metas-vendedor">
+            <h2><i class="bi bi-person-check-fill"></i>Gestión de Equipos y Metas (por Vendedor)</h2>
+            <p>
+                Esta sección (<code>/metas_vendedor</code>) es una herramienta poderosa para configurar los equipos comerciales y asignar metas individuales a cada vendedor.
+            </p>
+            <h3><i class="bi bi-person-plus-fill"></i>Asignación de Equipos</h3>
+            <p>
+                Para cada línea comercial (equipo), hay un campo de selección múltiple. Aquí puedes buscar y añadir los vendedores que pertenecen a ese equipo. Los nombres de los vendedores se obtienen directamente de Odoo.
+            </p>
+            <p>
+                Una vez que hayas asignado los vendedores a sus respectivos equipos, haz clic en el botón <strong>"Guardar Equipo"</strong> correspondiente. Esto actualizará la tabla de metas de abajo.
+            </p>
+            <h3><i class="bi bi-grid-3x3-gap-fill"></i>Tabla Pivot de Metas</h3>
+            <p>
+                Después de configurar los equipos, aparecerá una tabla pivotante. Esta tabla te permite ingresar la <strong>Meta Total</strong> y la <strong>Meta IPN</strong> para cada vendedor de cada equipo, para cada mes del año.
+            </p>
+            <p>
+                Cuando termines de ingresar todas las metas, haz clic en el botón <strong>"Guardar Todas las Metas"</strong> al final de la página para almacenar toda la información en Google Sheets.
+            </p>
+        </section>
+
+        <section id="vistas-detalladas">
+            <h2><i class="bi bi-layout-text-sidebar-reverse"></i>Vistas Detalladas</h2>
+            <p>
+                Desde el menú de navegación superior, puedes acceder a vistas de tabla detalladas:
+            </p>
+            <ul>
+                <li><strong>Ventas (<code>/sales</code>):</strong> Muestra una tabla con todas las líneas de facturas de venta internacionales. Incluye filtros por fecha, cliente y un campo de búsqueda general.</li>
+                <li><strong>Pendientes (<code>/pending</code>):</strong> Muestra una tabla con todos los pedidos de venta internacionales que están pendientes de facturar. También cuenta con filtros similares.</li>
+            </ul>
+        </section>
+
+        <section id="exportacion">
+            <h2><i class="bi bi-file-earmark-excel-fill"></i>Exportación de Datos</h2>
+            <p>
+                La aplicación permite exportar datos a formato <strong>Excel (.xlsx)</strong> desde varias ubicaciones:
+            </p>
+            <ul>
+                <li><strong>Desde el Dashboard Internacional:</strong> En la tabla de "Total por Línea Comercial", encontrarás dos botones:
+                    <ul>
+                        <li><code>Exp. Facturado</code>: Descarga un detalle de todas las ventas ya facturadas para el cliente seleccionado (o todos si no hay selección).</li>
+                        <li><code>Exp. Por Facturar</code>: Descarga un detalle de todos los pedidos pendientes de facturar.</li>
+                    </ul>
+                </li>
+                <li><strong>Desde las Vistas Detalladas:</strong> En las páginas <code>/sales</code> y <code>/pending</code>, también encontrarás botones para exportar los datos que se están visualizando.</li>
+            </ul>
+        </section>
+
+    </main>
+
+    <script>
+        // Script para resaltar la sección activa en la tabla de contenidos
+        document.addEventListener('DOMContentLoaded', () => {
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('#toc a');
+
+            const observer = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        navLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href').substring(1) === entry.target.id) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+        });
+    </script>
+
+</body>
+</html>

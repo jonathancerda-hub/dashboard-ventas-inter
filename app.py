@@ -388,7 +388,7 @@ def dashboard():
         # CORRECCIÓN: get_pending_orders ahora devuelve una tupla (datos, paginación).
         # Desempaquetamos y solo usamos los datos.
         pending_data, _ = data_manager.get_pending_orders(
-            filters={'partner_id': partner_id},
+            partner_id=partner_id, # CORRECCIÓN: Pasar partner_id directamente para asegurar que los filtros base se apliquen.
             page=1,
             per_page=99999  # Pedir un número muy grande para obtener todos los registros
         )
@@ -521,8 +521,7 @@ def dashboard():
             total_por_facturar += total_pendiente
             todas_las_lineas.add(linea_nombre)
         
-        # Añadir "OTROS" para asegurar que siempre aparezca en la tabla
-        todas_las_lineas.add('OTROS')
+        # La línea que añadía "OTROS" ha sido eliminada. Ahora solo se mostrarán líneas con datos.
         
         # Generar datos para la tabla y el gráfico
         datos_lineas = []

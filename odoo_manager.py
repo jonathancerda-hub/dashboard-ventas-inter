@@ -310,7 +310,8 @@ class OdooManager:
                 # Filtros para excluir productos no deseados
                 ('product_id', '!=', False),
                 ('product_id.default_code', 'not ilike', '%SERV%'), # Excluir servicios
-                ('product_id.default_code', 'not like', '81%')      # Excluir códigos que empiezan con 81
+                ('product_id.default_code', 'not like', '81%'),      # Excluir códigos que empiezan con 81
+                ('product_id.name', '!=', 'VTA SERV GENERALES') # Excluir explícitamente el producto de servicio
             ]
             
             # Manejar parámetros de ambos formatos de llamada
@@ -721,7 +722,9 @@ class OdooManager:
                 
                 # Consultar sale.order.line directamente con filtros mínimos
                 basic_domain = [
-                    ('product_id', '!=', False), # Asegura que haya un producto, pero permite default_code vacío.
+                    ('product_id', '!=', False), # Asegura que haya un producto.
+                    ('product_id.default_code', '!=', False), # Asegura que el producto tenga un Código Odoo.
+                    ('product_id.name', '!=', 'VTA SERV GENERALES'), # Excluir el producto de servicios generales.
                 ]
                 
                 # Filtros de fecha en el pedido (si están disponibles)
