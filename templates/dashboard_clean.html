@@ -151,6 +151,31 @@
 
     </div>
     
+    <!-- Tarjeta de Avance del Cliente Seleccionado (solo se muestra si hay un cliente) -->
+    {% if avance_cliente_seleccionado %}
+    <div class="avance-cliente-card">
+        <h3>Avance de Facturación - {{ avance_cliente_seleccionado.nombre }}</h3>
+        <div class="progress-bar-container">
+            {% set pct = avance_cliente_seleccionado.porcentaje %}
+            {% set color_class = 'progress-bar-green' if pct >= 80 else ('progress-bar-yellow' if pct >= 40 else 'progress-bar-red') %}
+
+            <div class="progress-bar {{ color_class }}" style="width: {{ pct }}%;">
+                <span>{{ "%.1f"|format(pct) }}%</span>
+            </div>
+        </div>
+        <div class="progress-labels">
+            <span>
+                <strong>Facturado:</strong> 
+                $ {{ "{:,.2f}".format(avance_cliente_seleccionado.facturado) }}
+            </span>
+            <span>
+                <strong>Total Pedido:</strong> 
+                $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_pedido) }}
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
     <div class="dashboard-charts-grid">
         <!-- Gráfico de Productos (Barras Horizontales) -->
@@ -203,6 +228,60 @@
 :root {
     --odoo-primary: #875A7B;
     --odoo-primary-dark: #6B4563;
+}
+
+/* Estilos para la nueva tarjeta de avance del cliente */
+.avance-cliente-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+.avance-cliente-card h3 {
+    margin: 0 0 20px 0;
+    color: var(--odoo-primary);
+    font-size: 1.3rem;
+    text-align: center;
+}
+.progress-bar-container {
+    width: 100%;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    height: 30px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    transition: width 0.5s ease-in-out;
+}
+.progress-bar-red {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+.progress-bar-yellow {
+    background: linear-gradient(90deg, #f1c40f, #f39c12);
+}
+.progress-bar-green {
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+.progress-bar span {
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+}
+.progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #555;
+    padding: 0 5px;
 }
 
 .disabled-link {
@@ -717,11 +796,20 @@ function crearGraficoPedidos(clienteId) {
             if (selectedClienteName && o.cliente && String(o.cliente).toLowerCase().includes(String(selectedClienteName).toLowerCase())) return true;
             return false;
         });
-        if (backendOrders && backendOrders.length > 0) {
-            // Mostrar directamente usando la data del backend
-            const pedidos = backendOrders.map(o => o.pedido || o.order_name || 'SIN_PEDIDO');
-            const datosTotal = backendOrders.map(o => Math.max(0, Number(o.total || 0)));
-            const datosFacturado = backendOrders.map(o => Math.max(0, Number(o.facturado || 0)));
+
+        // Filtrar pedidos que empiezan con 'S' siempre que se seleccione un cliente.
+        let filteredBackendOrders = [];
+        if (selectedClienteId) {
+            filteredBackendOrders = backendOrders.filter(o => {
+                const pedidoName = o.pedido || o.order_name || '';
+                return pedidoName.trim().toUpperCase().startsWith('S');
+            });
+        }
+
+        if (filteredBackendOrders && filteredBackendOrders.length > 0) {
+            const pedidos = filteredBackendOrders.map(o => o.pedido || o.order_name || 'SIN_PEDIDO');
+            const datosTotal = filteredBackendOrders.map(o => Math.max(0, Number(o.total || 0)));
+            const datosFacturado = filteredBackendOrders.map(o => Math.max(0, Number(o.facturado || 0)));
             const container = document.getElementById('container-grafico-pedidos');
             if (pedidos.length === 0) { container.style.display = 'none'; return; }
             container.style.display = 'block';
@@ -1328,15 +1416,30 @@ function cambiarCliente(clienteId) {
 
 // Inicializar gráficos cuando la página carga
 document.addEventListener('DOMContentLoaded', function() {
-    crearGraficoProductos(); // Chart.js - Carga inicial
+    crearGraficoProductos();
     crearGraficoLineas();
-    crearGraficoFormaFarmaceutica(); // ECharts
-    crearGraficoDrilldown(); // ECharts
-    crearGraficoBullet(); // Llamada a la función recreada
+    crearGraficoFormaFarmaceutica();
+    crearGraficoDrilldown();
 
-    // Si hay cliente seleccionado, crear gráfico por pedidos
+    const bulletClientesCard = document.querySelector('#grafico-bullet-clientes').closest('.grafico-echarts');
+    const pedidosCard = document.getElementById('container-grafico-pedidos');
+
     if (selectedClienteId) {
+        // Si hay cliente seleccionado, ocultar el gráfico de "Avance de Facturación por Cliente"
+        if (bulletClientesCard) {
+            bulletClientesCard.style.display = 'none';
+        }
         crearGraficoPedidos(selectedClienteId);
+    } else {
+        // Si no hay cliente seleccionado, mostrar el gráfico de "Avance de Facturación por Cliente"
+        if (bulletClientesCard) {
+            bulletClientesCard.style.display = 'block';
+        }
+        crearGraficoBullet();
+        // Asegurarse de que el gráfico de pedidos esté oculto si no hay cliente seleccionado
+        if (pedidosCard) {
+            pedidosCard.style.display = 'none';
+        }
     }
 
     // Verificar que el select de clientes tiene opciones (silencioso check)

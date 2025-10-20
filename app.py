@@ -612,6 +612,12 @@ def dashboard():
                 drilldown_titles['root'] = 'Ventas por Línea Comercial'
                 top_products_by_level['root'] = datos_productos # Top productos general
                 pie_chart_data_by_level['root'] = datos_forma_farmaceutica
+                # CORRECCIÓN: El gráfico de pastel en el nivel raíz debe mostrar la agrupación por Clasificación Farmacológica.
+                # Se restaura la lógica para usar los datos correctos.
+                pie_data_root = df_sales.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
+                pie_chart_data_by_level['root'] = [
+                    {'name': r['clasificacion_farma_nombre'], 'value': r['venta']} for _, r in pie_data_root.iterrows()
+                ]
 
                 # Niveles 1 y 2: Agrupación por Clasificación y Producto
                 for linea, group_linea in df_sales.groupby('linea_comercial_nombre'):
@@ -628,9 +634,11 @@ def dashboard():
                     top_products_linea = group_linea.groupby('producto_nombre')['venta'].sum().nlargest(7).reset_index()
                     top_products_by_level[level1_id] = top_products_linea.to_dict('records')
 
-                    # Pie chart para este nivel
+                    # CORRECCIÓN: El gráfico de pastel para este nivel (Línea Comercial) debe agrupar por Clasificación Farmacológica.
+                    # Esta lógica se había perdido y se ha restaurado.
                     pie_data_linea = group_linea.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
-                    pie_chart_data_by_level[level1_id] = [{'name': r['clasificacion_farma_nombre'], 'value': r['venta']} for _, r in pie_data_linea.iterrows()]
+                    pie_chart_data_by_level[level1_id] = [{'name': r['clasificacion_farma_nombre'], 'value': r['venta']}
+                                                          for _, r in pie_data_linea.iterrows() if r['venta'] > 0]
 
 
                     for clasificacion, group_clasificacion in group_linea.groupby('clasificacion_farma_nombre'):
@@ -646,9 +654,11 @@ def dashboard():
                         # Top productos para este nivel (son todos los productos de la clasificación)
                         top_products_by_level[level2_id] = level2_data.to_dict('records')
 
-                        # Pie chart para este nivel
+                        # CORRECCIÓN: El gráfico de pastel para este nivel (Clasificación) debe agrupar por Producto.
+                        # Esta lógica se había perdido y se ha restaurado.
                         pie_data_clasif = group_clasificacion.groupby('producto_nombre')['venta'].sum().reset_index()
-                        pie_chart_data_by_level[level2_id] = [{'name': r['producto_nombre'], 'value': r['venta']} for _, r in pie_data_clasif.iterrows()]
+                        pie_chart_data_by_level[level2_id] = [{'name': r['producto_nombre'], 'value': r['venta']}
+                                                              for _, r in pie_data_clasif.iterrows() if r['venta'] > 0]
 
         # Convertir todos los datos de gráficos a JSON
         all_stacked_chart_data = json.dumps(
@@ -730,6 +740,23 @@ def dashboard():
                 if cliente[0] == partner_id:
                     nombre_cliente_seleccionado = cliente[1]
                     break
+
+        # --- LÓGICA PARA AVANCE DEL CLIENTE SELECCIONADO (NUEVA TARJETA) ---
+        avance_cliente_seleccionado = None
+        if partner_id and bullet_chart_data and nombre_cliente_seleccionado:
+            # El nombre del cliente ya se obtuvo en la variable `nombre_cliente_seleccionado`
+            # Usamos el nombre sin el país para la comparación
+            nombre_cliente_simple = nombre_cliente_seleccionado.split(' (')[0]
+            for data in bullet_chart_data:
+                if data.get('cliente') == nombre_cliente_simple:
+                    total_pedido_cliente = data.get('total_pedido', 0)
+                    avance_cliente_seleccionado = {
+                        'nombre': data['cliente'],
+                        'facturado': data.get('facturado', 0),
+                        'total_pedido': total_pedido_cliente,
+                        'porcentaje': (data.get('facturado', 0) / total_pedido_cliente * 100) if total_pedido_cliente > 0 else 0
+                    }
+                    break
         
         return render_template('dashboard_clean.html',
                              sales_data=sales_data,
@@ -756,6 +783,7 @@ def dashboard():
                              brecha_comercial=brecha_comercial,
                              bullet_chart_data=bullet_chart_data,
                              orders_chart_data=orders_chart_data,
+                             avance_cliente_seleccionado=avance_cliente_seleccionado,
                              drilldown_titles=drilldown_titles,
                              top_products_by_level=top_products_by_level,
                              pie_chart_data_by_level=pie_chart_data_by_level,
@@ -810,6 +838,7 @@ def dashboard():
                              meta_total_kpi=0,
                              brecha_comercial=0,
                              bullet_chart_data=[],
+                             avance_cliente_seleccionado=None,
                              drilldown_data={},
                              drilldown_titles={},
                              top_products_by_level={},
