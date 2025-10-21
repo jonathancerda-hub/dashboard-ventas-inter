@@ -137,17 +137,30 @@ def get_meses_del_año(año):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user_data = data_manager.authenticate_user(username, password)
-        if user_data:
-            session['username'] = user_data.get('login', username)
-            session['user_name'] = user_data.get('name', username)
-            flash('¡Inicio de sesión exitoso!', 'success')
-            # Cambio: Redirigir al dashboard principal por defecto
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Usuario o contraseña incorrectos.', 'danger')
+        try:
+            # Cargar la lista de usuarios permitidos desde el archivo JSON
+            with open('allowed_users.json', 'r') as f:
+                allowed_emails = json.load().get('allowed_emails', [])
+
+            username = request.form.get('username')
+            password = request.form.get('password')
+            user_data = data_manager.authenticate_user(username, password)
+
+            if user_data:
+                # Verificar si el email del usuario está en la lista de permitidos
+                if user_data.get('login') in allowed_emails:
+                    session['username'] = user_data.get('login', username)
+                    session['user_name'] = user_data.get('name', username)
+                    flash('¡Inicio de sesión exitoso!', 'success')
+                    return redirect(url_for('dashboard'))
+                else:
+                    flash('No tienes permiso para acceder a esta aplicación.', 'danger')
+            else:
+                flash('Usuario o contraseña incorrectos.', 'danger')
+        except FileNotFoundError:
+            flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
+        except Exception as e:
+            flash(f'Ocurrió un error inesperado: {e}', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
