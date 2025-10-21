@@ -219,6 +219,30 @@ class OdooManager:
             logging.error(f"Error al obtener clientes internacionales: {e}")
             return []
 
+    def get_sale_orders_for_partner(self, partner_id):
+        """
+        Obtiene todos los pedidos de venta para un partner específico,
+        incluyendo su amount_total.
+        """
+        if not self.uid or not self.models:
+            return []
+        
+        domain = [
+            ('partner_id', '=', int(partner_id)),
+            ('state', 'in', ['credit', 'sale', 'done']), # Solo estados relevantes
+            ('team_id.name', 'ilike', 'INTERNACIONAL') # Solo pedidos internacionales
+        ]
+        
+        try:
+            orders = self.models.execute_kw(
+                self.db, self.uid, self.password, 'sale.order', 'search_read',
+                [domain],
+                {'fields': ['id', 'name', 'amount_total', 'partner_id']}
+            )
+            return orders
+        except Exception as e:
+            logging.error(f"Error al obtener pedidos de venta para el partner {partner_id}: {e}")
+            return []
     def get_sales_filter_options(self):
         """Obtener opciones para filtros de ventas"""
         try:
@@ -340,10 +364,6 @@ class OdooManager:
             if date_to:
                 domain.append(('move_id.invoice_date', '<=', date_to))
             
-            # Filtro de cliente
-            if partner_id:
-                domain.append(('move_id.partner_id', '=', int(partner_id)))
-            
             # Filtro de línea comercial
             if linea_id:
                 domain.append(('product_id.commercial_line_international_id', '=', linea_id))
@@ -351,7 +371,7 @@ class OdooManager:
             # Contar el total de registros que coinciden con el dominio (para paginación)
             total_count = self.models.execute_kw(
                 self.db, self.uid, self.password, 'account.move.line', 'search_count',
-                [domain]
+                [domain + ([('move_id.partner_id', '=', int(partner_id))] if partner_id else [])]
             )
 
             # Obtener líneas base con todos los campos necesarios
@@ -363,17 +383,23 @@ class OdooManager:
                 'context': {'lang': 'es_PE'}
             }
             
+            # Aplicar filtro de cliente al dominio final de la consulta
+            final_domain = domain
+            if partner_id:
+                final_domain = domain + [('move_id.partner_id', '=', int(partner_id))]
+
+
             # Aplicar paginación
             query_options['limit'] = per_page
             query_options['offset'] = (page - 1) * per_page
 
             sales_lines_base = self.models.execute_kw(
                 self.db, self.uid, self.password, 'account.move.line', 'search_read',
-                [domain],
+                [final_domain],
                 query_options
             )
             if not sales_lines_base:
-                return []
+                return [], {'page': page, 'per_page': per_page, 'total': 0, 'pages': 0}
 
             # Si no hay líneas, devolver estructura de paginación vacía
             if not sales_lines_base:
@@ -462,6 +488,29 @@ class OdooManager:
                 )
                 order_data = {o['id']: o for o in orders}
             
+            # --- BÚSQUEDA MEJORADA DE PEDIDO DE VENTA ---
+            # Mapear account.move.line ID a su sale.order.line y luego a sale.order
+            # Esto es más fiable que depender de invoice_origin
+            move_line_ids = [line['id'] for line in sales_lines_base]
+            sale_order_map = {}
+            if move_line_ids:
+                try:
+                    # Buscar las líneas de pedido de venta que originaron estas líneas de factura
+                    sale_lines_linked = self.models.execute_kw(
+                        self.db, self.uid, self.password, 'sale.order.line', 'search_read',
+                        [[('invoice_lines', 'in', move_line_ids)]],
+                        {'fields': ['order_id', 'invoice_lines']}
+                    )
+                    
+                    # Crear un mapa: move_line_id -> order_name
+                    for sl in sale_lines_linked:
+                        order_name = sl['order_id'][1] if sl.get('order_id') else None
+                        for move_line_id in sl['invoice_lines']:
+                            if order_name:
+                                sale_order_map[move_line_id] = order_name
+                except Exception as e:
+                    logging.warning(f"No se pudo realizar la búsqueda inversa de pedidos de venta: {e}")
+
             # Obtener datos de líneas de orden de venta con más campos
             sale_line_data = {}
             if order_ids and product_ids:
@@ -567,18 +616,13 @@ class OdooManager:
                 order_name = order.get('name', '')
                 move_name = move.get('name', '')
                 
-                # SOLUCIÓN GENERALIZADA: Para pedidos multi-factura, usar el invoice_origin como pedido
-                display_pedido = order_name
+                # Lógica de asignación de pedido final
+                # 1. Prioridad: El pedido encontrado a través de la búsqueda inversa (más fiable)
+                display_pedido = sale_order_map.get(line['id'])
                 
-                # Si no hay pedido asociado pero hay invoice_origin, usar el invoice_origin
-                if not display_pedido and move.get('invoice_origin'):
+                # 2. Fallback: Si no se encontró, usar el origen de la factura
+                if not display_pedido:
                     display_pedido = move.get('invoice_origin')
-                
-                # Casos especiales conocidos (mantener para compatibilidad)
-                s00791_facturas = ['F F15-00000187', 'F F15-00000154', 'F F15-00000149']
-                if move_name in s00791_facturas:
-                    # SIEMPRE usar "S00791" como pedido para estas facturas específicas
-                    display_pedido = 'S00791'
                 
                 sales_lines.append({
                     # 1. Pedido (número de orden de venta) - SOLUCIÓN ESPECIAL PARA S00791

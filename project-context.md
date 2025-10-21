@@ -92,7 +92,7 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
         *   **Avance de Facturación por Cliente**: Un gráfico general que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
     *   **Visualización por Cliente Seleccionado**:
         *   **Tarjeta de Avance**: Al filtrar por un cliente, aparece una tarjeta dedicada con una barra de progreso y colores de semáforo (rojo/amarillo/verde) que muestra su avance de facturación.
-        *   **Gráfico de Avance por Pedido**: Se muestra un gráfico detallado con el avance de cada pedido del cliente seleccionado, filtrado para mostrar solo pedidos que comienzan con 'S'.
+        *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta (`sale.order`) y la bala interior muestra el monto ya facturado. El gráfico se filtra para mostrar solo pedidos cuyo código comienza con 'S'.
     *   Exportación de datos de ventas facturadas y pendientes a Excel.
 
 *   **Dashboard Nacional por Línea (`/dashboard_linea`)**:

@@ -397,11 +397,17 @@ def dashboard():
         orders_chart_data = []
         if partner_id:
             # Agrupar facturado por pedido desde sales_data_year
+            # Esta lógica es crucial para identificar el nombre del pedido de las líneas de factura
             facturado_by_pedido = {}
             pedido_cliente_map = {}  # mapa pedido -> (cliente_id, cliente_name)
-            for s in sales_data_year:
-                pedido_name = s.get('pedido') or s.get('order_name') or s.get('move_name') or s.get('pedido') or ''
-                if not pedido_name:
+            for s in sales_data_raw: # Usar los datos crudos para la agregación
+                # Lógica mejorada para obtener el nombre del pedido de forma fiable
+                order_name_from_order = s.get('pedido')
+                origin_from_invoice = s.get('invoice_origin')
+                move_name = s.get('move_name')
+                
+                pedido_name = order_name_from_order or origin_from_invoice or move_name or ''
+                if not pedido_name or not isinstance(pedido_name, str):
                     continue
                 facturado_by_pedido[pedido_name] = facturado_by_pedido.get(pedido_name, 0) + (s.get('amount_currency', 0) or 0)
                 # intentar obtener cliente id y nombre desde la línea de venta
@@ -431,7 +437,7 @@ def dashboard():
 
             # Agrupar pendiente por pedido desde pending_data
             pendiente_by_pedido = {}
-            for p in pending_data:
+            for p in pending_data: # Usar los datos crudos de pendientes
                 pedido_name = p.get('pedido') or p.get('order_name') or p.get('move_name') or ''
                 if not pedido_name:
                     continue
@@ -459,30 +465,38 @@ def dashboard():
                             'partner': p.get('partner_id') or p.get('partner')
                         }
 
-            # Unión de pedidos
-            all_pedidos = set(list(facturado_by_pedido.keys()) + list(pendiente_by_pedido.keys()))
-            for ped in all_pedidos:
-                fact = facturado_by_pedido.get(ped, 0)
-                pend = pendiente_by_pedido.get(ped, 0)
-                total = fact + pend
-                cliente_info = pedido_cliente_map.get(ped, {})
-                orders_chart_data.append({
-                    'pedido': ped,
-                    'total': total,
-                    'facturado': fact,
-                    'pendiente': pend,
-                    'cliente_id': cliente_info.get('cliente_id'),
-                    'cliente': cliente_info.get('cliente'),
-                    'order_id': cliente_info.get('order_id') or None,
-                    'partner': cliente_info.get('partner')
-                })
+            # --- NUEVA LÓGICA: Construir orders_chart_data a partir de los sale.orders del partner ---
+            # Esto asegura que el 'total' de la barra sea el amount_total original del pedido
+            partner_sale_orders = data_manager.get_sale_orders_for_partner(partner_id)
+
+            for order_obj in partner_sale_orders:
+                order_name = order_obj.get('name')
+                if not order_name:
+                    continue
+
+                fact = facturado_by_pedido.get(order_name, 0)
+                pend = pendiente_by_pedido.get(order_name, 0)
+                original_total_order = order_obj.get('amount_total', 0)
+
+                # Solo añadir si hay un total original o alguna actividad (facturado/pendiente)
+                if original_total_order > 0 or fact > 0 or pend > 0:
+                    orders_chart_data.append({
+                        'pedido': order_name,
+                        'total': original_total_order, # Usar el amount_total original del pedido
+                        'facturado': fact,
+                        'pendiente': pend,
+                        'cliente_id': partner_id, # Ya sabemos que es este partner
+                        'cliente': order_obj.get('partner_id')[1] if order_obj.get('partner_id') else '',
+                        'order_id': order_obj.get('id'),
+                        'partner': order_obj.get('partner_id')
+                    })
 
             # Ordenar por total descendente
             orders_chart_data = sorted(orders_chart_data, key=lambda x: x['total'], reverse=True)
             # Removed verbose debug logging for orders_chart_data
         else:
             orders_chart_data = []
-        
+
         sales_data = sales_data_year
         sales_data_international = sales_data_year
         
@@ -723,8 +737,8 @@ def dashboard():
             total_pedido = facturado + pendiente
             if total_pedido > 0:
                 bullet_chart_data.append({
-                    'cliente': cliente,
                     'total_pedido': total_pedido,
+                    'cliente': cliente,
                     'facturado': facturado
                 })
         
