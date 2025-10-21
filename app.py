@@ -140,7 +140,7 @@ def login():
         try:
             # Cargar la lista de usuarios permitidos desde el archivo JSON
             with open('allowed_users.json', 'r') as f:
-                allowed_emails = json.load().get('allowed_emails', [])
+                allowed_emails = json.load(f).get('allowed_emails', [])
 
             username = request.form.get('username')
             password = request.form.get('password')
@@ -155,12 +155,15 @@ def login():
                     return redirect(url_for('dashboard'))
                 else:
                     flash('No tienes permiso para acceder a esta aplicación.', 'danger')
+                    return render_template('login.html')
             else:
                 flash('Usuario o contraseña incorrectos.', 'danger')
+                return render_template('login.html')
         except FileNotFoundError:
             flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
         except Exception as e:
             flash(f'Ocurrió un error inesperado: {e}', 'danger')
+    
     return render_template('login.html')
 
 @app.route('/logout')
@@ -1747,4 +1750,4 @@ if __name__ == '__main__':
     app.logger.info("Iniciando Dashboard de Ventas Farmacéuticas...")
     app.logger.info("Disponible en: http://127.0.0.1:5000")
     app.logger.info("Usuario: configurado en .env")
-    app.run(debug=False)
+    app.run(debug=True)
