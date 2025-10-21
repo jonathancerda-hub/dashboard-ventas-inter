@@ -161,9 +161,12 @@
         <h2><i class="bi bi-code-slash"></i>Dev Manual</h2>
         <ul>
             <li><a href="#introduccion">Introducción</a></li>
+            <li><a href="#arquitectura-proyecto">Arquitectura del Proyecto</a></li>
+            <li><a href="#dependencias-versiones">Dependencias y Versiones</a></li>
             <li><a href="#flujo-sales">Flujo de Datos: Ventas (/sales)</a></li>
             <li><a href="#flujo-pending">Flujo de Datos: Pendientes (/pending)</a></li>
             <li><a href="#sistema-cache">Sistema de Caché</a></li>
+            <li><a href="#seguridad-autenticacion">Seguridad y Autenticación</a></li>
             <li><a href="#integracion-google-sheets">Integración con Google Sheets</a></li>
             <li><a href="#logica-dashboards">Lógica de los Dashboards</a></li>
         </ul>
@@ -180,6 +183,84 @@
             <p>
                 El objetivo es proporcionar una guía técnica para entender cómo se obtienen los datos desde Odoo, cómo se procesan en el backend de Flask y cómo se presentan en el frontend.
             </p>
+        </section>
+
+        <section id="arquitectura-proyecto">
+            <h2><i class="bi bi-diagram-3-fill"></i> Arquitectura del Proyecto</h2>
+            <p>
+                La aplicación sigue una arquitectura de capas bien definida, lo que facilita su mantenimiento y escalabilidad. Las responsabilidades están claramente separadas en las siguientes capas:
+            </p>
+
+            <h4>Capa de Lógica de Negocio (<code>app.py</code>)</h4>
+            <p>
+                Este archivo es el cerebro de la aplicación. Orquesta todas las operaciones:
+                <ul>
+                    <li>Define todas las rutas (URLs) de la aplicación Flask.</li>
+                    <li>Maneja las peticiones HTTP (GET, POST) de los usuarios.</li>
+                    <li>Coordina las llamadas a las capas de acceso a datos (los "managers") para obtener la información necesaria.</li>
+                    <li>Procesa, agrega y transforma los datos crudos en estructuras listas para ser visualizadas (KPIs, datos para gráficos, etc.).</li>
+                    <li>Pasa los datos procesados a la capa de presentación para su renderizado.</li>
+                </ul>
+            </p>
+
+            <h4>Capa de Acceso a Datos (Managers)</h4>
+            <p>
+                Esta capa abstrae la complejidad de la comunicación con las fuentes de datos externas.
+                <ul>
+                    <li><strong><code>odoo_manager.py</code>:</strong> Encapsula toda la lógica para conectarse y consultar la API XML-RPC de Odoo. Contiene métodos específicos como <code>get_sales_lines</code> o <code>get_pending_orders</code> que devuelven datos de Odoo en un formato estructurado.</li>
+                    <li><strong><code>google_sheets_manager.py</code>:</strong> Se encarga de la interacción con la API de Google Sheets. Proporciona métodos para leer y escribir las metas de venta y la configuración de los equipos comerciales.</li>
+                </ul>
+            </p>
+
+            <h4>Capa de Presentación (<code>templates/</code>)</h4>
+            <p>
+                Contiene todos los archivos HTML que el usuario ve. Utiliza el motor de plantillas <strong>Jinja2</strong> para renderizar dinámicamente el contenido.
+                <ul>
+                    <li>Recibe los datos procesados desde <code>app.py</code>.</li>
+                    <li>Utiliza bucles, condicionales y filtros de Jinja2 para mostrar la información.</li>
+                    <li>Inyecta datos en formato JSON dentro de etiquetas <code>&lt;script&gt;</code> para que sean consumidos por las librerías de gráficos (ECharts, Chart.js).</li>
+                </ul>
+            </p>
+
+            <h4>Archivos Estáticos y Configuración</h4>
+            <ul>
+                <li><strong><code>static/</code>:</strong> Almacena archivos CSS, JavaScript del lado del cliente e imágenes.</li>
+                <li><strong><code>.env</code>:</strong> Archivo crucial que almacena todas las credenciales y configuraciones sensibles (URLs, contraseñas, claves de API) fuera del código fuente, garantizando la seguridad.</li>
+            </ul>
+        </section>
+
+        <section id="dependencias-versiones">
+            <h2><i class="bi bi-box-seam"></i> Dependencias y Versiones</h2>
+            <p>
+                Las dependencias del proyecto se gestionan a través de un archivo <code>requirements.txt</code> (no incluido en el contexto, pero es una práctica estándar). A continuación se listan las tecnologías y librerías más importantes.
+            </p>
+
+            <h4>Backend</h4>
+            <ul>
+                <li><strong>Python:</strong> Lenguaje principal (3.x).</li>
+                <li><strong>Flask (v3.0.3):</strong> Micro-framework web para la estructura de la aplicación.</li>
+                <li><strong>xmlrpc.client:</strong> Librería nativa de Python para la comunicación con la API de Odoo.</li>
+                <li><strong>gspread (v6.0.2) & google-auth (v2.31.0):</strong> Para la autenticación y manipulación de Google Sheets.</li>
+                <li><strong>Pandas (v2.2.2):</strong> Utilizado para la manipulación avanzada y agregación de datos, especialmente para los gráficos jerárquicos.</li>
+                <li><strong>python-dotenv (v1.0.1):</strong> Para cargar las variables de entorno desde el archivo <code>.env</code>.</li>
+                <li><strong>openpyxl (v3.1.5):</strong> Para generar los archivos de exportación en formato <code>.xlsx</code>.</li>
+                <li><strong>Flask-Caching (v2.3.1):</strong> Para implementar el sistema de caché en memoria.</li>
+            </ul>
+
+            <h4>Frontend</h4>
+            <ul>
+                <li><strong>HTML5 & Jinja2:</strong> Para la estructura y el renderizado dinámico de las páginas.</li>
+                <li><strong>CSS3:</strong> Para el diseño y la apariencia visual.</li>
+                <li><strong>JavaScript:</strong> Para la interactividad del cliente, como la actualización de gráficos y la gestión de eventos.</li>
+                <li><strong>ECharts & Chart.js:</strong> Librerías de visualización de datos para crear los gráficos interactivos.</li>
+                <li><strong>Tom-Select:</strong> Para los selectores de búsqueda avanzados en la gestión de equipos.</li>
+            </ul>
+
+            <h4>Fuentes de Datos</h4>
+            <ul>
+                <li><strong>Odoo:</strong> Sistema ERP que actúa como la fuente principal de verdad para los datos de ventas, clientes y productos.</li>
+                <li><strong>Google Sheets:</strong> Utilizado como una base de datos ligera para almacenar las metas comerciales y la configuración de equipos.</li>
+            </ul>
         </section>
 
         <section id="flujo-sales">
@@ -249,6 +330,9 @@
             <p>
                 Después de obtener las líneas base, se realizan consultas adicionales para enriquecer los datos, usando los IDs recolectados:
             </p>
+            <div class="note">
+                <strong><i class="bi bi-search"></i>Búsqueda Inversa de Pedidos:</strong> Para obtener el número de pedido de venta de forma fiable, el sistema realiza una "búsqueda hacia atrás". Busca en `sale.order.line` las líneas que generaron las `account.move.line` obtenidas. Esto es más robusto que depender del campo de texto `invoice_origin`.
+            </div>
             <ol>
                 <li><strong>Facturas (<code>account.move</code>):</strong> Se obtienen detalles de las facturas (fecha, origen, vendedor, etc.).</li>
                 <li><strong>Productos (<code>product.product</code>):</strong> Se obtienen todos los detalles del producto, incluyendo <code>display_name</code>, línea comercial, clasificación farmacológica, etc.</li>
@@ -368,6 +452,43 @@ def dashboard():
             </div>
         </section>
 
+        <section id="seguridad-autenticacion">
+            <h2><i class="bi bi-shield-lock-fill"></i> Seguridad y Autenticación</h2>
+            <p>
+                La aplicación implementa un sistema de autenticación de dos capas para garantizar un acceso seguro.
+            </p>
+
+            <h3>1. Autenticación en Odoo</h3>
+            <p>
+                El primer nivel de seguridad es la validación de credenciales contra el servidor de Odoo. La ruta <code>/login</code> utiliza el método <code>data_manager.authenticate_user()</code> para verificar si el nombre de usuario y la contraseña son válidos en Odoo.
+            </p>
+
+            <h3>2. Lista Blanca de Usuarios (Whitelist)</h3>
+            <p>
+                Incluso si un usuario tiene credenciales válidas en Odoo, solo podrá acceder a la aplicación si su correo electrónico está incluido en una lista blanca.
+            </p>
+            <ul>
+                <li><strong>Archivo de Configuración:</strong> La lista de usuarios autorizados se gestiona en el archivo <code>allowed_users.json</code>, ubicado en la raíz del proyecto.</li>
+                <li><strong>Formato del Archivo:</strong> El archivo contiene una clave <code>"allowed_emails"</code> con una lista de los correos electrónicos permitidos.
+                    <pre><code>{
+    "allowed_emails": [
+        "usuario1@empresa.com",
+        "gerente.ventas@empresa.com"
+    ]
+}</code></pre>
+                </li>
+                <li><strong>Flujo de Validación:</strong>
+                    <ol>
+                        <li>El usuario ingresa sus credenciales.</li>
+                        <li><code>app.py</code> valida las credenciales contra Odoo.</li>
+                        <li>Si son correctas, lee el archivo <code>allowed_users.json</code>.</li>
+                        <li>Comprueba si el correo del usuario (<code>login</code>) está en la lista <code>allowed_emails</code>.</li>
+                        <li>Si el usuario está en la lista, se le concede el acceso. Si no, se le muestra un mensaje de "Acceso no permitido" y se le deniega la entrada.</li>
+                    </ol>
+                </li>
+            </ul>
+        </section>
+
         <section id="integracion-google-sheets">
             <h2><i class="bi bi-file-earmark-spreadsheet-fill"></i> Integración con Google Sheets</h2>
             <p>
@@ -458,9 +579,22 @@ def dashboard():
                 </li>
                 <li><strong>Preparación de Datos para Gráficos:</strong>
                     <ul>
-                        <li><strong>Top 7 Productos:</strong> Se agrupan las ventas por nombre de producto (<code>name</code>) y se ordenan de mayor a menor para tomar los 7 primeros.</li>
+                        <li><strong>Top 7 Productos y Gráficos de Pastel:</strong> Se agrupan las ventas por nombre de producto, clasificación farmacológica, etc., para alimentar los gráficos estáticos.</li>
                         <li><strong>Análisis Jerárquico (Drilldown):</strong> Se utiliza la librería <code>pandas</code> para convertir los datos de ventas en un DataFrame. Luego, se realizan agrupaciones sucesivas (<code>groupby</code>) por <code>linea_comercial_nombre</code>, <code>clasificacion_farma_nombre</code> y <code>producto_nombre</code> para construir la estructura de datos jerárquica que espera el gráfico ECharts.</li>
-                        <li><strong>Avance por Cliente (Bullet Chart):</strong> Se crean dos diccionarios, uno para agrupar las ventas facturadas por cliente y otro para los pendientes. Luego se unen para obtener el total de pedido (facturado + pendiente) y el avance para cada cliente.</li>
+                        <li><strong>Avance por Cliente (General):</strong> Se crean dos diccionarios, uno para agrupar las ventas facturadas por cliente y otro para los pendientes. Luego se unen para obtener el total de pedido (facturado + pendiente) y el avance para cada cliente. Este gráfico se oculta si se selecciona un cliente.</li>
+                    </ul>
+                </li>
+                <li><strong>Lógica para Cliente Seleccionado:</strong>
+                    <ul>
+                        <li><strong>Tarjeta de Avance:</strong> Se buscan los datos del cliente seleccionado en los datos ya calculados para el gráfico de avance general y se pasan a la plantilla en la variable <code>avance_cliente_seleccionado</code>.</li>
+                        <li><strong>Gráfico de Avance por Pedido:</strong>
+                            <ol>
+                                <li>Se llama a la nueva función <code>data_manager.get_sale_orders_for_partner()</code> para obtener todos los pedidos de venta originales de ese cliente y su valor total (`amount_total`).</li>
+                                <li>Se itera sobre estos pedidos originales. Para cada uno, se establece el `total` de la barra del gráfico con su `amount_total`.</li>
+                                <li>Se buscan los montos `facturado` y `pendiente` para ese número de pedido en los diccionarios de agregación que ya se habían calculado.</li>
+                                <li>En el frontend (`dashboard_clean.html`), el JavaScript filtra estos datos para mostrar solo los pedidos que comienzan con 'S'.</li>
+                            </ol>
+                        </li>
                     </ul>
                 </li>
             </ol>

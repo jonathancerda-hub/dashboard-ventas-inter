@@ -195,12 +195,26 @@
             <p>
                 La fila superior muestra los indicadores clave de rendimiento:
                 <ul>
-                    <li><strong>Ventas Totales del Año:</strong> Suma de todo lo facturado en el año.</li>
+                    <li><strong>Venta Proyectada del Año:</strong> Suma de todo lo facturado en el año más los pedidos pendientes de facturar.</li>
                     <li><strong>Meta:</strong> La meta de ventas definida para el período.</li>
                     <li><strong>Brecha Comercial:</strong> La diferencia entre la Venta Proyectada (Facturado + Por Facturar) y la Meta.</li>
                     <li><strong>% Avance:</strong> El porcentaje de la meta que se ha alcanzado con la venta proyectada.</li>
                 </ul>
             </p>
+            <h3><i class="bi bi-card-checklist"></i>Análisis por Cliente Seleccionado</h3>
+            <p>
+                Cuando filtras por un cliente específico, el dashboard se transforma para ofrecerte un análisis detallado de ese cliente:
+            </p>
+            <ul>
+                <li><strong>Tarjeta de Avance de Facturación:</strong> Aparece una nueva tarjeta en la parte superior que muestra el progreso de facturación de los pedidos de ese cliente. Una barra de progreso con colores de semáforo (rojo, amarillo, verde) te permite evaluar rápidamente su estado.</li>
+                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente (solo se muestran los pedidos cuyo código empieza con 'S'). La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado.</li>
+            </ul>
+            <div class="note">
+                <strong><i class="bi bi-eye-slash-fill"></i>Ocultamiento de Gráfico General:</strong> Al seleccionar un cliente, el gráfico general "Avance de Facturación por Cliente" se oculta para dar paso a la vista detallada.
+            </div>
+
+
+
             <h3><i class="bi bi-table"></i>Tabla de Ventas por Línea Comercial</h3>
             <p>
                 Esta tabla desglosa el rendimiento por cada línea comercial internacional:
