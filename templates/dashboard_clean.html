@@ -174,6 +174,12 @@
             </span>
         </div>
     </div>
+
+    <!-- Gráfico de Avance por Pedido (se mueve aquí para aparecer debajo de la tarjeta de avance) -->
+    <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
+        <h3>Avance por Pedido ({{ avance_cliente_seleccionado.nombre }})</h3>
+        <div id="grafico-bullet-pedidos" style="width: 100%; min-height: 500px;"></div>
+    </div>
     {% endif %}
 
     <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
@@ -212,11 +218,6 @@
         <div class="grafico-echarts">
             <h3>Avance de Facturación por Cliente</h3>
             <div id="grafico-bullet-clientes" style="width: 100%; min-height: 600px;"></div>
-        </div>
-        <!-- Gráfico adicional por Pedidos (se muestra solo si se selecciona un cliente) -->
-        <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
-            <h3>Avance por Pedido {% if nombre_cliente_seleccionado %}({{ nombre_cliente_seleccionado }}){% else %}(Cliente seleccionado){% endif %}</h3>
-            <div id="grafico-bullet-pedidos" style="width: 100%; min-height: 500px;"></div>
         </div>
     </div>
 </div>

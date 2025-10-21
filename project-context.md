@@ -87,9 +87,12 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
     *   KPIs clave: Ventas totales, meta, brecha comercial.
     *   Filtro por cliente para visualizar los datos de un cliente específico.
     *   Tabla de ventas y proyecciones por Línea Comercial.
-    *   Gráficos de "Top Productos" y "Ventas por Línea Comercial".
-    *   Gráfico jerárquico (drill-down) que permite explorar desde Línea Comercial -> Clasificación Farmacológica -> Producto.
-    *   Gráfico de avance de facturación por cliente (Bullet Chart).
+    *   **Gráficos Interactivos**:
+        *   **Análisis Jerárquico (Drill-Down)**: Permite explorar ventas desde Línea Comercial -> Clasificación Farmacológica -> Producto. Al hacer clic, los gráficos "Top 7 Productos" y "Venta por Clasificación Farmacológica" se actualizan dinámicamente.
+        *   **Avance de Facturación por Cliente**: Un gráfico general que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
+    *   **Visualización por Cliente Seleccionado**:
+        *   **Tarjeta de Avance**: Al filtrar por un cliente, aparece una tarjeta dedicada con una barra de progreso y colores de semáforo (rojo/amarillo/verde) que muestra su avance de facturación.
+        *   **Gráfico de Avance por Pedido**: Se muestra un gráfico detallado con el avance de cada pedido del cliente seleccionado, filtrado para mostrar solo pedidos que comienzan con 'S'.
     *   Exportación de datos de ventas facturadas y pendientes a Excel.
 
 *   **Dashboard Nacional por Línea (`/dashboard_linea`)**:
