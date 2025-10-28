@@ -579,8 +579,16 @@ def dashboard():
                 </li>
                 <li><strong>Preparación de Datos para Gráficos:</strong>
                     <ul>
-                        <li><strong>Top 7 Productos y Gráficos de Pastel:</strong> Se agrupan las ventas por nombre de producto, clasificación farmacológica, etc., para alimentar los gráficos estáticos.</li>
-                        <li><strong>Análisis Jerárquico (Drilldown):</strong> Se utiliza la librería <code>pandas</code> para convertir los datos de ventas en un DataFrame. Luego, se realizan agrupaciones sucesivas (<code>groupby</code>) por <code>linea_comercial_nombre</code>, <code>clasificacion_farma_nombre</code> y <code>producto_nombre</code> para construir la estructura de datos jerárquica que espera el gráfico ECharts.</li>
+                        <li><strong>Top Productos y Gráficos de Pastel:</strong> Se agrupan las ventas por nombre de producto, clasificación farmacológica, etc., para alimentar los gráficos.</li>
+                        <li><strong>Análisis Jerárquico (Drilldown):</strong> Se utiliza la librería <code>pandas</code> para convertir los datos de ventas en un DataFrame. Luego, se realizan agrupaciones sucesivas (<code>groupby</code>) para construir la estructura de datos jerárquica que espera el gráfico ECharts. La jerarquía actual es:
+                            <ol>
+                                <li><code>clasificacion_farma_nombre</code></li>
+                                <li><code>forma_farma_nombre</code></li>
+                                <li><code>via_admin_nombre</code></li>
+                                <li><code>linea_prod_nombre</code></li>
+                                <li><code>producto_nombre</code></li>
+                            </ol>
+                        </li>
                         <li><strong>Avance por Cliente (General):</strong> Se crean dos diccionarios, uno para agrupar las ventas facturadas por cliente y otro para los pendientes. Luego se unen para obtener el total de pedido (facturado + pendiente) y el avance para cada cliente. Este gráfico se oculta si se selecciona un cliente.</li>
                     </ul>
                 </li>

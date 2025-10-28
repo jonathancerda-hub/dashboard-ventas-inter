@@ -3,8 +3,7 @@
 Una aplicación web desarrollada en Flask que funciona como un **Dashboard de Ventas** en tiempo real, conectándose a un sistema ERP (Odoo) y a Google Sheets para visualizar, analizar y gestionar datos de ventas y metas comerciales.
 
 ## Características Principales
-
-- **Dashboard Internacional**: Visualización de KPIs, análisis de ventas por cliente, línea comercial y producto. Incluye gráficos interactivos y de tipo "drill-down".
+- **Dashboard Internacional**: Visualización de KPIs y análisis de ventas por cliente. Incluye un potente gráfico jerárquico (drill-down) para explorar los datos de ventas a través de múltiples dimensiones de producto.
 - **Dashboard Nacional**: Enfocado en el rendimiento de las líneas comerciales y los vendedores individuales contra sus metas mensuales.
 - **Gestión de Metas**: Interfaces para configurar metas de venta por línea comercial y por vendedor, almacenadas en Google Sheets.
 - **Autenticación Segura**: Sistema de inicio de sesión que valida credenciales contra Odoo y verifica al usuario contra una lista blanca (whitelist) para un control de acceso granular.

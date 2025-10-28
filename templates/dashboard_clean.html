@@ -113,7 +113,7 @@
                             <th>Línea Comercial</th>
                             <th>Venta Total ($)</th>
                             <th>Por Facturar ($)</th>
-                            <th>% Sobre Total</th>
+                            <th>% Part.</th>
                             <th>Meta</th>
                             <th>Brecha</th>
                             <th>% Avance</th>
@@ -186,7 +186,7 @@
     <div class="dashboard-charts-grid">
         <!-- Gráfico de Productos (Barras Horizontales) -->
         <div class="grafico-productos">
-            <h3>Top 7 Productos Más Vendidos</h3>
+            <h3>Top Productos Facturados</h3>
             <div class="chart-container">
                 <canvas id="grafico-productos"></canvas>
             </div>
@@ -1087,10 +1087,8 @@ function crearGraficoFormaFarmaceutica(chartData, title) {
         },
         legend: {
             type: 'scroll',
-            orient: 'vertical',
-            right: 10,
-            top: 20,
-            bottom: 20,
+            orient: 'horizontal',
+            bottom: 10,
             data: legendData
         },
         title: {
@@ -1103,8 +1101,8 @@ function crearGraficoFormaFarmaceutica(chartData, title) {
             {
                 name: 'Clasificación',
                 type: 'pie',
-                radius: '60%', // Un poco más pequeño para el título
-                center: ['40%', '50%'], // Mueve el gráfico a la izquierda para dar espacio a la leyenda
+                radius: '60%',
+                center: ['50%', '45%'], // Centrado y un poco más arriba para dar espacio a la leyenda
                 data: chartData,
                 emphasis: {
                     itemStyle: {
@@ -1210,8 +1208,7 @@ function crearGraficoDrilldown() {
         if (allOptions[optionId]) {
             optionStack.push(myChart.getOption().id);
             myChart.setOption(allOptions[optionId]);
-            // Actualizar gráfico de productos
-            crearGraficoProductos(topProductsByLevel[optionId] || []);
+            // La interacción con el gráfico de Top Productos ha sido eliminada.
             // Actualizar gráfico de pastel
             crearGraficoFormaFarmaceutica(pieChartDataByLevel[optionId] || [], drilldownTitles[optionId] || '');
         }
@@ -1220,8 +1217,7 @@ function crearGraficoDrilldown() {
         if (optionStack.length > 0) {
             const prevOptionId = optionStack.pop();
             myChart.setOption(allOptions[prevOptionId]);
-            // Actualizar gráfico de productos
-            crearGraficoProductos(topProductsByLevel[prevOptionId] || []);
+            // La interacción con el gráfico de Top Productos ha sido eliminada.
             // Actualizar gráfico de pastel
             crearGraficoFormaFarmaceutica(pieChartDataByLevel[prevOptionId] || [], drilldownTitles[prevOptionId] || '');
         }

@@ -221,18 +221,27 @@
                 <ul>
                     <li><strong>Venta Total ($):</strong> Lo que ya ha sido facturado para esa línea.</li>
                     <li><strong>Por Facturar ($):</strong> El valor de los pedidos de venta que están confirmados pero aún no se han facturado.</li>
-                    <li><strong>% Sobre Total:</strong> Qué porcentaje de la venta total representa esa línea.</li>
+                    <li><strong>% Part.:</strong> Porcentaje de participación de la línea sobre la venta total.</li>
                     <li><strong>Meta:</strong> La meta específica para esa línea.</li>
                     <li><strong>Brecha:</strong> La diferencia entre la proyección (Venta + Por Facturar) y la meta de la línea.</li>
                 </ul>
             </p>
             <h3><i class="bi bi-pie-chart-fill"></i>Gráficos de Análisis</h3>
             <p>
-                La parte inferior del dashboard contiene varios gráficos interactivos para un análisis más profundo:
+                La parte inferior del dashboard contiene varios gráficos para un análisis más profundo:
                 <ul>
-                    <li><strong>Top 7 Productos Más Vendidos:</strong> Muestra los productos con mayor volumen de venta.</li>
+                    <li><strong>Top Productos Facturados:</strong> Muestra los productos con mayor volumen de venta facturada.</li>
                     <li><strong>Venta Internacional por Línea Comercial:</strong> Un resumen visual de la tabla principal.</li>
-                    <li><strong>Análisis Jerárquico de Ventas:</strong> Un gráfico "drill-down" que te permite explorar las ventas desde la Línea Comercial, pasando por la Clasificación Farmacológica, hasta llegar al producto específico. Simplemente haz clic en una barra para profundizar.</li>
+                    <li><strong>Análisis Jerárquico de Ventas:</strong> Un potente gráfico "drill-down" que te permite explorar las ventas a través de múltiples niveles. La nueva jerarquía es:
+                        <ol>
+                            <li>Clasificación Farmacológica</li>
+                            <li>Formas Farmacéuticas</li>
+                            <li>Vía de Administración</li>
+                            <li>Línea de Producción</li>
+                            <li>Producto</li>
+                        </ol>
+                        Al hacer clic en una barra, el gráfico de pastel "Venta por Clasificación Farmacológica" se actualizará para mostrar el desglose del siguiente nivel.
+                    </li>
                     <li><strong>Avance de Facturación por Cliente:</strong> Un gráfico de tipo "bullet" que compara lo facturado contra el total de pedidos para cada cliente, mostrando el porcentaje de avance.</li>
                 </ul>
             </p>

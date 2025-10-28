@@ -632,63 +632,72 @@ def dashboard():
                 df_sales['linea_comercial_nombre'] = df_sales['commercial_line_international_id'].apply(extract_name)
                 df_sales['clasificacion_farma_nombre'] = df_sales['pharmacological_classification_id'].apply(extract_name)
                 df_sales['producto_nombre'] = df_sales['name']
+                df_sales['forma_farma_nombre'] = df_sales['pharmaceutical_forms_id'].apply(extract_name)
+                df_sales['via_admin_nombre'] = df_sales['administration_way_id'].apply(extract_name)
+                df_sales['linea_prod_nombre'] = df_sales['production_line_id'].apply(extract_name)
 
-                # Nivel 0: Agrupación por Línea Comercial (root)
-                level0_data = df_sales.groupby('linea_comercial_nombre')['venta'].sum().reset_index()
+                # --- NUEVA JERARQUÍA ---
+                # Nivel 0 (Raíz): Clasificación Farmacológica
+                level0_data = df_sales.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
                 drilldown_data['root'] = [
-                    [row['linea_comercial_nombre'], row['venta'], 'root', f"level1_{row['linea_comercial_nombre']}"]
+                    [row['clasificacion_farma_nombre'], row['venta'], 'root', f"level1_{row['clasificacion_farma_nombre']}"]
                     for _, row in level0_data.iterrows()
                 ]
-                drilldown_titles['root'] = 'Ventas por Línea Comercial'
-                top_products_by_level['root'] = datos_productos # Top productos general
-                pie_chart_data_by_level['root'] = datos_forma_farmaceutica
-                # CORRECCIÓN: El gráfico de pastel en el nivel raíz debe mostrar la agrupación por Clasificación Farmacológica.
-                # Se restaura la lógica para usar los datos correctos.
-                pie_data_root = df_sales.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
-                pie_chart_data_by_level['root'] = [
-                    {'name': r['clasificacion_farma_nombre'], 'value': r['venta']} for _, r in pie_data_root.iterrows()
-                ]
+                drilldown_titles['root'] = 'Ventas por Clasificación Farmacológica'
+                # El gráfico de pastel en el nivel raíz muestra el desglose del siguiente nivel: Formas Farmacéuticas
+                pie_data_root = df_sales.groupby('forma_farma_nombre')['venta'].sum().reset_index()
+                pie_chart_data_by_level['root'] = [{'name': r['forma_farma_nombre'], 'value': r['venta']} for _, r in pie_data_root.iterrows()]
 
-                # Niveles 1 y 2: Agrupación por Clasificación y Producto
-                for linea, group_linea in df_sales.groupby('linea_comercial_nombre'):
-                    # Nivel 1: Clasificación Farmacológica para esta línea
-                    level1_id = f"level1_{linea}"
-                    level1_data = group_linea.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
+                # Nivel 1: Formas Farmacéuticas
+                for clasif, group_clasif in df_sales.groupby('clasificacion_farma_nombre'):
+                    level1_id = f"level1_{clasif}"
+                    level1_data = group_clasif.groupby('forma_farma_nombre')['venta'].sum().reset_index()
                     drilldown_data[level1_id] = [
-                        [row['clasificacion_farma_nombre'], row['venta'], level1_id, f"level2_{linea}_{row['clasificacion_farma_nombre']}"]
+                        [row['forma_farma_nombre'], row['venta'], level1_id, f"level2_{clasif}_{row['forma_farma_nombre']}"]
                         for _, row in level1_data.iterrows()
                     ]
-                    drilldown_titles[level1_id] = f'Ventas en {linea} por Clasificación'
-                    
-                    # Top productos para este nivel
-                    top_products_linea = group_linea.groupby('producto_nombre')['venta'].sum().nlargest(7).reset_index()
-                    top_products_by_level[level1_id] = top_products_linea.to_dict('records')
+                    drilldown_titles[level1_id] = f'Ventas de {clasif}'
+                    # Gráfico de pastel muestra el siguiente nivel: Vía de Administración
+                    pie_data_level1 = group_clasif.groupby('via_admin_nombre')['venta'].sum().reset_index()
+                    pie_chart_data_by_level[level1_id] = [{'name': r['via_admin_nombre'], 'value': r['venta']} for _, r in pie_data_level1.iterrows() if r['venta'] > 0]
 
-                    # CORRECCIÓN: El gráfico de pastel para este nivel (Línea Comercial) debe agrupar por Clasificación Farmacológica.
-                    # Esta lógica se había perdido y se ha restaurado.
-                    pie_data_linea = group_linea.groupby('clasificacion_farma_nombre')['venta'].sum().reset_index()
-                    pie_chart_data_by_level[level1_id] = [{'name': r['clasificacion_farma_nombre'], 'value': r['venta']}
-                                                          for _, r in pie_data_linea.iterrows() if r['venta'] > 0]
-
-
-                    for clasificacion, group_clasificacion in group_linea.groupby('clasificacion_farma_nombre'):
-                        # Nivel 2: Productos para esta clasificación
-                        level2_id = f"level2_{linea}_{clasificacion}"
-                        level2_data = group_clasificacion.groupby('producto_nombre')['venta'].sum().reset_index()
+                    # Nivel 2: Vía de Administración
+                    for forma, group_forma in group_clasif.groupby('forma_farma_nombre'):
+                        level2_id = f"level2_{clasif}_{forma}"
+                        level2_data = group_forma.groupby('via_admin_nombre')['venta'].sum().reset_index()
                         drilldown_data[level2_id] = [
-                            [row['producto_nombre'], row['venta'], level2_id, None] # Último nivel, no hay childGroupId
+                            [row['via_admin_nombre'], row['venta'], level2_id, f"level3_{clasif}_{forma}_{row['via_admin_nombre']}"]
                             for _, row in level2_data.iterrows()
                         ]
-                        drilldown_titles[level2_id] = f'Ventas de {clasificacion} en {linea}'
-                        
-                        # Top productos para este nivel (son todos los productos de la clasificación)
-                        top_products_by_level[level2_id] = level2_data.to_dict('records')
+                        drilldown_titles[level2_id] = f'Ventas de {forma}'
+                        # Gráfico de pastel muestra el siguiente nivel: Línea de Producción
+                        pie_data_level2 = group_forma.groupby('linea_prod_nombre')['venta'].sum().reset_index()
+                        pie_chart_data_by_level[level2_id] = [{'name': r['linea_prod_nombre'], 'value': r['venta']} for _, r in pie_data_level2.iterrows() if r['venta'] > 0]
 
-                        # CORRECCIÓN: El gráfico de pastel para este nivel (Clasificación) debe agrupar por Producto.
-                        # Esta lógica se había perdido y se ha restaurado.
-                        pie_data_clasif = group_clasificacion.groupby('producto_nombre')['venta'].sum().reset_index()
-                        pie_chart_data_by_level[level2_id] = [{'name': r['producto_nombre'], 'value': r['venta']}
-                                                              for _, r in pie_data_clasif.iterrows() if r['venta'] > 0]
+                        # Nivel 3: Línea de Producción
+                        for via, group_via in group_forma.groupby('via_admin_nombre'):
+                            level3_id = f"level3_{clasif}_{forma}_{via}"
+                            level3_data = group_via.groupby('linea_prod_nombre')['venta'].sum().reset_index()
+                            drilldown_data[level3_id] = [
+                                [row['linea_prod_nombre'], row['venta'], level3_id, f"level4_{clasif}_{forma}_{via}_{row['linea_prod_nombre']}"]
+                                for _, row in level3_data.iterrows()
+                            ]
+                            drilldown_titles[level3_id] = f'Ventas por Vía {via}'
+                            # Gráfico de pastel muestra el siguiente nivel: Producto
+                            pie_data_level3 = group_via.groupby('producto_nombre')['venta'].sum().reset_index()
+                            pie_chart_data_by_level[level3_id] = [{'name': r['producto_nombre'], 'value': r['venta']} for _, r in pie_data_level3.iterrows() if r['venta'] > 0]
+                            
+                            # Nivel 4: Producto (último nivel)
+                            for linea_prod, group_linea_prod in group_via.groupby('linea_prod_nombre'):
+                                level4_id = f"level4_{clasif}_{forma}_{via}_{linea_prod}"
+                                level4_data = group_linea_prod.groupby('producto_nombre')['venta'].sum().reset_index()
+                                drilldown_data[level4_id] = [
+                                    [row['producto_nombre'], row['venta'], level4_id, None] # No hay childGroupId
+                                    for _, row in level4_data.iterrows()
+                                ]
+                                drilldown_titles[level4_id] = f'Ventas de {linea_prod}'
+                                # Gráfico de pastel en el último nivel puede mostrar los mismos productos
+                                pie_chart_data_by_level[level4_id] = [{'name': r['producto_nombre'], 'value': r['venta']} for _, r in level4_data.iterrows() if r['venta'] > 0]
 
         # Convertir todos los datos de gráficos a JSON
         all_stacked_chart_data = json.dumps(
