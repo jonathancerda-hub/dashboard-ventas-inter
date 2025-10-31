@@ -47,6 +47,21 @@ def format_number_filter(value):
     except (ValueError, TypeError):
         return value
 
+@app.template_filter('format_month_name')
+def format_month_name_filter(value):
+    """Formatea una clave de mes 'YYYY-MM' a 'NombreMes Año'."""
+    if not value or not isinstance(value, str) or '-' not in value:
+        return value
+    try:
+        meses_nombres = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ]
+        año, mes = map(int, value.split('-'))
+        return f"{meses_nombres[mes - 1]} {año}"
+    except (ValueError, IndexError):
+        return value
+
 # --- Inicialización de Managers ---
 data_manager = OdooManager()
 gs_manager = GoogleSheetsManager(
@@ -592,11 +607,21 @@ def dashboard():
         unique_clients = len(set(sale['cliente'] for sale in sales_data_international if sale.get('cliente')))
         total_products = len(set(sale['producto'] for sale in sales_data_international if sale.get('producto')))
         total_invoices = len(set(sale['factura'] for sale in sales_data_international if sale.get('factura')))
+        
+        # --- INTEGRACIÓN DE METAS POR CLIENTE ---
+        # 1. Cargar metas de clientes para el año actual
+        metas_clientes_historicas = gs_manager.read_metas_por_cliente()
+        año_actual_str = str(datetime.now().year)
+        metas_clientes_año = metas_clientes_historicas.get(año_actual_str, {})
 
-        # Calcular Brecha Comercial (Meta - Venta). Meta es 0 por ahora.
-        meta_total_kpi = 0
-        brecha_comercial = meta_total_kpi - total_sales_year
+        # 2. Calcular la meta total para el KPI principal
+        meta_total_general = 0
+        for cliente_id, metas_lineas in metas_clientes_año.items():
+            # Sumar todas las metas de las líneas para cada cliente
+            meta_total_general += sum(v for k, v in metas_lineas.items() if k != 'cliente_nombre')
 
+        # 3. Calcular Brecha Comercial con la meta real
+        brecha_comercial = (total_sales_year + total_por_facturar) - meta_total_general
 
         # --- LÓGICA PARA GRÁFICOS ADICIONALES (Ciclo de Vida, Forma Farmacéutica) ---
         ventas_por_forma_farmaceutica = {}
@@ -724,10 +749,7 @@ def dashboard():
                 'porcentaje_avance_meta': porcentaje_avance_meta
             })
         
-        # Calcular KPIs totales
-        meta_total_general = 0 # Meta total se establece en 0 por ahora
         venta_proyectada_total = total_sales_year + total_por_facturar
-        total_brecha = venta_proyectada_total - meta_total_general
         porcentaje_avance_total = (venta_proyectada_total / meta_total_general * 100) if meta_total_general > 0 else 0
 
         kpis = {
@@ -735,14 +757,24 @@ def dashboard():
             'meta_total': meta_total_general,
             'venta_total': total_sales_year,  # Usar el total del año que coincide con la suma de líneas comerciales
             'total_por_facturar': total_por_facturar,
-            'porcentaje_avance': porcentaje_avance_total,
-            'total_brecha': total_brecha
+            'porcentaje_avance': (total_sales_year / meta_total_general * 100) if meta_total_general > 0 else 0, # Avance sobre facturado
+            'total_brecha': brecha_comercial
         }
         
         # --- LÓGICA PARA GRÁFICO DE AVANCE POR CLIENTE ---
+        # Ahora se basa en Venta Facturada vs Meta Anual
         facturado_por_cliente = {}
+        cliente_id_map = {} # Mapa de nombre de cliente a su ID
         for sale in sales_data_international:
             cliente_nombre = sale.get('cliente')
+            partner = sale.get('partner_id')
+            cliente_id = None
+            if partner and isinstance(partner, list) and len(partner) > 0:
+                cliente_id = str(partner[0])
+            
+            if cliente_nombre and cliente_id:
+                cliente_id_map[cliente_nombre] = cliente_id
+
             if cliente_nombre:
                 facturado_por_cliente[cliente_nombre] = facturado_por_cliente.get(cliente_nombre, 0) + sale.get('amount_currency', 0)
 
@@ -818,7 +850,7 @@ def dashboard():
                              unique_clients=unique_clients,
                              total_products=total_products,
                              total_invoices=total_invoices,
-                             meta_total_kpi=meta_total_kpi,
+                             meta_total_kpi=meta_total_general,
                              brecha_comercial=brecha_comercial,
                              bullet_chart_data=bullet_chart_data,
                              orders_chart_data=orders_chart_data,
@@ -1380,6 +1412,123 @@ def meta():
                              total_actual=0,
                              total_ipn_actual=0,
                              fecha_actual=datetime.now())
+
+@app.route('/metas_cliente', methods=['GET', 'POST'])
+def metas_cliente():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    try:
+        # Definir las líneas comerciales que serán las columnas
+        lineas_comerciales_columnas = [
+            {'nombre': 'AGROVET', 'id': 'agrovet'},
+            {'nombre': 'PETMEDICA', 'id': 'petmedica'},
+            {'nombre': 'AVIVET', 'id': 'avivet'},
+        ]
+
+        # Obtener la lista de clientes internacionales
+        filter_options = data_manager.get_filter_options()
+        clientes = sorted(filter_options.get('clientes', []), key=lambda x: x[1]) # Ordenar por nombre
+
+        # Obtener año actual y mes seleccionado
+        año_actual = datetime.now().year
+        año_seleccionado = request.args.get('año', str(año_actual))
+        años_disponibles = [
+            str(año_actual - 1),
+            str(año_actual),
+            str(año_actual + 1)
+        ]
+
+        if request.method == 'POST':
+            año_formulario = request.form.get('año_seleccionado', año_seleccionado)
+            # Leer las metas existentes para actualizarlas
+            metas_historicas = gs_manager.read_metas_por_cliente()
+            
+            # Crear o actualizar la entrada para el mes actual
+            metas_del_año = metas_historicas.get(año_formulario, {})
+
+            for cliente in clientes:
+                cliente_id_str = str(cliente[0])
+                tiene_meta = False
+                
+                # Crear o actualizar la entrada para el cliente
+                metas_del_cliente = metas_del_año.get(cliente_id_str, {})
+
+                for linea in lineas_comerciales_columnas:
+                    meta_value_str = request.form.get(f"meta_{cliente[0]}_{linea['id']}")
+                    
+                    try:
+                        meta_value_str = meta_value_str.replace(',', '') if meta_value_str else '0'
+                        # Convertir a float, manejar valores vacíos o cero
+                        valor = float(meta_value_str) if meta_value_str else 0.0
+                        if valor > 0:
+                            metas_del_cliente[linea['id']] = valor
+                            tiene_meta = True
+                        # Si el valor es 0 o nulo y la clave existe, la eliminamos para limpiar el JSON
+                        elif linea['id'] in metas_del_cliente:
+                            del metas_del_cliente[linea['id']]
+                    except (ValueError, TypeError):
+                        # Si hay un error y la clave existe, la eliminamos
+                        if linea['id'] in metas_del_cliente:
+                            del metas_del_cliente[linea['id']]
+                
+                # Si el cliente tiene al menos una meta, lo guardamos
+                if metas_del_cliente:
+                    metas_del_año[cliente_id_str] = metas_del_cliente
+                    # Guardar también el nombre del cliente para la hoja de cálculo
+                    metas_del_año[cliente_id_str]['cliente_nombre'] = cliente[1]
+
+                # Si el cliente ya no tiene metas, lo eliminamos del mes
+                elif cliente_id_str in metas_del_año:
+                    del metas_del_año[cliente_id_str]
+
+            # Actualizar las metas del mes en la estructura histórica
+            metas_historicas[año_formulario] = metas_del_año
+
+            # Guardar en Google Sheets
+            gs_manager.write_metas_por_cliente(metas_historicas)
+            
+            # Guardar las metas recién guardadas en la sesión para evitar latencia de lectura
+            # La sesión ahora debe guardar la estructura completa del año
+            if año_formulario in metas_historicas:
+                session[f'metas_cliente_{año_formulario}'] = metas_historicas[año_formulario]
+
+            
+            # flash(f'Metas para clientes guardadas exitosamente para el mes seleccionado.', 'success')
+
+            # Redirigir para mostrar los datos guardados
+            return redirect(url_for('metas_cliente', año=año_formulario))
+
+        # GET request: Cargar y mostrar datos
+        metas_historicas = gs_manager.read_metas_por_cliente()
+        
+        # Lógica para evitar latencia de Google Sheets:
+        # 1. Intentar obtener las metas de la sesión (que se guardaron en el POST)
+        session_key = f'metas_cliente_{año_seleccionado}'
+        if session_key in session:
+            # La sesión contiene el diccionario de metas para el año específico
+            metas_actuales = session.pop(session_key)
+        else:
+            # 2. Si no hay nada en la sesión, leer de Google Sheets como de costumbre
+            # CORRECCIÓN: Asegurarse de obtener el diccionario del año correcto.
+            # metas_historicas es {'2024': {cliente_id: {...}}, '2025': ...}
+            metas_actuales = metas_historicas.get(año_seleccionado, {})
+            
+        return render_template('metas_cliente.html',
+                             clientes=clientes,
+                             lineas_comerciales=lineas_comerciales_columnas,
+                             metas_actuales=metas_actuales,
+                             años_disponibles=años_disponibles,
+                             año_seleccionado=año_seleccionado,
+                             fecha_actual=datetime.now())
+
+    except Exception as e:
+        flash(f'Error al procesar metas por cliente: {str(e)}', 'danger')
+        app.logger.error(f"ERROR EN METAS_CLIENTE: {str(e)}")
+        app.logger.exception(e)
+        return render_template('metas_cliente.html',
+                             clientes=[], lineas_comerciales=[], metas_actuales={},
+                             años_disponibles=[], año_seleccionado="", fecha_actual=datetime.now())
 
 @app.route('/export/excel/sales')
 def export_excel_sales():

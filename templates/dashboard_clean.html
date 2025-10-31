@@ -26,10 +26,10 @@
             <i class="bi bi-clock"></i>
             <span class="nav-text">Pendientes</span>
         </a>
-        <span class="btn-nav disabled-link" data-text="Metas">
+        <a href="{{ url_for('metas_cliente') }}" class="btn-nav" data-text="Metas">
             <i class="bi bi-bullseye"></i>
             <span class="nav-text">Metas</span>
-        </span>
+        </a>
         <span class="btn-nav disabled-link" data-text="Metas Vendedor">
             <i class="bi bi-people"></i>
             <span class="nav-text">Metas Vendedor</span>
@@ -140,7 +140,7 @@
                             <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
-                            <td><strong>{{ "$ {:,.2f}".format(kpis.meta_total) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(meta_total_kpi) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_brecha) }}</strong></td>
                             <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
                         </tr>
@@ -168,8 +168,8 @@
                 <strong>Facturado:</strong> 
                 $ {{ "{:,.2f}".format(avance_cliente_seleccionado.facturado) }}
             </span>
-            <span>
-                <strong>Total Pedido:</strong> 
+            <span> 
+                <strong>Total Pedido:</strong>
                 $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_pedido) }}
             </span>
         </div>
@@ -1259,7 +1259,7 @@ function crearGraficoBullet() {
 
     // Preparar datos para el gráfico
     const clientes = bulletChartData.map(d => d.cliente);
-    const datosMeta = bulletChartData.map(d => Math.max(0, Number(d.total_pedido || 0)));
+    const datosMeta = bulletChartData.map(d => Math.max(0, Number(d.total_pedido || 0))); // Revertido a total_pedido
     const datosFacturado = bulletChartData.map(d => Math.max(0, Number(d.facturado || 0)));
 
     // Calcular porcentaje y asignar color según umbrales
@@ -1295,7 +1295,7 @@ function crearGraficoBullet() {
                 const idx = params[0].dataIndex;
                 const cliente = clientes[idx];
                 const fact = Math.round(datosFacturado[idx] || 0);
-                const meta = Math.round(datosMeta[idx] || 0);
+                const meta = Math.round(datosMeta[idx] || 0); // 'meta' aquí es el total del pedido (revertido)
                 const pct = porcentajes[idx] || 0;
                 return `${cliente}<br/>` +
                     `Facturado: $ ${fact.toLocaleString('en-US')}<br/>` +
@@ -1324,7 +1324,7 @@ function crearGraficoBullet() {
         }],
         series: [
             {
-                name: 'Total Pedido (Meta)',
+                name: 'Total Pedido', // Revertido a Total Pedido
                 type: 'bar',
                 barGap: '-100%',
                 barWidth: '22px',

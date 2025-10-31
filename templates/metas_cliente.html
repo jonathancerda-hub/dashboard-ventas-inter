@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Metas por Cliente{% endblock %}
+{% block content %}
+<!-- Header estilo Odoo -->
+<div class="dashboard-header">
+    <div class="header-info">
+        <h1><i class="bi bi-bullseye"></i> GESTIÓN DE METAS POR CLIENTE INTERNACIONAL</h1>
+    </div>
+    <div class="header-nav-wrapper">
+        <div class="header-nav">
+            <a href="{{ url_for('dashboard') }}" class="btn-nav">
+                <i class="bi bi-speedometer2"></i>
+                <span class="nav-text">Dashboard</span>
+            </a>
+            <a href="{{ url_for('sales') }}" class="btn-nav">
+                <i class="bi bi-receipt"></i>
+                <span class="nav-text">Ventas</span>
+            </a>
+            <a href="{{ url_for('pending') }}" class="btn-nav">
+                <i class="bi bi-clock"></i>
+                <span class="nav-text">Pendientes</span>
+            </a>
+            <a href="{{ url_for('metas_cliente') }}" class="btn-nav active">
+                <i class="bi bi-bullseye"></i>
+                <span class="nav-text">Metas</span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn-salir">
+                <i class="bi bi-box-arrow-right"></i>
+                <span class="nav-text">Salir</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm">
+        <!-- Selector de año -->
+        <div class="card-header bg-light d-flex justify-content-between align-items-center p-3">
+            <h5 class="mb-0">Metas para el año: <strong>{{ año_seleccionado }}</strong></h5>
+            <form id="year-selector-form" method="get" action="{{ url_for('metas_cliente') }}" class="d-flex align-items-center">
+                <select name="año" id="año" class="form-select me-2" onchange="this.form.submit()" style="min-width: 150px;">
+                    {% for año in años_disponibles %}
+                        <option value="{{ año }}" {% if año == año_seleccionado %}selected{% endif %}>
+                            {{ año }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        <div class="card-body p-4">
+            <form method="post" action="{{ url_for('metas_cliente') }}">
+                <input type="hidden" name="año_seleccionado" value="{{ año_seleccionado }}">
+                
+                <div class="custom-table-wrapper">
+                    <table class="custom-meta-table">
+                        <colgroup>
+                            <col style="width: 300px;">
+                            <col style="width: 180px;">
+                            <col style="width: 180px;">
+                            <col style="width: 180px;">
+                            <col style="width: 190px;">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                {% for linea in lineas_comerciales %}
+                                <th class="text-end">{{ linea.nombre }} ($)</th>
+                                {% endfor %}
+                                <th class="text-end">Total Cliente ($)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cliente in clientes %}
+                            <tr class="align-middle">
+                                <td>
+                                    <span class="fw-bold">{{ cliente[1] }}</span>
+                                </td>
+                                {% set row_total = namespace(value=0) %}
+                                {% for linea in lineas_comerciales %}
+                                <td class="text-end">
+                                    {% set meta_actual = metas_actuales.get(cliente[0]|string, {}).get(linea.id, 0) or 0 %}
+                                    <input type="text"
+                                           name="meta_{{ cliente[0] }}_{{ linea.id }}" 
+                                           class="form-control form-control-sm text-end meta-input" 
+                                           value="{{ '{:,.2f}'.format(meta_actual) if meta_actual else '' }}"
+                                           placeholder="0.00"
+                                           data-cliente-id="{{ cliente[0] }}"
+                                           data-linea-id="{{ linea.id }}"
+                                           oninput="formatNumber(this, 2)"
+                                           onkeypress="return onlyNumbers(event, true)">
+                                    {% set row_total.value = row_total.value + meta_actual %}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end fw-bold">
+                                    <span id="total-cliente-{{ cliente[0] }}">{{ "{:,.2f}".format(row_total.value) }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td>Total por Línea</td>
+                                {% for linea in lineas_comerciales %}
+                                <td class="text-end" id="total-linea-{{ linea.id }}">0.00</td>
+                                {% endfor %}
+                                <td class="text-end" id="total-general">0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary btn-lg" style="margin-right: 20px; margin-bottom: 20px;">
+                        <i class="bi bi-save-fill me-2"></i>Guardar Metas
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos del Header Odoo */
+:root {
+    --odoo-primary: #875A7B;
+    --odoo-primary-dark: #6B4563;
+    --space-4: 1rem;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, var(--odoo-primary) 0%, var(--odoo-primary-dark) 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(135, 90, 123, 0.3);
+    margin-bottom: 25px;
+    font-family: 'Poppins', sans-serif;
+}
+
+.header-info h1 { margin: 0; font-size: 24px; font-weight: 700; color: white; }
+.header-nav-wrapper { display: flex; justify-content: flex-end; }
+.header-nav { display: flex; gap: 15px; align-items: center; }
+ 
+.btn-nav, .btn-salir, .btn-nav:visited, .btn-salir:visited {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-nav { background-color: rgba(255, 255, 255, 0.15); color: white; border: 1px solid rgba(255, 255, 255, 0.2); }
+.btn-nav:hover { background-color: rgba(255, 255, 255, 0.25); transform: translateY(-1px); }
+.btn-nav.active { background-color: rgba(255, 255, 255, 0.25); border: 1px solid rgba(255, 255, 255, 0.4); }
+.btn-salir { background: #e74c3c; color: white; }
+.btn-salir:hover { background-color: #c0392b; transform: translateY(-1px); }
+ 
+/* === ESTILOS PARA LA NUEVA TABLA PERSONALIZADA === */
+.custom-table-wrapper {
+    display: flex;
+    justify-content: center; /* Centra la tabla dentro del wrapper */
+    overflow-x: auto; /* Añade scroll si la tabla es más ancha que la pantalla */
+    padding: 10px;
+}
+
+.custom-meta-table {
+    width: auto;
+    border-collapse: collapse;
+    table-layout: fixed; /* Muy importante para que colgroup funcione */
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.custom-meta-table th, .custom-meta-table td {
+    padding: 10px 12px;
+    border: 1px solid #e9ecef;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.custom-meta-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.custom-meta-table tbody tr:nth-child(even) {
+    background-color: #fdfdff;
+}
+
+.custom-meta-table tbody tr:hover {
+    background-color: #f1f3f5;
+}
+
+.custom-meta-table tfoot td {
+    font-weight: bold;
+    color: var(--odoo-primary);
+    background-color: #f8f9fa;
+    border-top: 2px solid var(--odoo-primary);
+}
+
+.text-end {
+    text-align: right;
+}
+
+.meta-input {
+    width: 100%;
+    text-align: right;
+}
+/* === FIN DE ESTILOS PARA LA NUEVA TABLA === */
+
+</style>
+
+<script>
+function calculateClientTotals() {
+    const lineas = {{ lineas_comerciales | tojson }};
+    const clientes = {{ clientes | tojson }};
+    let grandTotal = 0;
+
+    // 1. Calcular totales por columna (línea comercial)
+    lineas.forEach(linea => {
+        let columnTotal = 0;
+        const inputs = document.querySelectorAll(`.meta-input[data-linea-id='${linea.id}']`);
+        inputs.forEach(input => {
+            const cleanValue = input.value.replace(/,/g, '');
+            columnTotal += parseFloat(cleanValue) || 0;
+        });
+        const totalLineaCell = document.getElementById(`total-linea-${linea.id}`);
+        if (totalLineaCell) {
+            totalLineaCell.textContent = columnTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    });
+
+    // 2. Calcular totales por fila (cliente) y el total general
+    clientes.forEach(cliente => {
+        let rowTotal = 0;
+        const clienteId = cliente[0];
+        const inputs = document.querySelectorAll(`.meta-input[data-cliente-id='${clienteId}']`);
+        inputs.forEach(input => {
+            const cleanValue = input.value.replace(/,/g, '');
+            rowTotal += parseFloat(cleanValue) || 0;
+        });
+        
+        const totalClienteCell = document.getElementById(`total-cliente-${clienteId}`);
+        if (totalClienteCell) {
+            totalClienteCell.textContent = rowTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        grandTotal += rowTotal;
+    });
+
+    // 3. Actualizar el total general
+    const totalGeneralCell = document.getElementById('total-general');
+    if (totalGeneralCell) {
+        totalGeneralCell.textContent = grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+}
+
+function formatNumber(input, decimals = 2) {
+    let value = input.value.replace(/,/g, '');
+    let [integerPart, decimalPart] = value.split('.');
+
+    integerPart = integerPart.replace(/[^0-9]/g, '');
+    
+    if (integerPart) {
+        input.value = parseInt(integerPart, 10).toLocaleString('en-US');
+        if (decimalPart !== undefined) {
+            decimalPart = decimalPart.replace(/[^0-9]/g, '').substring(0, decimals);
+            input.value += '.' + decimalPart;
+        }
+    } else {
+        input.value = '';
+    }
+
+    // Actualizar totales después de formatear
+    calculateClientTotals();
+}
+
+function onlyNumbers(event, allowDecimal) {
+    if ([46, 8, 9, 27, 13].indexOf(event.keyCode) !== -1 ||
+        (event.keyCode === 65 && event.ctrlKey === true) ||
+        (event.keyCode === 67 && event.ctrlKey === true) ||
+        (event.keyCode === 86 && event.ctrlKey === true) ||
+        (event.keyCode === 88 && event.ctrlKey === true)) {
+        return;
+    }
+    if (allowDecimal && event.key === '.') {
+        return;
+    }
+    if ((event.shiftKey || (event.keyCode < 48 || event.keyCode > 57)) && (event.keyCode < 96 || event.keyCode > 105)) {
+        event.preventDefault();
+    }
+}
+
+// Calcular totales al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    calculateClientTotals();
+});
+</script>
+
+{% endblock %}

@@ -95,20 +95,7 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
         *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta (`sale.order`) y la bala interior muestra el monto ya facturado. El gráfico se filtra para mostrar solo pedidos cuyo código comienza con 'S'.
     *   Exportación de datos de ventas facturadas y pendientes a Excel.
 
-*   **Dashboard Nacional por Línea (`/dashboard_linea`)**:
-    *   Filtros por mes y línea comercial.
-    *   KPIs de rendimiento de la línea (meta vs. venta, avance, etc.).
-    *   Tabla de rendimiento individual de cada vendedor del equipo, comparando su venta con su meta.
-    *   Gráficos de "Top Productos" y "Ventas por Forma Farmacéutica" para la línea seleccionada.
 
-*   **Gestión de Metas por Línea (`/meta`)**:
-    *   Interfaz para establecer las metas de venta mensuales para cada línea comercial y para E-commerce.
-    *   Los datos se guardan en una pestaña específica de Google Sheets.
-
-*   **Gestión de Equipos y Metas por Vendedor (`/metas_vendedor`)**:
-    *   Interfaz para asignar vendedores (obtenidos de Odoo) a diferentes equipos comerciales.
-    *   Tabla pivotante para asignar metas mensuales (total e IPN) a cada vendedor de cada equipo.
-    *   Los datos de equipos y metas individuales se guardan en Google Sheets.
 
 *   **Vistas de Datos Detallados**:
     *   `/sales`: Tabla paginada y con filtros de todas las líneas de facturas de venta internacionales.

@@ -2,6 +2,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import logging
+import json
 
 class GoogleSheetsManager:
     def __init__(self, credentials_file, sheet_name):
@@ -191,3 +192,110 @@ class GoogleSheetsManager:
         worksheet = self.sheet.worksheet("MetasPorLinea")
         worksheet.clear()
         worksheet.update([df.columns.values.tolist()] + df.fillna('').values.tolist(), value_input_option='USER_ENTERED')
+
+    def read_metas_por_cliente(self):
+        """Lee las metas por cliente desde la hoja 'Metas_cliente' en formato ancho."""
+        sheet_name = 'Metas_cliente'
+        try:
+            worksheet = self.sheet.worksheet(sheet_name)
+            records = worksheet.get_all_records()
+            
+            # Mapeo de nombres de columna a IDs de línea
+            linea_map = {'AGROVET': 'agrovet', 'PETMEDICA': 'petmedica', 'AVIVET': 'avivet'}
+            
+            metas_anidadas = {}
+            for record in records:
+                año = str(record.get('año'))
+                # CORRECCIÓN CLAVE: Asegurarse de que el ID del cliente siempre sea un string.
+                # gspread puede leerlo como int si es numérico, lo que causa inconsistencias.
+                cliente_id_raw = record.get('cliente_id')
+                cliente_id = str(cliente_id_raw) if cliente_id_raw is not None else None
+                
+                if not año or not cliente_id:
+                    continue
+                    
+                if año not in metas_anidadas:
+                    metas_anidadas[año] = {}
+                if cliente_id not in metas_anidadas[año]:
+                    metas_anidadas[año][cliente_id] = {}
+                
+                for col_name, linea_id in linea_map.items():
+                    meta_str = record.get(col_name, '0')
+                    try:
+                        # Lógica de limpieza de números robusta:
+                        # 1. Convertir a string para asegurar que podemos manipularlo.
+                        # 2. Si hay una coma, asumimos que es el separador decimal y quitamos los puntos.
+                        # 3. Si no hay coma, asumimos que el punto es el separador decimal y quitamos las comas.
+                        s = str(meta_str)
+                        if ',' in s:
+                            cleaned_str = s.replace('.', '').replace(',', '.')
+                        else:
+                            cleaned_str = s.replace(',', '')
+                        meta_val = float(cleaned_str) if cleaned_str else 0.0
+                        if meta_val > 0:
+                            metas_anidadas[año][cliente_id][linea_id] = meta_val
+                    except (ValueError, TypeError):
+                        continue # Ignorar valores no numéricos
+
+            return metas_anidadas
+        except gspread.exceptions.WorksheetNotFound:
+            logging.warning(f"La hoja '{sheet_name}' no fue encontrada. Creándola...")
+            self._create_worksheet_if_not_exists(sheet_name)
+            worksheet = self.sheet.worksheet(sheet_name)
+            # Crear cabecera para el nuevo formato
+            worksheet.update('A1:F1', [['año', 'cliente_id', 'cliente_nombre', 'AGROVET', 'PETMEDICA', 'AVIVET']])
+            return {}
+        except Exception as e:
+            logging.error(f"Error al leer la hoja '{sheet_name}': {e}")
+            return {}
+
+    def write_metas_por_cliente(self, data):
+        """Toma la estructura anidada, la convierte a formato ancho y la escribe en 'Metas_cliente'."""
+        sheet_name = 'Metas_cliente'
+        try:
+            worksheet = self.sheet.worksheet(sheet_name)
+            
+            # Mapeo de IDs de línea a nombres de columna
+            linea_map_inv = {'agrovet': 'AGROVET', 'petmedica': 'PETMEDICA', 'avivet': 'AVIVET'}
+            
+            flat_data = []
+            for año, clientes in data.items():
+                for cliente_id, metas in clientes.items():
+                    row = {
+                        'año': año,
+                        'cliente_id': cliente_id,
+                        'cliente_nombre': metas.get('cliente_nombre', ''), # Guardar el nombre del cliente
+                        'AGROVET': metas.get('agrovet', 0),
+                        'PETMEDICA': metas.get('petmedica', 0),
+                        'AVIVET': metas.get('avivet', 0)
+                    }
+                    row['TOTAL'] = row['AGROVET'] + row['PETMEDICA'] + row['AVIVET']
+                    flat_data.append(row)
+            
+            if not flat_data:
+                worksheet.clear()
+                worksheet.update('A1:G1', [['año', 'cliente_id', 'cliente_nombre', 'AGROVET', 'PETMEDICA', 'AVIVET', 'TOTAL']])
+                return
+
+            df = pd.DataFrame(flat_data)
+            worksheet.clear()
+            worksheet.update([df.columns.values.tolist()] + df.values.tolist(), value_input_option='USER_ENTERED')
+        except gspread.exceptions.WorksheetNotFound:
+            logging.warning(f"La hoja '{sheet_name}' no fue encontrada. Creándola y escribiendo datos...")
+            worksheet = self._create_worksheet_if_not_exists(sheet_name)
+            if worksheet:
+                self.write_metas_por_cliente(data) # Reintentar escritura
+        except Exception as e:
+            logging.error(f"Error al escribir en la hoja '{sheet_name}': {e}")
+
+    def _create_worksheet_if_not_exists(self, title):
+        """Crea una hoja de cálculo si no existe."""
+        try:
+            return self.sheet.add_worksheet(title=title, rows="100", cols="20")
+        except gspread.exceptions.APIError as e:
+            if 'already exists' in str(e):
+                logging.info(f"La hoja '{title}' ya existe, no se creó de nuevo.")
+                return self.sheet.worksheet(title)
+            else:
+                logging.error(f"Error de API al intentar crear la hoja '{title}': {e}")
+                raise
