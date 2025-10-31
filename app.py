@@ -835,20 +835,18 @@ def dashboard():
         # --- LÓGICA PARA AVANCE DEL CLIENTE SELECCIONADO (NUEVA TARJETA) ---
         avance_cliente_seleccionado = None
         if partner_id and bullet_chart_data and nombre_cliente_seleccionado:
-            # El nombre del cliente ya se obtuvo en la variable `nombre_cliente_seleccionado`
-            # CORRECCIÓN: Usar el nombre sin el país/paréntesis para una comparación más robusta.
-            # Esto soluciona el problema con nombres como "BREMER LANKA (PVT) LTD."
-            nombre_cliente_simple = nombre_cliente_seleccionado.split(' (')[0]
-            for data in bullet_chart_data:
-                if data.get('cliente') == nombre_cliente_simple:
-                    total_pedido_cliente = data.get('total_pedido', 0)
-                    avance_cliente_seleccionado = {
-                        'nombre': data['cliente'],
-                        'facturado': data.get('facturado', 0),
-                        'total_pedido': total_pedido_cliente,
-                        'porcentaje': (data.get('facturado', 0) / total_pedido_cliente * 100) if total_pedido_cliente > 0 else 0
-                    }
-                    break
+            # SOLUCIÓN DEFINITIVA: Si se filtra por un cliente, bullet_chart_data solo tendrá un elemento.
+            # No es necesario buscar por nombre, simplemente usamos el primer (y único) elemento.
+            # Esto evita problemas con nombres inconsistentes como "BREMER LANKA (PVT) LTD."
+            if len(bullet_chart_data) == 1:
+                data = bullet_chart_data[0]
+                total_pedido_cliente = data.get('total_pedido', 0)
+                avance_cliente_seleccionado = {
+                    'nombre': data.get('cliente', nombre_cliente_seleccionado), # Usar el nombre de los datos, o el del filtro como fallback
+                    'facturado': data.get('facturado', 0),
+                    'total_pedido': total_pedido_cliente,
+                    'porcentaje': (data.get('facturado', 0) / total_pedido_cliente * 100) if total_pedido_cliente > 0 else 0
+                }
         
         return render_template('dashboard_clean.html',
                              sales_data=sales_data,
