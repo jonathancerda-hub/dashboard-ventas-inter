@@ -614,13 +614,22 @@ def dashboard():
         año_actual_str = str(datetime.now().year)
         metas_clientes_año = metas_clientes_historicas.get(año_actual_str, {})
 
-        # 2. Calcular la meta total para el KPI principal
+        # 2. Calcular la meta total para el KPI principal (condicional al filtro de cliente)
         meta_total_general = 0
-        for cliente_id, metas_lineas in metas_clientes_año.items():
-            # Sumar todas las metas de las líneas para cada cliente
-            meta_total_general += sum(v for k, v in metas_lineas.items() if k != 'cliente_nombre')
+        if partner_id:
+            # Si hay un cliente seleccionado, la meta es solo la de ese cliente
+            metas_del_cliente = metas_clientes_año.get(str(partner_id), {})
+            meta_total_general = sum(v for k, v in metas_del_cliente.items() if k != 'cliente_nombre')
+        else:
+            # Si no hay cliente seleccionado, sumar las metas de todos
+            for cliente_id, metas_lineas in metas_clientes_año.items():
+                meta_total_general += sum(v for k, v in metas_lineas.items() if k != 'cliente_nombre')
 
         # 3. Calcular Brecha Comercial con la meta real
+        # La venta proyectada también debe ajustarse al cliente seleccionado
+        if partner_id:
+            total_sales_year = sum(sale.get('amount_currency', 0) for sale in sales_data_international)
+            total_por_facturar = sum(pending.get('total_pendiente', 0) for pending in pending_data)
         brecha_comercial = (total_sales_year + total_por_facturar) - meta_total_general
 
         # --- LÓGICA PARA GRÁFICOS ADICIONALES (Ciclo de Vida, Forma Farmacéutica) ---
@@ -732,13 +741,24 @@ def dashboard():
         # Para la tabla (agregar datos adicionales si es necesario)
         datos_lineas_tabla = datos_lineas.copy()
         for linea in datos_lineas_tabla:
+            # --- INTEGRACIÓN DE METAS POR LÍNEA ---
+            # Sumar las metas de todos los clientes para esta línea comercial específica
+            # Convertir el nombre de la línea (ej. "AGROVET") a su ID (ej. "agrovet")
+            linea_id_actual = linea.get('nombre', '').lower().replace(' ', '_')
+            
+            if partner_id:
+                # Si hay cliente, la meta de la línea es solo la de ese cliente
+                meta_linea = metas_clientes_año.get(str(partner_id), {}).get(linea_id_actual, 0)
+            else:
+                # Si no hay cliente, sumar las metas de todos para esa línea
+                meta_linea = sum(metas_cliente.get(linea_id_actual, 0) for metas_cliente in metas_clientes_año.values())
+
             venta_total_linea = linea.get('venta', 0)
             por_facturar_linea = por_facturar_por_linea.get(linea['nombre'], 0)
-            meta_linea = 0  # Meta se establece en 0 por ahora
             
             # Calcular brecha y avance
             venta_proyectada = venta_total_linea + por_facturar_linea
-            brecha = venta_proyectada - meta_linea
+            brecha = venta_proyectada - meta_linea # Brecha contra la meta real
             porcentaje_avance_meta = (venta_proyectada / meta_linea * 100) if meta_linea > 0 else 0
 
             linea.update({
@@ -816,7 +836,8 @@ def dashboard():
         avance_cliente_seleccionado = None
         if partner_id and bullet_chart_data and nombre_cliente_seleccionado:
             # El nombre del cliente ya se obtuvo en la variable `nombre_cliente_seleccionado`
-            # Usamos el nombre sin el país para la comparación
+            # CORRECCIÓN: Usar el nombre sin el país/paréntesis para una comparación más robusta.
+            # Esto soluciona el problema con nombres como "BREMER LANKA (PVT) LTD."
             nombre_cliente_simple = nombre_cliente_seleccionado.split(' (')[0]
             for data in bullet_chart_data:
                 if data.get('cliente') == nombre_cliente_simple:

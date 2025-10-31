@@ -153,34 +153,36 @@
     
     <!-- Tarjeta de Avance del Cliente Seleccionado (solo se muestra si hay un cliente) -->
     {% if avance_cliente_seleccionado %}
-    <div class="avance-cliente-card">
-        <h3>Avance de Facturación - {{ avance_cliente_seleccionado.nombre }}</h3>
-        <div class="progress-bar-container">
-            {% set pct = avance_cliente_seleccionado.porcentaje %}
-            {% set color_class = 'progress-bar-green' if pct >= 80 else ('progress-bar-yellow' if pct >= 40 else 'progress-bar-red') %}
+    <div id="card-avance-cliente-container" class="grafico-echarts" style="display: none; margin-bottom: 20px;">
+        <div class="avance-cliente-card">
+            <h3>Avance de Facturación - {{ avance_cliente_seleccionado.nombre }}</h3>
+            <div class="progress-bar-container">
+                {% set pct = avance_cliente_seleccionado.porcentaje %}
+                {% set color_class = 'progress-bar-green' if pct >= 80 else ('progress-bar-yellow' if pct >= 40 else 'progress-bar-red') %}
 
-            <div class="progress-bar {{ color_class }}" style="width: {{ pct }}%;">
-                <span>{{ "%.1f"|format(pct) }}%</span>
+                <div class="progress-bar {{ color_class }}" style="width: {{ pct }}%;">
+                    <span>{{ "%.1f"|format(pct) }}%</span>
+                </div>
+            </div>
+            <div class="progress-labels">
+                <span>
+                    <strong>Facturado:</strong> 
+                    $ {{ "{:,.2f}".format(avance_cliente_seleccionado.facturado) }}
+                </span>
+                <span> 
+                    <strong>Total Pedido:</strong>
+                    $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_pedido) }}
+                </span>
             </div>
         </div>
-        <div class="progress-labels">
-            <span>
-                <strong>Facturado:</strong> 
-                $ {{ "{:,.2f}".format(avance_cliente_seleccionado.facturado) }}
-            </span>
-            <span> 
-                <strong>Total Pedido:</strong>
-                $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_pedido) }}
-            </span>
-        </div>
     </div>
+    {% endif %}
 
-    <!-- Gráfico de Avance por Pedido (se mueve aquí para aparecer debajo de la tarjeta de avance) -->
+    <!-- Gráfico de Avance por Pedido (siempre existe, pero se muestra/oculta con JS) -->
     <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
         <h3>Avance por Pedido ({{ avance_cliente_seleccionado.nombre }})</h3>
         <div id="grafico-bullet-pedidos" style="width: 100%; min-height: 500px;"></div>
     </div>
-    {% endif %}
 
     <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
     <div class="dashboard-charts-grid">
@@ -1420,23 +1422,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const bulletClientesCard = document.querySelector('#grafico-bullet-clientes').closest('.grafico-echarts');
     const pedidosCard = document.getElementById('container-grafico-pedidos');
+    const avanceClienteCard = document.getElementById('card-avance-cliente-container'); // Ahora apunta al contenedor correcto
 
-    if (selectedClienteId) {
-        // Si hay cliente seleccionado, ocultar el gráfico de "Avance de Facturación por Cliente"
-        if (bulletClientesCard) {
-            bulletClientesCard.style.display = 'none';
-        }
-        crearGraficoPedidos(selectedClienteId);
+    if (selectedClienteId && selectedClienteId !== '') {
+        // Si hay un cliente seleccionado:
+        // 1. Ocultar el gráfico general de clientes.
+        if (bulletClientesCard) bulletClientesCard.style.display = 'none';
+        
+        // 2. Mostrar la tarjeta de avance del cliente
+        if (avanceClienteCard) avanceClienteCard.style.display = 'block';
+        // 2. Mostrar y crear el gráfico de avance por pedidos para ESE cliente.
+        if (pedidosCard) pedidosCard.style.display = 'block';
+        crearGraficoPedidos(selectedClienteId); // Esta función ya maneja la visibilidad del contenedor.
+
     } else {
-        // Si no hay cliente seleccionado, mostrar el gráfico de "Avance de Facturación por Cliente"
-        if (bulletClientesCard) {
-            bulletClientesCard.style.display = 'block';
-        }
-        crearGraficoBullet();
-        // Asegurarse de que el gráfico de pedidos esté oculto si no hay cliente seleccionado
+        // Si NO hay cliente seleccionado (vista general):
+        // 1. Ocultar el gráfico de pedidos del cliente.
         if (pedidosCard) {
             pedidosCard.style.display = 'none';
         }
+        // Ocultar la tarjeta de avance del cliente
+        if (avanceClienteCard) avanceClienteCard.style.display = 'none';
+        // 2. Mostrar y crear el gráfico general de avance por cliente.
+        if (bulletClientesCard) bulletClientesCard.style.display = 'block';
+        crearGraficoBullet();
     }
 
     // Verificar que el select de clientes tiene opciones (silencioso check)
