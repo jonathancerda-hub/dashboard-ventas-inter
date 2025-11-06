@@ -5,10 +5,12 @@
 Este proyecto es una aplicación web desarrollada en Flask que funciona como un **Dashboard de Ventas** para una empresa farmacéutica. La aplicación se conecta en tiempo real a un sistema ERP (Odoo) y a Google Sheets para visualizar, analizar y gestionar datos de ventas y metas comerciales.
 
 El dashboard está dividido en dos grandes áreas:
-1.  **Ventas Internacionales**: Un dashboard principal que muestra KPIs, análisis de ventas por cliente, línea comercial, producto y otras clasificaciones.
-2.  **Ventas Nacionales**: Un dashboard secundario enfocado en el rendimiento de las líneas comerciales y los vendedores individuales contra sus metas mensuales.
+1.  **Dashboard de Ventas Internacionales**: El dashboard principal, que muestra KPIs, análisis de ventas por cliente, línea comercial y producto. Integra las metas anuales por cliente para calcular la brecha comercial y el avance.
+2.  **Gestión de Metas**: Incluye varias páginas para configurar los objetivos comerciales:
+    *   **Metas por Cliente (Internacional)**: Permite definir metas de venta anuales para cada cliente internacional.
+    *   **Metas por Línea (Nacional)**: Permite definir metas mensuales para cada línea comercial nacional.
 
-La aplicación también provee interfaces para la gestión de metas y la visualización detallada de datos en tablas con filtros y exportación a Excel.
+La aplicación también provee interfaces para la visualización detallada de datos de ventas y pedidos en tablas con filtros y la capacidad de exportar a Excel.
 
 ## 2. Tecnologías y Librerías Clave
 
@@ -19,14 +21,12 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
     *   **gspread & google-auth**: Para interactuar con la API de Google Sheets.
     *   **Pandas**: Para la manipulación y agregación de datos.
     *   **python-dotenv**: Para la gestión de variables de entorno (credenciales, claves secretas).
-    *   **openpyxl**: Para la creación de archivos Excel (`.xlsx`).
 
 *   **Frontend**:
     *   **HTML5 & Jinja2**: Para la estructura y renderizado de las plantillas.
     *   **CSS3**: Para el estilizado, con un diseño inspirado en la interfaz de Odoo.
     *   **JavaScript**: Para la interactividad y la creación de gráficos.
     *   **ECharts & Chart.js**: Librerías de JavaScript para la visualización de datos y gráficos interactivos.
-    *   **Tom-Select**: Para la creación de selectores de búsqueda avanzados (en la gestión de equipos).
 
 *   **Fuentes de Datos**:
     *   **Odoo**: El sistema ERP principal de donde se extraen los datos de ventas, pedidos, clientes y productos.
@@ -53,10 +53,6 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
 *   `static/`:
     *   **Rol**: Almacén de archivos estáticos.
     *   **Contenido**: Archivos CSS (`style.css`), imágenes y, potencialmente, archivos JavaScript del lado del cliente.
-
-*   `.env`:
-    *   **Rol**: Archivo de configuración.
-    *   **Contenido**: Almacena credenciales y configuraciones sensibles (URL de Odoo, usuario, contraseña, nombre de la hoja de Google, clave secreta de Flask) de forma segura, sin exponerlas en el código fuente.
 
 *   `conectar_odoo.py`:
     *   **Rol**: Script de utilidad.
@@ -85,17 +81,15 @@ La aplicación también provee interfaces para la gestión de metas y la visuali
 
 *   **Dashboard Internacional (`/dashboard`)**:
     *   KPIs clave: Ventas totales, meta, brecha comercial.
-    *   Filtro por cliente para visualizar los datos de un cliente específico.
+    *   Filtro por cliente para visualizar los datos de un cliente específico, recalculando todos los KPIs y tablas en función de la selección.
     *   Tabla de ventas y proyecciones por Línea Comercial.
     *   **Gráficos Interactivos**:
-        *   **Análisis Jerárquico (Drill-Down)**: Permite explorar ventas desde Línea Comercial -> Clasificación Farmacológica -> Producto. Al hacer clic, los gráficos "Top 7 Productos" y "Venta por Clasificación Farmacológica" se actualizan dinámicamente.
+        *   **Análisis Jerárquico (Drill-Down)**: Permite explorar las ventas a través de una jerarquía de Clasificación Farmacológica -> Forma Farmacéutica -> Vía de Administración -> Línea de Producción -> Producto.
         *   **Avance de Facturación por Cliente**: Un gráfico general que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
     *   **Visualización por Cliente Seleccionado**:
         *   **Tarjeta de Avance**: Al filtrar por un cliente, aparece una tarjeta dedicada con una barra de progreso y colores de semáforo (rojo/amarillo/verde) que muestra su avance de facturación.
-        *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta (`sale.order`) y la bala interior muestra el monto ya facturado. El gráfico se filtra para mostrar solo pedidos cuyo código comienza con 'S'.
+        *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta y la barra interior muestra el monto ya facturado.
     *   Exportación de datos de ventas facturadas y pendientes a Excel.
-
-
 
 *   **Vistas de Datos Detallados**:
     *   `/sales`: Tabla paginada y con filtros de todas las líneas de facturas de venta internacionales.

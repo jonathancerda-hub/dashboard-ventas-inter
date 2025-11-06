@@ -150,10 +150,9 @@
         <ul>
             <li><a href="#introduccion">Introducción</a></li>
             <li><a href="#inicio-sesion">Inicio de Sesión</a></li>
-            <li><a href="#dashboard-internacional">Dashboard Internacional</a></li>
-            <li><a href="#dashboard-nacional">Dashboard Nacional</a></li>
+            <li><a href="#dashboard-internacional">Dashboard Internacional (Principal)</a></li>
             <li><a href="#gestion-metas-linea">Gestión de Metas (Línea)</a></li>
-            <li><a href="#gestion-metas-vendedor">Gestión de Metas (Vendedor)</a></li>
+            <li><a href="#gestion-metas-cliente">Gestión de Metas (Cliente)</a></li>
             <li><a href="#vistas-detalladas">Vistas Detalladas</a></li>
             <li><a href="#exportacion">Exportación de Datos</a></li>
         </ul>
@@ -183,7 +182,7 @@
         </section>
 
         <section id="dashboard-internacional">
-            <h2><i class="bi bi-globe2"></i>Dashboard Internacional</h2>
+            <h2><i class="bi bi-globe2"></i>Dashboard Internacional (Principal)</h2>
             <p>
                 Esta es la pantalla principal de la aplicación. Ofrece una vista panorámica de las ventas internacionales del año en curso.
             </p>
@@ -195,10 +194,10 @@
             <p>
                 La fila superior muestra los indicadores clave de rendimiento:
                 <ul>
-                    <li><strong>Venta Proyectada del Año:</strong> Suma de todo lo facturado en el año más los pedidos pendientes de facturar.</li>
-                    <li><strong>Meta:</strong> La meta de ventas definida para el período.</li>
-                    <li><strong>Brecha Comercial:</strong> La diferencia entre la Venta Proyectada (Facturado + Por Facturar) y la Meta.</li>
-                    <li><strong>% Avance:</strong> El porcentaje de la meta que se ha alcanzado con la venta proyectada.</li>
+                    <li><strong>Venta Proyectada del Año:</strong> Suma de todo lo facturado en el año más los pedidos pendientes de facturar para el cliente seleccionado (o todos).</li>
+                    <li><strong>Meta:</strong> La meta de ventas definida en la sección "Metas por Cliente". Si se selecciona un cliente, muestra la meta de ese cliente. Si no, muestra la suma de las metas de todos los clientes.</li>
+                    <li><strong>Brecha Comercial:</strong> La diferencia entre la Venta Proyectada y la Meta.</li>
+                    <li><strong>% Avance:</strong> El porcentaje de la meta que se ha alcanzado con la venta facturada.</li>
                 </ul>
             </p>
             <h3><i class="bi bi-card-checklist"></i>Análisis por Cliente Seleccionado</h3>
@@ -207,7 +206,7 @@
             </p>
             <ul>
                 <li><strong>Tarjeta de Avance de Facturación:</strong> Aparece una nueva tarjeta en la parte superior que muestra el progreso de facturación de los pedidos de ese cliente. Una barra de progreso con colores de semáforo (rojo, amarillo, verde) te permite evaluar rápidamente su estado.</li>
-                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente (solo se muestran los pedidos cuyo código empieza con 'S'). La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado.</li>
+                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente. La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado.</li>
             </ul>
             <div class="note">
                 <strong><i class="bi bi-eye-slash-fill"></i>Ocultamiento de Gráfico General:</strong> Al seleccionar un cliente, el gráfico general "Avance de Facturación por Cliente" se oculta para dar paso a la vista detallada.
@@ -222,8 +221,9 @@
                     <li><strong>Venta Total ($):</strong> Lo que ya ha sido facturado para esa línea.</li>
                     <li><strong>Por Facturar ($):</strong> El valor de los pedidos de venta que están confirmados pero aún no se han facturado.</li>
                     <li><strong>% Part.:</strong> Porcentaje de participación de la línea sobre la venta total.</li>
-                    <li><strong>Meta:</strong> La meta específica para esa línea.</li>
+                    <li><strong>Meta:</strong> La meta específica para esa línea, calculada a partir de los datos de "Metas por Cliente".</li>
                     <li><strong>Brecha:</strong> La diferencia entre la proyección (Venta + Por Facturar) y la meta de la línea.</li>
+                    <li><strong>% Avance:</strong> El progreso porcentual hacia la meta de la línea.</li>
                 </ul>
             </p>
             <h3><i class="bi bi-pie-chart-fill"></i>Gráficos de Análisis</h3>
@@ -247,59 +247,39 @@
             </p>
         </section>
 
-        <section id="dashboard-nacional">
-            <h2><i class="bi bi-flag-fill"></i>Dashboard Nacional por Línea</h2>
-            <p>
-                Accesible desde el menú de navegación, este dashboard se enfoca en el rendimiento de las ventas nacionales, desglosado por línea comercial y por vendedor.
-            </p>
-            <h3><i class="bi bi-calendar-month"></i>Filtros</h3>
-            <p>
-                Puedes filtrar los datos por <strong>Mes</strong> y por <strong>Línea Comercial</strong> para analizar períodos y equipos específicos.
-            </p>
-            <h3><i class="bi bi-people-fill"></i>Tabla de Rendimiento de Vendedores</h3>
-            <p>
-                El componente principal de esta vista es una tabla que muestra el rendimiento individual de cada vendedor del equipo seleccionado:
-                <ul>
-                    <li>Compara la <strong>Venta Total</strong> y la <strong>Venta IPN</strong> de cada vendedor contra sus metas mensuales correspondientes.</li>
-                    <li>Muestra el <strong>% de Avance</strong> para cada tipo de meta.</li>
-                </ul>
-            </p>
-        </section>
-
         <section id="gestion-metas-linea">
             <h2><i class="bi bi-bullseye"></i>Gestión de Metas (por Línea)</h2>
             <p>
-                Esta sección (<code>/meta</code>) permite establecer las metas de venta mensuales para cada línea comercial nacional y para E-commerce.
+                Esta sección (accesible desde el Dashboard Nacional) permite establecer las metas de venta mensuales para cada línea comercial nacional y para E-commerce. La interfaz ha sido rediseñada para ser más clara y moderna.
             </p>
             <ol>
                 <li><strong>Selecciona un mes:</strong> Usa el selector de la parte superior para elegir el mes para el cual deseas definir las metas.</li>
-                <li><strong>Ingresa las metas:</strong> Rellena los campos "Meta Total" y "Meta IPN" para cada línea comercial. Los totales se calculan automáticamente en la parte inferior.</li>
+                <li><strong>Ingresa las metas:</strong> Para cada línea comercial, verás una "tarjeta" individual. Rellena los campos "Meta Total" y "Meta IPN".</li>
+                <li><strong>Visualiza los totales:</strong> Una tarjeta de resumen en la parte inferior muestra la suma total de las metas que has ingresado, actualizándose en tiempo real.</li>
                 <li><strong>Guarda los cambios:</strong> Haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Google Sheets.</li>
             </ol>
-            <div class="note">
-                <strong><i class="bi bi-calculator-fill"></i>Cálculo Rápido de IPN:</strong> Puedes usar la calculadora de porcentaje en el encabezado de la columna "Meta IPN" para calcular rápidamente este valor como un porcentaje de la "Meta Total".
-            </div>
         </section>
 
-        <section id="gestion-metas-vendedor">
-            <h2><i class="bi bi-person-check-fill"></i>Gestión de Equipos y Metas (por Vendedor)</h2>
+        <section id="gestion-metas-cliente">
+            <h2><i class="bi bi-person-check-fill"></i>Gestión de Metas (por Cliente)</h2>
             <p>
-                Esta sección (<code>/metas_vendedor</code>) es una herramienta poderosa para configurar los equipos comerciales y asignar metas individuales a cada vendedor.
+                Esta sección, accesible desde el menú de navegación del Dashboard Internacional, es donde se definen las metas de venta anuales para cada cliente internacional. Estos datos son la base para los KPIs y la tabla de rendimiento del dashboard.
             </p>
-            <h3><i class="bi bi-person-plus-fill"></i>Asignación de Equipos</h3>
-            <p>
-                Para cada línea comercial (equipo), hay un campo de selección múltiple. Aquí puedes buscar y añadir los vendedores que pertenecen a ese equipo. Los nombres de los vendedores se obtienen directamente de Odoo.
-            </p>
-            <p>
-                Una vez que hayas asignado los vendedores a sus respectivos equipos, haz clic en el botón <strong>"Guardar Equipo"</strong> correspondiente. Esto actualizará la tabla de metas de abajo.
-            </p>
-            <h3><i class="bi bi-grid-3x3-gap-fill"></i>Tabla Pivot de Metas</h3>
-            <p>
-                Después de configurar los equipos, aparecerá una tabla pivotante. Esta tabla te permite ingresar la <strong>Meta Total</strong> y la <strong>Meta IPN</strong> para cada vendedor de cada equipo, para cada mes del año.
-            </p>
-            <p>
-                Cuando termines de ingresar todas las metas, haz clic en el botón <strong>"Guardar Todas las Metas"</strong> al final de la página para almacenar toda la información en Google Sheets.
-            </p>
+            <ol>
+                <li><strong>Selecciona un año:</strong> Usa el menú desplegable en la parte superior para elegir el año para el cual deseas ver o editar las metas.</li>
+                <li><strong>Ingresa las metas:</strong> La página muestra una tabla con todos los clientes internacionales. Para cada cliente, puedes ingresar la meta de venta anual en las columnas correspondientes a cada línea comercial (AGROVET, PETMEDICA, AVIVET).</li>
+                <li><strong>Cálculos automáticos:</strong>
+                    <ul>
+                        <li>La columna <strong>"Total Cliente ($)"</strong> se actualiza automáticamente a medida que ingresas los números, mostrando la meta total para cada cliente.</li>
+                        <li>La fila inferior <strong>"Total por Línea"</strong> suma las metas de todos los clientes para cada línea comercial.</li>
+                        <li>La celda <strong>"Total General"</strong> muestra la suma de todas las metas.</li>
+                    </ul>
+                </li>
+                <li><strong>Guarda los cambios:</strong> Cuando termines, haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Google Sheets y se usarán en el dashboard principal.</li>
+            </ol>
+            <div class="note">
+                <strong><i class="bi bi-check-circle-fill"></i>Persistencia de Datos:</strong> Después de guardar, los valores que ingresaste permanecerán en los campos, permitiéndote continuar editando o verificando sin que se borren.
+            </div>
         </section>
 
         <section id="vistas-detalladas">

@@ -162,11 +162,10 @@
         <ul>
             <li><a href="#introduccion">Introducción</a></li>
             <li><a href="#arquitectura-proyecto">Arquitectura del Proyecto</a></li>
-            <li><a href="#dependencias-versiones">Dependencias y Versiones</a></li>
+            <li><a href="#dependencias-versiones">Dependencias</a></li>
             <li><a href="#flujo-sales">Flujo de Datos: Ventas (/sales)</a></li>
             <li><a href="#flujo-pending">Flujo de Datos: Pendientes (/pending)</a></li>
             <li><a href="#sistema-cache">Sistema de Caché</a></li>
-            <li><a href="#seguridad-autenticacion">Seguridad y Autenticación</a></li>
             <li><a href="#integracion-google-sheets">Integración con Google Sheets</a></li>
             <li><a href="#logica-dashboards">Lógica de los Dashboards</a></li>
         </ul>
@@ -230,36 +229,29 @@
         </section>
 
         <section id="dependencias-versiones">
-            <h2><i class="bi bi-box-seam"></i> Dependencias y Versiones</h2>
+            <h2><i class="bi bi-box-seam"></i> Dependencias</h2>
             <p>
                 Las dependencias del proyecto se gestionan a través de un archivo <code>requirements.txt</code> (no incluido en el contexto, pero es una práctica estándar). A continuación se listan las tecnologías y librerías más importantes.
             </p>
 
             <h4>Backend</h4>
             <ul>
-                <li><strong>Python:</strong> Lenguaje principal (3.x).</li>
-                <li><strong>Flask (v3.0.3):</strong> Micro-framework web para la estructura de la aplicación.</li>
+                <li><strong>Python:</strong> Lenguaje principal.</li>
+                <li><strong>Flask:</strong> Micro-framework web para la estructura de la aplicación.</li>
                 <li><strong>xmlrpc.client:</strong> Librería nativa de Python para la comunicación con la API de Odoo.</li>
-                <li><strong>gspread (v6.0.2) & google-auth (v2.31.0):</strong> Para la autenticación y manipulación de Google Sheets.</li>
-                <li><strong>Pandas (v2.2.2):</strong> Utilizado para la manipulación avanzada y agregación de datos, especialmente para los gráficos jerárquicos.</li>
-                <li><strong>python-dotenv (v1.0.1):</strong> Para cargar las variables de entorno desde el archivo <code>.env</code>.</li>
-                <li><strong>openpyxl (v3.1.5):</strong> Para generar los archivos de exportación en formato <code>.xlsx</code>.</li>
-                <li><strong>Flask-Caching (v2.3.1):</strong> Para implementar el sistema de caché en memoria.</li>
+                <li><strong>gspread & google-auth:</strong> Para la autenticación y manipulación de Google Sheets.</li>
+                <li><strong>Pandas:</strong> Utilizado para la manipulación avanzada y agregación de datos.</li>
+                <li><strong>python-dotenv:</strong> Para cargar las variables de entorno desde el archivo <code>.env</code>.</li>
+                <li><strong>openpyxl:</strong> Para generar los archivos de exportación en formato <code>.xlsx</code>.</li>
+                <li><strong>Flask-Caching:</strong> Para implementar el sistema de caché en memoria.</li>
             </ul>
 
             <h4>Frontend</h4>
             <ul>
                 <li><strong>HTML5 & Jinja2:</strong> Para la estructura y el renderizado dinámico de las páginas.</li>
                 <li><strong>CSS3:</strong> Para el diseño y la apariencia visual.</li>
-                <li><strong>JavaScript:</strong> Para la interactividad del cliente, como la actualización de gráficos y la gestión de eventos.</li>
-                <li><strong>ECharts & Chart.js:</strong> Librerías de visualización de datos para crear los gráficos interactivos.</li>
-                <li><strong>Tom-Select:</strong> Para los selectores de búsqueda avanzados en la gestión de equipos.</li>
-            </ul>
-
-            <h4>Fuentes de Datos</h4>
-            <ul>
-                <li><strong>Odoo:</strong> Sistema ERP que actúa como la fuente principal de verdad para los datos de ventas, clientes y productos.</li>
-                <li><strong>Google Sheets:</strong> Utilizado como una base de datos ligera para almacenar las metas comerciales y la configuración de equipos.</li>
+                <li><strong>JavaScript:</strong> Para la interactividad del cliente (gráficos, eventos).</li>
+                <li><strong>ECharts & Chart.js:</strong> Librerías de visualización de datos.</li>
             </ul>
         </section>
 
@@ -563,11 +555,12 @@ def dashboard():
             <h4>Flujo de Datos</h4>
             <ol>
                 <li><strong>Obtención de Datos Crudos:</strong> La función llama a <code>data_manager.get_sales_lines()</code> para obtener todas las líneas de facturas del período y a <code>data_manager.get_pending_orders()</code> para los pedidos pendientes. Ambas llamadas se pueden filtrar por un <code>partner_id</code> (cliente).</li>
+                <li><strong>Obtención de Metas:</strong> Llama a <code>gs_manager.read_metas_por_cliente()</code> para obtener las metas anuales de todos los clientes.</li>
                 <li><strong>Cálculo de KPIs Principales:</strong>
                     <ul>
                         <li><strong>Ventas Totales del Año:</strong> Se calcula sumando el campo <code>amount_currency</code> de todos los registros devueltos por <code>get_sales_lines</code>.</li>
                         <li><strong>Total Por Facturar:</strong> Se calcula sumando el campo <code>total_pendiente</code> de todos los registros de <code>get_pending_orders</code>.</li>
-                        <li><strong>Meta y Brecha:</strong> La meta actualmente se establece en 0. La brecha es la diferencia entre la proyección (Ventas + Por Facturar) y esta meta.</li>
+                        <li><strong>Meta y Brecha:</strong> La meta se calcula sumando las metas de los clientes (o del cliente seleccionado). La brecha es la diferencia entre la proyección (Ventas + Por Facturar) y esta meta real.</li>
                     </ul>
                 </li>
                 <li><strong>Agregación para Tabla Principal:</strong>
@@ -575,6 +568,7 @@ def dashboard():
                         <li>Se inicializa un diccionario <code>ventas_por_linea</code>. Se itera sobre los datos de ventas y se agrupan las sumas de <code>amount_currency</code> por el nombre de la línea comercial internacional (<code>commercial_line_international_id</code>).</li>
                         <li>De forma similar, se itera sobre los datos pendientes y se agrupan en <code>por_facturar_por_linea</code>.</li>
                         <li>Finalmente, se combinan ambos diccionarios para construir la tabla que el usuario ve en pantalla.</li>
+                        <li>Para la columna "Meta" de la tabla, se suman las metas de los clientes correspondientes a cada línea comercial.</li>
                     </ul>
                 </li>
                 <li><strong>Preparación de Datos para Gráficos:</strong>
@@ -594,51 +588,8 @@ def dashboard():
                 </li>
                 <li><strong>Lógica para Cliente Seleccionado:</strong>
                     <ul>
-                        <li><strong>Tarjeta de Avance:</strong> Se buscan los datos del cliente seleccionado en los datos ya calculados para el gráfico de avance general y se pasan a la plantilla en la variable <code>avance_cliente_seleccionado</code>.</li>
-                        <li><strong>Gráfico de Avance por Pedido:</strong>
-                            <ol>
-                                <li>Se llama a la nueva función <code>data_manager.get_sale_orders_for_partner()</code> para obtener todos los pedidos de venta originales de ese cliente y su valor total (`amount_total`).</li>
-                                <li>Se itera sobre estos pedidos originales. Para cada uno, se establece el `total` de la barra del gráfico con su `amount_total`.</li>
-                                <li>Se buscan los montos `facturado` y `pendiente` para ese número de pedido en los diccionarios de agregación que ya se habían calculado.</li>
-                                <li>En el frontend (`dashboard_clean.html`), el JavaScript filtra estos datos para mostrar solo los pedidos que comienzan con 'S'.</li>
-                            </ol>
-                        </li>
-                    </ul>
-                </li>
-            </ol>
-
-            <h3>2. Dashboard Nacional por Línea (<code>/dashboard_linea</code>)</h3>
-            <p>
-                Esta vista se enfoca en el rendimiento de un equipo de ventas nacional específico durante un mes determinado, comparando sus ventas con las metas asignadas.
-            </p>
-            <h4>Flujo de Datos</h4>
-            <ol>
-                <li><strong>Recepción de Filtros:</strong> La función obtiene el mes (<code>mes_seleccionado</code>) y la línea comercial (<code>linea_seleccionada_nombre</code>) de los parámetros de la URL. También permite un filtro por día (<code>dia_fin</code>).</li>
-                <li><strong>Obtención de Datos Crudos:</strong>
-                    <ul>
-                        <li>Llama a <code>gs_manager.read_metas()</code> para obtener todas las metas de todos los vendedores desde Google Sheets.</li>
-                        <li>Llama a <code>data_manager.get_sales_lines()</code> para obtener las ventas del mes seleccionado.</li>
-                    </ul>
-                </li>
-                <li><strong>Filtrado y Procesamiento de Ventas:</strong>
-                    <ul>
-                        <li>Se itera sobre los datos de ventas y se descartan explícitamente las que pertenecen a "VENTA INTERNACIONAL".</li>
-                        <li>Se agrupan las ventas por vendedor (<code>invoice_user_id</code>) en diccionarios separados: <code>ventas_por_vendedor</code> (total) y <code>ventas_ipn_por_vendedor</code> (solo productos con `product_life_cycle == 'nuevo'`).</li>
-                        <li>Las notas de crédito o ajustes sin un vendedor asignado se suman en una variable separada (<code>ajustes_sin_vendedor</code>).</li>
-                    </ul>
-                </li>
-                <li><strong>Construcción de la Tabla de Vendedores:</strong>
-                    <ul>
-                        <li>Se obtiene la lista de miembros "oficiales" del equipo desde Google Sheets (<code>gs_manager.read_equipos()</code>).</li>
-                        <li>Se unifica esta lista con los IDs de los vendedores que tuvieron ventas reales en esa línea durante el mes (para incluir a vendedores que vendieron en la línea sin ser miembros oficiales).</li>
-                        <li>Se itera sobre esta lista unificada. Para cada vendedor, se obtienen sus ventas (de los diccionarios de agregación) y sus metas (del diccionario de metas de Google Sheets).</li>
-                        <li>Se construye la fila de la tabla para cada vendedor, calculando sus porcentajes de avance.</li>
-                    </ul>
-                </li>
-                <li><strong>Cálculo de KPIs de Línea:</strong>
-                    <ul>
-                        <li>Se suman las metas y ventas de todos los vendedores para obtener los totales de la línea.</li>
-                        <li>Se calculan los KPIs generales (avance total, avance IPN, ritmo diario requerido, etc.) que se muestran en la parte superior.</li>
+                        <li><strong>Cálculos Dinámicos:</strong> Si se detecta un <code>partner_id</code> en los filtros, los cálculos de KPIs y de la tabla principal se rehacen usando solo los datos de ventas y metas de ese cliente específico.</li>
+                        <li><strong>Visualización de Gráficos:</strong> En el frontend, el JavaScript detecta la presencia de <code>selectedClienteId</code> y alterna la visibilidad: oculta el gráfico general de clientes y muestra la tarjeta de avance y el gráfico de detalle de pedidos para el cliente seleccionado.</li>
                     </ul>
                 </li>
             </ol>

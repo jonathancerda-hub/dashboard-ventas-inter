@@ -18,6 +18,11 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 
+# Configuración de sesión
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
 # --- Configuración de Caché ---
 cache_config = {
     "CACHE_TYPE": "SimpleCache",  # Almacenamiento en memoria simple
@@ -159,24 +164,33 @@ def login():
 
             username = request.form.get('username')
             password = request.form.get('password')
+            
             user_data = data_manager.authenticate_user(username, password)
 
             if user_data:
                 # Verificar si el email del usuario está en la lista de permitidos
-                if user_data.get('login') in allowed_emails:
+                user_login = user_data.get('login')
+                
+                if user_login in allowed_emails:
                     session['username'] = user_data.get('login', username)
                     session['user_name'] = user_data.get('name', username)
+                    session.permanent = True  # Hacer la sesión permanente
+                    app.logger.info(f"Login exitoso: {session['username']}")
                     flash('¡Inicio de sesión exitoso!', 'success')
                     return redirect(url_for('dashboard'))
                 else:
+                    app.logger.warning(f"Usuario {user_login} no autorizado")
                     flash('No tienes permiso para acceder a esta aplicación.', 'danger')
                     return render_template('login.html')
             else:
+                app.logger.warning(f"Autenticación fallida para: {username}")
                 flash('Usuario o contraseña incorrectos.', 'danger')
                 return render_template('login.html')
         except FileNotFoundError:
+            app.logger.error("Archivo allowed_users.json no encontrado")
             flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
         except Exception as e:
+            app.logger.error(f"Error en login: {e}", exc_info=True)
             flash(f'Ocurrió un error inesperado: {e}', 'danger')
     
     return render_template('login.html')
@@ -360,10 +374,19 @@ def pending():
                              pagination=pagination_default)
 
 @app.route('/dashboard', methods=['GET', 'POST'])
-@cache.cached(timeout=600, query_string=True) # Cachea la respuesta por 10 mins, diferenciando por URL params
 def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
+    
+    # Construir una clave de caché única basada en los filtros
+    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
+    
+    # Intentar obtener datos de caché solo para GET requests
+    if request.method == 'GET':
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            app.logger.info(f"Sirviendo dashboard desde caché: {cache_key}")
+            return cached_data
     
     # Inicializar variables que necesitaremos en el except
     filter_options = {'lineas': [], 'clientes': []}
@@ -848,7 +871,7 @@ def dashboard():
                     'porcentaje': (data.get('facturado', 0) / total_pedido_cliente * 100) if total_pedido_cliente > 0 else 0
                 }
         
-        return render_template('dashboard_clean.html',
+        response = render_template('dashboard_clean.html',
                              sales_data=sales_data,
                              kpis=kpis, # kpis ahora se basa en el total del año
                              filter_options=filter_options,
@@ -883,6 +906,13 @@ def dashboard():
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
                              faltante_meta_ipn=0)
+        
+        # Guardar en caché solo para GET requests (5 minutos)
+        if request.method == 'GET':
+            cache.set(cache_key, response, timeout=300)
+            app.logger.info(f"Dashboard guardado en caché: {cache_key}")
+        
+        return response
     
     except Exception as e:
         # Informar al usuario y registrar el error

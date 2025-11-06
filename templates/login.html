@@ -100,7 +100,7 @@ body.login-bg {
                 {% endfor %}
             {% endif %}
         {% endwith %}
-    <form method="post" action="{{ url_for('login') }}" autocomplete="on" style="width: 100%; max-width: 326px; margin: 0 auto;">
+    <form method="post" action="{{ url_for('login') }}" autocomplete="on" style="width: 100%; max-width: 326px; margin: 0 auto;" onsubmit="showLoading()">
             <label for="username" class="agrovet-login-label">Email</label>
             <div style="position: relative; width: 100%;">
                 <span class="agrovet-login-icon"><i class="bi bi-person"></i></span>
@@ -111,12 +111,27 @@ body.login-bg {
                 <span class="agrovet-login-icon"><i class="bi bi-lock"></i></span>
                 <input type="password" class="agrovet-login-input" id="password" name="password" required autocomplete="current-password">
             </div>
-            <button type="submit" class="agrovet-login-btn">Log in</button>
+            <button type="submit" class="agrovet-login-btn" id="login-btn">Log in</button>
         </form>
     </div>
 </div>
 <script>
     document.body.classList.add('login-bg');
+    
+    // Ocultar el spinner de carga inmediatamente en la página de login
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+    
+    // Función para mostrar loading al hacer submit
+    function showLoading() {
+        const btn = document.getElementById('login-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Autenticando...';
+        }
+    }
 </script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 <script>
