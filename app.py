@@ -834,12 +834,25 @@ def dashboard():
         for cliente in all_clients:
             facturado = max(0, facturado_por_cliente.get(cliente, 0))
             pendiente = max(0, pendiente_por_cliente.get(cliente, 0))
-            total_pedido = facturado + pendiente
-            if total_pedido > 0:
+            # Intentar obtener la meta total del cliente desde las metas por cliente (si existe)
+            cliente_id = cliente_id_map.get(cliente)
+            total_meta_cliente = 0
+            if cliente_id and metas_clientes_año:
+                metas_del_cliente = metas_clientes_año.get(str(cliente_id), {})
+                # metas_del_cliente puede contener 'cliente_nombre' como clave, excluirla
+                total_meta_cliente = sum(v for k, v in metas_del_cliente.items() if k != 'cliente_nombre')
+
+            # Si existe una meta definida para el cliente, usarla como "Total Cliente ($)",
+            # en caso contrario usar la suma facturado + pendiente (fallback)
+            total_cliente = total_meta_cliente if total_meta_cliente > 0 else (facturado + pendiente)
+
+            if total_cliente > 0:
                 bullet_chart_data.append({
-                    'total_pedido': total_pedido,
+                    'total_cliente_meta': total_cliente,
                     'cliente': cliente,
-                    'facturado': facturado
+                    'facturado': facturado,
+                    'pendiente': pendiente,
+                    'cliente_id': cliente_id
                 })
         
         # Variables para el template
@@ -863,12 +876,12 @@ def dashboard():
             # Esto evita problemas con nombres inconsistentes como "BREMER LANKA (PVT) LTD."
             if len(bullet_chart_data) == 1:
                 data = bullet_chart_data[0]
-                total_pedido_cliente = data.get('total_pedido', 0)
+                total_cliente_meta_val = data.get('total_cliente_meta', 0)
                 avance_cliente_seleccionado = {
                     'nombre': data.get('cliente', nombre_cliente_seleccionado), # Usar el nombre de los datos, o el del filtro como fallback
                     'facturado': data.get('facturado', 0),
-                    'total_pedido': total_pedido_cliente,
-                    'porcentaje': (data.get('facturado', 0) / total_pedido_cliente * 100) if total_pedido_cliente > 0 else 0
+                    'total_cliente_meta': total_cliente_meta_val,
+                    'porcentaje': (data.get('facturado', 0) / total_cliente_meta_val * 100) if total_cliente_meta_val > 0 else 0
                 }
         
         response = render_template('dashboard_clean.html',
@@ -902,6 +915,14 @@ def dashboard():
                              pie_chart_data_by_level=pie_chart_data_by_level,
                              all_stacked_chart_data=all_stacked_chart_data,
                              pending_data=pending_data,
+                             # Avance agregado (suma de todos los clientes)
+                             aggregated_advance={
+                                 'facturado_total': total_sales_year,
+                                 'pendiente_total': total_por_facturar,
+                                 'meta_total': meta_total_general,
+                                 'porcentaje_facturado_sobre_meta': (total_sales_year / meta_total_general * 100) if meta_total_general > 0 else 0,
+                                 'porcentaje_proyectado_sobre_meta': ((total_sales_year + total_por_facturar) / meta_total_general * 100) if meta_total_general > 0 else 0
+                             },
                              avance_lineal_pct=0,
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
@@ -915,8 +936,7 @@ def dashboard():
         return response
     
     except Exception as e:
-        # Informar al usuario y registrar el error
-        flash('Ocurrió un error inesperado al cargar el dashboard. Por favor, intente de nuevo más tarde.', 'danger')
+        # Registrar el error en logs pero NO mostrar alertas al usuario en el dashboard
         app.logger.error(f"ERROR EN DASHBOARD: {str(e)}")
         app.logger.exception(e)
 

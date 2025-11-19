@@ -43,16 +43,7 @@
 
 <!-- Contenedor para mensajes flash -->
 <div class="container-fluid" style="padding: 0 20px;">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert" style="margin-bottom: 20px;">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    {# Mensajes ocultos en esta plantilla para evitar mostrar alerts en el dashboard. #}
 </div>
 
 <!-- Dashboard principal -->
@@ -81,8 +72,8 @@
         <div class="grid-item grid-2">
             <div class="kpi-row-compact">
                 <div class="kpi-card">
-                    <div class="kpi-label">Venta Proyectada del Año</div>
-                    <div class="kpi-value">$ {{ total_sales | format_number }}</div>
+                    <div class="kpi-label">Avance de Ventas</div>
+                    <div class="kpi-value">$ {{ kpis.venta_total | format_number }}</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Meta</div>
@@ -90,7 +81,7 @@
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Brecha Comercial ($)</div>
-                    <div class="kpi-value">$ {{ brecha_comercial | format_number }}</div>
+                    <div class="kpi-value">$ {{ ((meta_total_kpi if meta_total_kpi is defined else 0) - (kpis.venta_total if kpis and kpis.venta_total is defined else 0)) | format_number }}</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">%</div>
@@ -141,8 +132,9 @@
                             <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                             <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.meta) }}</td>
-                            <td>{{ "$ {:,.2f}".format(linea.brecha) }}</td>
-                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_avance_meta) }}</td>
+                            <td>{{ "$ {:,.2f}".format((linea.meta if linea.meta is defined else 0) - (linea.venta if linea.venta is defined else 0)) }}</td>
+                            {% set pct_linea = (linea.venta / linea.meta * 100) if (linea.meta is defined and (linea.meta|float) > 0) else 0 %}
+                            <td class="porcentaje">{{ "{:.1f}%".format(pct_linea) }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="7" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
@@ -155,14 +147,39 @@
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(meta_total_kpi) }}</strong></td>
-                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_brecha) }}</strong></td>
-                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(kpis.porcentaje_avance) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format((meta_total_kpi if meta_total_kpi is defined else 0) - (kpis.venta_total if kpis and kpis.venta_total is defined else 0)) }}</strong></td>
+                            {% set pct_total_kpi = (kpis.venta_total / meta_total_kpi * 100) if (meta_total_kpi is defined and (meta_total_kpi|float) > 0 and kpis and kpis.venta_total is defined) else 0 %}
+                            <td class="porcentaje"><strong>{{ "{:.1f}%".format(pct_total_kpi) }}</strong></td>
                         </tr>
                     </tfoot>
                 </table>
+
+                <!-- Avance agregado - tarjeta tipo bullet (Total Clientes) -->
+                <div class="avance-agrupado-card" style="margin-top:16px;">
+                    <div class="avance-cliente-card">
+                        <h3>Avance de Facturación - Total Clientes</h3>
+                        <div class="progress-bar-container">
+                            {% set pct_total = aggregated_advance.porcentaje_facturado_sobre_meta if aggregated_advance and aggregated_advance.porcentaje_facturado_sobre_meta is defined else 0 %}
+                            {% set color_class_total = 'progress-bar-green' if pct_total >= 80 else ('progress-bar-yellow' if pct_total >= 40 else 'progress-bar-red') %}
+
+                            <div class="progress-bar {{ color_class_total }}" style="width: {{ pct_total }}%;">
+                                <span>{{ "%.1f"|format(pct_total) }}%</span>
+                            </div>
+                        </div>
+                        <div class="progress-labels">
+                            <span>
+                                <strong>Facturado:</strong>
+                                $ {{ "{:,.2f}".format(aggregated_advance.facturado_total if aggregated_advance and aggregated_advance.facturado_total is defined else 0) }}
+                            </span>
+                            <span style="font-weight:600;">
+                                <strong>Total Cliente ($):</strong>
+                                $ {{ "{:,.2f}".format(aggregated_advance.meta_total if aggregated_advance and aggregated_advance.meta_total is defined else 0) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-
     </div>
     
     <!-- Tarjeta de Avance del Cliente Seleccionado (solo se muestra si hay un cliente) -->
@@ -184,8 +201,8 @@
                     $ {{ "{:,.2f}".format(avance_cliente_seleccionado.facturado) }}
                 </span>
                 <span> 
-                    <strong>Total Pedido:</strong>
-                    $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_pedido) }}
+                    <strong>Total Cliente ($):</strong>
+                    $ {{ "{:,.2f}".format(avance_cliente_seleccionado.total_cliente_meta if avance_cliente_seleccionado.total_cliente_meta is defined else (avance_cliente_seleccionado.total_pedido if avance_cliente_seleccionado.total_pedido is defined else 0)) }}
                 </span>
             </div>
         </div>
@@ -1017,12 +1034,20 @@ function crearGraficoLineas() {
     
     const labels = datosLineas.map(item => item.nombre);
     const dataVenta = datosLineas.map(item => item.venta || 0);
-    
+    const dataMeta = datosLineas.map(item => item.meta || 0);
+
     new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [
+                {
+                    label: 'Meta',
+                    data: dataMeta,
+                    backgroundColor: 'rgba(200,200,200,0.6)',
+                    borderColor: 'rgba(160,160,160,0.9)',
+                    borderWidth: 1
+                },
                 {
                     label: 'Venta Internacional del Año',
                     data: dataVenta,
@@ -1041,8 +1066,7 @@ function crearGraficoLineas() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context) =>
-                            `${context.dataset.label}: $ ${Math.round(context.parsed.y || 0).toLocaleString('en-US')}`
+                        label: (context) => `${context.dataset.label}: $ ${Math.round(context.parsed.y || 0).toLocaleString('en-US')}`
                     }
                 }
             },
@@ -1275,13 +1299,13 @@ function crearGraficoBullet() {
 
     // Preparar datos para el gráfico
     const clientes = bulletChartData.map(d => d.cliente);
-    const datosMeta = bulletChartData.map(d => Math.max(0, Number(d.total_pedido || 0))); // Revertido a total_pedido
+    const datosMeta = bulletChartData.map(d => Math.max(0, Number(d.total_cliente_meta || 0))); // Usar Total Cliente (meta) cuando exista
     const datosFacturado = bulletChartData.map(d => Math.max(0, Number(d.facturado || 0)));
 
     // Calcular porcentaje y asignar color según umbrales
     const porcentajes = datosMeta.map((meta, i) => {
         const fact = datosFacturado[i] || 0;
-        return meta > 0 ? Math.min(100, Math.round((fact / meta) * 1000) / 10) : 0;
+        return meta > 0 ? Math.min(100, Math.round((fact / (meta || 1)) * 1000) / 10) : 0;
     });
 
     const facturadoSeriesData = datosFacturado.map((valor, i) => {
@@ -1311,12 +1335,12 @@ function crearGraficoBullet() {
                 const idx = params[0].dataIndex;
                 const cliente = clientes[idx];
                 const fact = Math.round(datosFacturado[idx] || 0);
-                const meta = Math.round(datosMeta[idx] || 0); // 'meta' aquí es el total del pedido (revertido)
+                const meta = Math.round(datosMeta[idx] || 0); // 'meta' aquí es el Total Cliente ($) o fallback
                 const pct = porcentajes[idx] || 0;
                 return `${cliente}<br/>` +
                     `Facturado: $ ${fact.toLocaleString('en-US')}<br/>` +
-                    `Total Pedido: $ ${meta.toLocaleString('en-US')}<br/>` +
-                    `Avance: ${pct}%`;
+                    `Total Cliente ($): $ ${meta.toLocaleString('en-US')}<br/>` +
+                    `Avance: ${pct.toFixed(2)}%`;
             }
         },
         grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
@@ -1340,7 +1364,7 @@ function crearGraficoBullet() {
         }],
         series: [
             {
-                name: 'Total Pedido', // Revertido a Total Pedido
+                name: 'Total Cliente ($)',
                 type: 'bar',
                 barGap: '-100%',
                 barWidth: '22px',
