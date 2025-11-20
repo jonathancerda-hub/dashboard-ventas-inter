@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import logging
+import re
 
 # Load environment variables
 load_dotenv()
@@ -646,8 +647,12 @@ class OdooManager:
                     # 7. Producto
                     'producto': product.get('name', ''),
                     
-                    # 8. Descripción (usando el nombre del producto, igual que el campo 'producto')
-                    'descripcion': product.get('display_name', ''),
+                    # 8. Descripción: preferir la descripción de la sale.order.line (si fue encontrada),
+                    # luego la descripción de la línea contable (account.move.line.name),
+                    # y finalmente fallback al display_name del producto.
+                    # Compute description and extract measurement
+                    'descripcion': (sale_line.get('name') if isinstance(sale_line, dict) else None) or line.get('name') or product.get('display_name', ''),
+                    'medida': (lambda d: (re.findall(r"\(([^)]+)\)", d) or [None])[-1] if d else '')(((sale_line.get('name') if isinstance(sale_line, dict) else None) or line.get('name') or product.get('display_name', ''))),
                     
                     # 9. Línea Comercial
                     'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
@@ -878,7 +883,8 @@ class OdooManager:
                                     'commercial_line_national_id', 'commercial_line_international_id',
                                     'pharmacological_classification_id',
                                     'pharmaceutical_forms_id', 'administration_way_id', 'production_line_id'
-                                ]
+                                ],
+                                'context': {'lang': 'es_PE'}
                             }
                         )
                         product_data = {product['id']: product for product in products}
@@ -953,7 +959,9 @@ class OdooManager:
                             'mes': mes,
                             'codigo_odoo': product.get('default_code', ''),
                             'producto': product.get('name', ''),
-                            'descripcion': product.get('display_name', ''),
+                            # Preferir la descripción de la propia línea y finalmente el display_name del producto.
+                            'descripcion': line.get('name') or product.get('display_name', ''),
+                            'medida': (lambda d: (re.findall(r"\(([^)]+)\)", d) or [None])[-1] if d else '')(line.get('name') or product.get('display_name', '')),
                             'linea_comercial': commercial_line_id[1] if commercial_line_id and len(commercial_line_id) > 1 else '',
                             'clasificacion_farmacologica': product.get('pharmacological_classification_id')[1] if product.get('pharmacological_classification_id') and isinstance(product.get('pharmacological_classification_id'), list) and len(product.get('pharmacological_classification_id')) > 1 else '',
                             'formas_farmaceuticas': product.get('pharmaceutical_forms_id')[1] if product.get('pharmaceutical_forms_id') and isinstance(product.get('pharmaceutical_forms_id'), list) and len(product.get('pharmaceutical_forms_id')) > 1 else '',
