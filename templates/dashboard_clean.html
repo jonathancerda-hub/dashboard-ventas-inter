@@ -117,11 +117,11 @@
                         <tr>
                             <th>Línea Comercial</th>
                             <th>Venta Total ($)</th>
-                            <th>Por Facturar ($)</th>
                             <th>% Part.</th>
                             <th>Meta</th>
                             <th>Brecha</th>
                             <th>% Avance</th>
+                            <th>Por Facturar ($)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -129,12 +129,12 @@
                         <tr>
                             <td class="text-left">{{ linea.nombre }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.venta) }}</td>
-                            <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                             <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.meta) }}</td>
                             <td>{{ "$ {:,.2f}".format((linea.meta if linea.meta is defined else 0) - (linea.venta if linea.venta is defined else 0)) }}</td>
                             {% set pct_linea = (linea.venta / linea.meta * 100) if (linea.meta is defined and (linea.meta|float) > 0) else 0 %}
                             <td class="porcentaje">{{ "{:.1f}%".format(pct_linea) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="7" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
@@ -144,16 +144,17 @@
                         <tr>
                             <td class="text-left"><strong>Total</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
-                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td class="porcentaje"><strong>100.0%</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(meta_total_kpi) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format((meta_total_kpi if meta_total_kpi is defined else 0) - (kpis.venta_total if kpis and kpis.venta_total is defined else 0)) }}</strong></td>
                             {% set pct_total_kpi = (kpis.venta_total / meta_total_kpi * 100) if (meta_total_kpi is defined and (meta_total_kpi|float) > 0 and kpis and kpis.venta_total is defined) else 0 %}
                             <td class="porcentaje"><strong>{{ "{:.1f}%".format(pct_total_kpi) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                         </tr>
                     </tfoot>
                 </table>
 
+                {% if not selected_filters.cliente_id %}
                 <!-- Avance agregado - tarjeta tipo bullet (Total Clientes) -->
                 <div class="avance-agrupado-card" style="margin-top:16px;">
                     <div class="avance-cliente-card">
@@ -178,6 +179,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
