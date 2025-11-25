@@ -588,7 +588,7 @@ class OdooManager:
                 
                 # APLICAR CAMBIO: Reemplazar línea comercial para usuarios ECOMMERCE específicos
                 # Se hace aquí para que el commercial_line_national_id original esté disponible para otros cálculos si es necesario
-                commercial_line_id = product.get('commercial_line_national_id')
+                commercial_line_id = product.get('commercial_line_international_id')
                 invoice_user = move.get('invoice_user_id')
 
                 # Crear registro con los 16 campos solicitados en orden específico
