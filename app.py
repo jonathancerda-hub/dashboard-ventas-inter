@@ -176,7 +176,7 @@ def login():
                     session['user_name'] = user_data.get('name', username)
                     session.permanent = True  # Hacer la sesión permanente
                     app.logger.info(f"Login exitoso: {session['username']}")
-                    flash('¡Inicio de sesión exitoso!', 'success')
+                    # flash('¡Inicio de sesión exitoso!', 'success')  # Mensaje deshabilitado
                     return redirect(url_for('dashboard'))
                 else:
                     app.logger.warning(f"Usuario {user_login} no autorizado")
