@@ -223,8 +223,62 @@
 
     <!-- Gráfico de Avance por Pedido (siempre existe, pero se muestra/oculta con JS) -->
     <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
-        <h3>Avance por Pedido ({{ avance_cliente_seleccionado.nombre }})</h3>
+        <h3>
+            Avance por Pedido ({{ avance_cliente_seleccionado.nombre }})
+            <button id="btn-toggle-productos-cliente" style="margin-left: 15px; padding: 8px 16px; font-size: 13px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="toggleProductosCliente()">
+                📦 Productos
+            </button>
+        </h3>
         <div id="grafico-bullet-pedidos" style="width: 100%; min-height: 500px;"></div>
+    </div>
+    
+    <!-- Tabla de Productos del Cliente (se muestra al hacer clic en el botón) -->
+    <div class="grafico-echarts" id="container-productos-cliente" style="display: none; margin-top: 20px;">
+        <h3>
+            Productos del Cliente - {{ avance_cliente_seleccionado.nombre }}
+            <button style="margin-left: 15px; padding: 8px 16px; font-size: 13px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="toggleProductosCliente()">
+                ✕ Cerrar
+            </button>
+        </h3>
+        
+        <!-- Filtros -->
+        <div style="margin-bottom: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 8px;">
+            <label style="margin-right: 20px; font-weight: 600;">
+                <input type="radio" name="filtro-estado" value="todos" onchange="filtrarProductosCliente()"> Todos
+            </label>
+            <label style="margin-right: 20px; font-weight: 600;">
+                <input type="radio" name="filtro-estado" value="facturado" onchange="filtrarProductosCliente()"> Facturado
+            </label>
+            <label style="margin-right: 20px; font-weight: 600;">
+                <input type="radio" name="filtro-estado" value="pendiente" checked onchange="filtrarProductosCliente()"> Por Facturar
+            </label>
+            
+            <label style="margin-left: 30px; font-weight: 600;">
+                Línea Comercial:
+                <select id="filtro-linea-comercial" onchange="filtrarProductosCliente()" style="padding: 6px 12px; margin-left: 10px; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="todas">Todas</option>
+                </select>
+            </label>
+        </div>
+        
+        <!-- Tabla de productos -->
+        <div style="overflow-x: auto;">
+            <table id="tabla-productos-cliente" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <thead style="background-color: #875A7B; color: white;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Código</th>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Producto</th>
+                        <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Línea Comercial</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Cantidad</th>
+                        <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Monto Total</th>
+                        <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-productos-cliente">
+                    <!-- Se llenará con JavaScript -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
@@ -1069,6 +1123,222 @@ function resetearProductos() {
         btnReset.style.display = 'none';
     }
 }
+
+// === FUNCIONES PARA TABLA DE PRODUCTOS DEL CLIENTE ===
+
+// Variable global para almacenar productos procesados
+let productosClienteGlobal = [];
+
+// Toggle entre vista de pedidos y vista de productos
+function toggleProductosCliente() {
+    const containerPedidos = document.getElementById('container-grafico-pedidos');
+    const containerProductos = document.getElementById('container-productos-cliente');
+    
+    if (containerProductos.style.display === 'none') {
+        // Mostrar tabla de productos
+        containerPedidos.style.display = 'none';
+        containerProductos.style.display = 'block';
+        
+        // Limpiar y procesar datos
+        productosClienteGlobal = [];
+        procesarProductosCliente();
+        
+        // Aplicar filtros
+        filtrarProductosCliente();
+    } else {
+        // Volver a vista de pedidos
+        containerProductos.style.display = 'none';
+        containerPedidos.style.display = 'block';
+    }
+}
+
+// Procesar productos del cliente seleccionado
+function procesarProductosCliente() {
+    if (!selectedClienteId) return;
+    
+    const productosMap = new Map();
+    
+    // Procesar ventas facturadas
+    (salesDataAll || []).forEach(sale => {
+        let partnerId = null;
+        if (sale.partner_id) {
+            partnerId = Array.isArray(sale.partner_id) ? sale.partner_id[0] : sale.partner_id;
+        } else if (sale.partner) {
+            partnerId = Array.isArray(sale.partner) ? sale.partner[0] : sale.partner;
+        } else if (sale.cliente_id) {
+            partnerId = sale.cliente_id;
+        }
+        
+        if (String(partnerId) === String(selectedClienteId)) {
+            const productoKey = sale.producto || sale.product_id || sale.name || 'Sin Producto';
+            const productoNombre = sale.descripcion || sale.producto || sale.name || 'Sin Descripción';
+            const productoCodigo = sale.default_code || sale.codigo_odoo || 'S/C';
+            const lineaComercial = sale.linea_comercial || 'Sin Línea';
+            const cantidad = parseFloat(sale.cantidad_facturada || 0);
+            const monto = parseFloat(sale.amount_currency || 0);
+            
+            if (!productosMap.has(productoKey)) {
+                productosMap.set(productoKey, {
+                    codigo: productoCodigo,
+                    nombre: productoNombre,
+                    linea: lineaComercial,
+                    cantidadFacturada: 0,
+                    cantidadPendiente: 0,
+                    montoFacturado: 0,
+                    montoPendiente: 0
+                });
+            }
+            
+            const producto = productosMap.get(productoKey);
+            producto.cantidadFacturada += cantidad;
+            producto.montoFacturado += monto;
+        }
+    });
+    
+    // Procesar pedidos pendientes
+    (pendingDataAll || []).forEach(order => {
+        let partnerId = null;
+        if (order.partner_id) {
+            partnerId = Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id;
+        } else if (order.partner) {
+            partnerId = Array.isArray(order.partner) ? order.partner[0] : order.partner;
+        } else if (order.cliente_id) {
+            partnerId = order.cliente_id;
+        }
+        
+        if (String(partnerId) === String(selectedClienteId)) {
+            const productoKey = order.producto || order.product_id || 'Sin Producto';
+            const productoNombre = order.descripcion || order.producto || 'Sin Descripción';
+            const productoCodigo = order.codigo_odoo || order.default_code || 'S/C';
+            const lineaComercial = order.linea_comercial || 'Sin Línea';
+            const cantidad = parseFloat(order.cantidad_pendiente || 0);
+            const monto = parseFloat(order.total_pendiente || 0);
+            
+            if (!productosMap.has(productoKey)) {
+                productosMap.set(productoKey, {
+                    codigo: productoCodigo,
+                    nombre: productoNombre,
+                    linea: lineaComercial,
+                    cantidadFacturada: 0,
+                    cantidadPendiente: 0,
+                    montoFacturado: 0,
+                    montoPendiente: 0
+                });
+            }
+            
+            const producto = productosMap.get(productoKey);
+            producto.cantidadPendiente += cantidad;
+            producto.montoPendiente += monto;
+        }
+    });
+    
+    // Convertir mapa a array
+    productosClienteGlobal = Array.from(productosMap.values());
+    
+    // Poblar selector de líneas comerciales
+    const lineasUnicas = [...new Set(productosClienteGlobal.map(p => p.linea))].sort();
+    const selectLinea = document.getElementById('filtro-linea-comercial');
+    selectLinea.innerHTML = '<option value="todas">Todas</option>';
+    lineasUnicas.forEach(linea => {
+        selectLinea.innerHTML += `<option value="${linea}">${linea}</option>`;
+    });
+}
+
+// Filtrar y mostrar productos según los filtros seleccionados
+function filtrarProductosCliente() {
+    const estadoSeleccionado = document.querySelector('input[name="filtro-estado"]:checked').value;
+    const lineaSeleccionada = document.getElementById('filtro-linea-comercial').value;
+    
+    let productosFiltrados = productosClienteGlobal.filter(producto => {
+        // Filtro por línea comercial
+        if (lineaSeleccionada !== 'todas' && producto.linea !== lineaSeleccionada) {
+            return false;
+        }
+        
+        // Filtro por estado
+        if (estadoSeleccionado === 'facturado' && producto.cantidadFacturada === 0) {
+            return false;
+        }
+        if (estadoSeleccionado === 'pendiente' && producto.cantidadPendiente === 0) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // Ordenar por cantidad total descendente
+    productosFiltrados.sort((a, b) => {
+        const totalA = a.cantidadFacturada + a.cantidadPendiente;
+        const totalB = b.cantidadFacturada + b.cantidadPendiente;
+        return totalB - totalA;
+    });
+    
+    // Renderizar tabla
+    renderizarTablaProductos(productosFiltrados, estadoSeleccionado);
+}
+
+// Renderizar la tabla de productos
+function renderizarTablaProductos(productos, filtroEstado) {
+    const tbody = document.getElementById('tbody-productos-cliente');
+    
+    if (productos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #999;">No hay productos que coincidan con los filtros seleccionados</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    productos.forEach(producto => {
+        const cantidadTotal = producto.cantidadFacturada + producto.cantidadPendiente;
+        const montoTotal = producto.montoFacturado + producto.montoPendiente;
+        
+        // Determinar qué mostrar según el filtro
+        let cantidad, monto, estado, colorEstado;
+        if (filtroEstado === 'facturado') {
+            cantidad = producto.cantidadFacturada;
+            monto = producto.montoFacturado;
+            estado = 'Facturado';
+            colorEstado = '#27ae60';
+        } else if (filtroEstado === 'pendiente') {
+            cantidad = producto.cantidadPendiente;
+            monto = producto.montoPendiente;
+            estado = 'Por Facturar';
+            colorEstado = '#e67e22';
+        } else {
+            cantidad = cantidadTotal;
+            monto = montoTotal;
+            // Estado combinado
+            if (producto.cantidadFacturada > 0 && producto.cantidadPendiente > 0) {
+                estado = 'Mixto';
+                colorEstado = '#3498db';
+            } else if (producto.cantidadFacturada > 0) {
+                estado = 'Facturado';
+                colorEstado = '#27ae60';
+            } else {
+                estado = 'Por Facturar';
+                colorEstado = '#e67e22';
+            }
+        }
+        
+        html += `
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; border: 1px solid #ddd;">${producto.codigo}</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">${producto.nombre}</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">${producto.linea}</td>
+                <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-weight: 600;">${cantidad.toFixed(2)}</td>
+                <td style="padding: 10px; text-align: right; border: 1px solid #ddd; font-weight: 600;">$${monto.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">
+                    <span style="padding: 4px 12px; border-radius: 12px; background-color: ${colorEstado}22; color: ${colorEstado}; font-weight: 600; font-size: 12px;">
+                        ${estado}
+                    </span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+// === FIN FUNCIONES TABLA DE PRODUCTOS ===
 
 // Gráfico de Líneas Comerciales (Barras Verticales)
 let lineasChart = null; // Variable global para el gráfico de líneas
