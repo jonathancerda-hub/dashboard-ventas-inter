@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRD - Dashboard de Ventas Internacional</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .metadata {
+            background: #f8f9fa;
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metadata-label {
+            font-weight: 600;
+            color: #6c757d;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .metadata-value {
+            color: #212529;
+            font-size: 1rem;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        section {
+            margin-bottom: 3rem;
+        }
+
+        h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #667eea;
+        }
+
+        h3 {
+            color: #764ba2;
+            font-size: 1.4rem;
+            margin: 1.5rem 0 0.8rem 0;
+        }
+
+        h4 {
+            color: #495057;
+            font-size: 1.1rem;
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #495057;
+        }
+
+        ul, ol {
+            margin-left: 2rem;
+        }
+
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .tech-category {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .tech-category h4 {
+            color: #667eea;
+            margin-top: 0;
+        }
+
+        .tech-list {
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .tech-list li {
+            padding: 0.3rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .tech-list li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #764ba2;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .feature-card h4 {
+            color: #667eea;
+            margin-top: 0;
+            margin-bottom: 0.8rem;
+            font-size: 1.2rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-development {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .goals {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .goals ul {
+            margin-bottom: 0;
+        }
+
+        .data-flow {
+            background: white;
+            padding: 1.5rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .flow-step {
+            padding: 1rem;
+            margin: 0.5rem 0;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 4px;
+            position: relative;
+            padding-left: 3rem;
+        }
+
+        .flow-step:before {
+            content: attr(data-step);
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            color: #667eea;
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .user-stories {
+            background: #f8f9fa;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #764ba2;
+            border-radius: 4px;
+        }
+
+        .user-stories strong {
+            color: #764ba2;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: white;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        footer {
+            background: #212529;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .print-button {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s;
+        }
+
+        .print-button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(118, 75, 162, 0.4);
+        }
+
+        @media print {
+            .print-button {
+                display: none;
+            }
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            .content {
+                padding: 1rem;
+            }
+            .print-button {
+                bottom: 1rem;
+                right: 1rem;
+                padding: 0.8rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Product Requirements Document</h1>
+            <div class="subtitle">Dashboard de Ventas Internacional</div>
+        </header>
+
+        <div class="metadata">
+            <div class="metadata-grid">
+                <div class="metadata-item">
+                    <span class="metadata-label">Proyecto</span>
+                    <span class="metadata-value">Dashboard de Ventas Farmacéuticas</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Versión</span>
+                    <span class="metadata-value">1.0</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Fecha</span>
+                    <span class="metadata-value">Diciembre 2025</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Estado</span>
+                    <span class="metadata-value"><span class="status-badge status-active">Activo</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <section id="executive-summary">
+                <h2>1. Resumen Ejecutivo</h2>
+                <p>
+                    El Dashboard de Ventas Internacional es una aplicación web desarrollada en Flask que funciona como 
+                    sistema de inteligencia de negocios para el área de ventas internacionales de una empresa farmacéutica. 
+                    La plataforma se conecta en tiempo real con el sistema ERP Odoo y Google Sheets para visualizar, 
+                    analizar y gestionar datos de ventas, pedidos y metas comerciales.
+                </p>
+                
+                <div class="goals">
+                    <h4>Objetivos del Proyecto</h4>
+                    <ul>
+                        <li>Proporcionar visibilidad en tiempo real del desempeño comercial internacional</li>
+                        <li>Facilitar el seguimiento de metas de venta por cliente y línea comercial</li>
+                        <li>Automatizar el cálculo de KPIs y métricas comerciales</li>
+                        <li>Simplificar el análisis de datos mediante visualizaciones interactivas</li>
+                        <li>Reducir el tiempo de generación de reportes comerciales</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="problem-statement">
+                <h2>2. Problema a Resolver</h2>
+                <p>
+                    El equipo de ventas internacionales enfrentaba desafíos significativos en la gestión y análisis 
+                    de información comercial:
+                </p>
+                <ul>
+                    <li><strong>Dispersión de Datos:</strong> Información fragmentada entre Odoo, hojas de cálculo y reportes manuales</li>
+                    <li><strong>Falta de Visibilidad:</strong> Dificultad para obtener una vista consolidada del desempeño por cliente</li>
+                    <li><strong>Procesos Manuales:</strong> Generación manual de reportes que consume tiempo valioso del equipo comercial</li>
+                    <li><strong>Seguimiento de Metas:</strong> Ausencia de un sistema unificado para comparar ventas reales vs objetivos</li>
+                    <li><strong>Análisis Limitado:</strong> Carencia de herramientas para drill-down y análisis multidimensional</li>
+                </ul>
+            </section>
+
+            <section id="solution">
+                <h2>3. Solución Propuesta</h2>
+                <p>
+                    Dashboard web centralizado que integra múltiples fuentes de datos y proporciona análisis 
+                    visual en tiempo real del desempeño comercial internacional.
+                </p>
+
+                <h3>3.1 Arquitectura del Sistema</h3>
+                <div class="tech-stack">
+                    <div class="tech-category">
+                        <h4>Backend</h4>
+                        <ul class="tech-list">
+                            <li><strong>Python 3.x</strong> - Lenguaje de programación principal</li>
+                            <li><strong>Flask</strong> - Framework web ligero</li>
+                            <li><strong>xmlrpc.client</strong> - Comunicación con API Odoo</li>
+                            <li><strong>Pandas</strong> - Manipulación y análisis de datos</li>
+                            <li><strong>gspread</strong> - Integración con Google Sheets</li>
+                        </ul>
+                    </div>
+                    <div class="tech-category">
+                        <h4>Frontend</h4>
+                        <ul class="tech-list">
+                            <li><strong>HTML5 & Jinja2</strong> - Estructura y templates</li>
+                            <li><strong>CSS3</strong> - Estilos personalizados</li>
+                            <li><strong>JavaScript</strong> - Interactividad</li>
+                            <li><strong>ECharts</strong> - Gráficos interactivos avanzados</li>
+                            <li><strong>Chart.js</strong> - Visualizaciones adicionales</li>
+                        </ul>
+                    </div>
+                    <div class="tech-category">
+                        <h4>Fuentes de Datos</h4>
+                        <ul class="tech-list">
+                            <li><strong>Odoo ERP</strong> - Datos de ventas, pedidos, clientes</li>
+                            <li><strong>Google Sheets</strong> - Gestión de metas y equipos</li>
+                            <li><strong>XML-RPC API</strong> - Protocolo de integración</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>3.2 Flujo de Datos</h3>
+                <div class="data-flow">
+                    <div class="flow-step" data-step="1">
+                        <strong>Petición del Usuario:</strong> Navegación a una URL específica (ej. /dashboard)
+                    </div>
+                    <div class="flow-step" data-step="2">
+                        <strong>Autenticación:</strong> Verificación de sesión activa contra usuarios de Odoo
+                    </div>
+                    <div class="flow-step" data-step="3">
+                        <strong>Recolección de Datos:</strong> OdooManager obtiene ventas y pendientes; GoogleSheetsManager obtiene metas
+                    </div>
+                    <div class="flow-step" data-step="4">
+                        <strong>Procesamiento:</strong> Agregación, cálculo de KPIs y preparación de datasets para gráficos
+                    </div>
+                    <div class="flow-step" data-step="5">
+                        <strong>Renderizado:</strong> Generación de HTML con datos inyectados via Jinja2
+                    </div>
+                    <div class="flow-step" data-step="6">
+                        <strong>Visualización:</strong> JavaScript carga gráficos interactivos en el navegador
+                    </div>
+                </div>
+            </section>
+
+            <section id="features">
+                <h2>4. Funcionalidades Principales</h2>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>🔐 Autenticación Segura</h4>
+                        <p>Sistema de login/logout integrado con base de datos de usuarios de Odoo. Control de acceso basado en whitelist de emails autorizados.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>📊 Dashboard Internacional</h4>
+                        <p>Vista principal con KPIs en tiempo real: ventas totales, meta anual, brecha comercial, avance porcentual. Filtrado dinámico por cliente.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>📈 Análisis por Línea Comercial</h4>
+                        <p>Tabla consolidada mostrando ventas, pendientes, metas y % de avance por cada línea comercial internacional (AGROVET, PETMEDICA, AVIVET).</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>🎯 Seguimiento por Cliente</h4>
+                        <p>Tarjeta de avance individual con barra de progreso y semáforo (rojo/amarillo/verde). Gráfico detallado del avance por pedido de venta.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>🔍 Drill-Down Jerárquico</h4>
+                        <p>Exploración interactiva de ventas: Clasificación Farmacológica → Forma Farmacéutica → Vía Administración → Línea Producción → Producto.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>📋 Vistas Detalladas</h4>
+                        <p>Tablas paginadas de ventas facturadas (/sales) y pedidos pendientes (/pending) con filtros avanzados por fecha, cliente y búsqueda de texto.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>📥 Exportación a Excel</h4>
+                        <p>Generación de reportes Excel con formato profesional para ventas facturadas y pendientes, incluyendo 17 columnas de información detallada.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>🎯 Gestión de Metas</h4>
+                        <p>Interfaces para configurar metas anuales por cliente y línea comercial. Integración con Google Sheets para persistencia y colaboración.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>👥 Dashboard por Línea (Nacional)</h4>
+                        <p>Vista especializada para análisis de ventas nacionales por equipo comercial, con seguimiento de metas mensuales por vendedor.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>⚡ Caché Inteligente</h4>
+                        <p>Sistema de caché en memoria (SimpleCache) para reducir consultas a Odoo y mejorar tiempos de respuesta en dashboard principal.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>🌐 Contexto Multiidioma</h4>
+                        <p>Soporte para español (PE) en lectura de datos desde Odoo, asegurando nombres correctos de productos sin sufijos de traducción.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>💰 Manejo de Divisas</h4>
+                        <p>Cálculos en USD ($) usando amount_currency. Formateo automático con separadores de miles y símbolos de moneda apropiados.</p>
+                    </div>
+                </div>
+
+                <h3>4.1 Campos de Datos Exportados</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Campo</th>
+                            <th>Descripción</th>
+                            <th>Fuente Odoo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Pedido</td>
+                            <td>Número de orden de venta</td>
+                            <td>sale.order.name</td>
+                        </tr>
+                        <tr>
+                            <td>Factura</td>
+                            <td>Número de factura contabilizada</td>
+                            <td>account.move.name</td>
+                        </tr>
+                        <tr>
+                            <td>Cliente</td>
+                            <td>Nombre del cliente internacional</td>
+                            <td>res.partner.name</td>
+                        </tr>
+                        <tr>
+                            <td>País</td>
+                            <td>País de destino de la exportación</td>
+                            <td>res.country.name</td>
+                        </tr>
+                        <tr>
+                            <td>Fecha</td>
+                            <td>Fecha de facturación</td>
+                            <td>account.move.invoice_date</td>
+                        </tr>
+                        <tr>
+                            <td>Código Odoo</td>
+                            <td>Código interno del producto</td>
+                            <td>product.product.default_code</td>
+                        </tr>
+                        <tr>
+                            <td>Producto</td>
+                            <td>Nombre del producto en español (PE)</td>
+                            <td>product.product.name</td>
+                        </tr>
+                        <tr>
+                            <td>Descripción</td>
+                            <td>Descripción completa de la línea (incluye medida)</td>
+                            <td>sale.order.line.name / account.move.line.name</td>
+                        </tr>
+                        <tr>
+                            <td>Línea Comercial</td>
+                            <td>Línea comercial internacional</td>
+                            <td>product.commercial_line_international_id</td>
+                        </tr>
+                        <tr>
+                            <td>Clasificación Farmacológica</td>
+                            <td>Categoría terapéutica del producto</td>
+                            <td>product.pharmacological_classification_id</td>
+                        </tr>
+                        <tr>
+                            <td>Formas Farmacéuticas</td>
+                            <td>Presentación del producto</td>
+                            <td>product.pharmaceutical_forms_id</td>
+                        </tr>
+                        <tr>
+                            <td>Vía de Administración</td>
+                            <td>Modo de uso del producto</td>
+                            <td>product.administration_way_id</td>
+                        </tr>
+                        <tr>
+                            <td>Línea de Producción</td>
+                            <td>Familia de productos</td>
+                            <td>product.production_line_id</td>
+                        </tr>
+                        <tr>
+                            <td>Cantidad</td>
+                            <td>Unidades facturadas o pendientes</td>
+                            <td>account.move.line.quantity / sale.order.line.qty_to_invoice</td>
+                        </tr>
+                        <tr>
+                            <td>Precio Unitario</td>
+                            <td>Precio por unidad en USD</td>
+                            <td>price_unit</td>
+                        </tr>
+                        <tr>
+                            <td>Total</td>
+                            <td>Monto total de la línea en USD</td>
+                            <td>amount_currency (invertido)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="user-stories">
+                <h2>5. Historias de Usuario</h2>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Gerente de Ventas Internacionales,<br>
+                    <strong>Quiero</strong> ver en tiempo real el avance de facturación por cliente,<br>
+                    <strong>Para</strong> identificar rápidamente clientes que requieren atención o están por debajo de su meta.
+                </div>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Analista Comercial,<br>
+                    <strong>Quiero</strong> exportar datos detallados de ventas a Excel,<br>
+                    <strong>Para</strong> realizar análisis adicionales y compartir reportes con stakeholders.
+                </div>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Jefe de Línea Comercial,<br>
+                    <strong>Quiero</strong> visualizar el desempeño por producto dentro de mi línea,<br>
+                    <strong>Para</strong> tomar decisiones informadas sobre estrategias de ventas y promoción.
+                </div>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Director Comercial,<br>
+                    <strong>Quiero</strong> comparar ventas reales vs metas por línea comercial,<br>
+                    <strong>Para</strong> evaluar el desempeño general del área y ajustar estrategias.
+                </div>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Ejecutivo de Ventas,<br>
+                    <strong>Quiero</strong> ver el detalle de pedidos pendientes de facturar por cliente,<br>
+                    <strong>Para</strong> hacer seguimiento y priorizar las gestiones de cobro/facturación.
+                </div>
+
+                <div class="user-stories">
+                    <strong>Como</strong> Administrador del Sistema,<br>
+                    <strong>Quiero</strong> configurar metas anuales por cliente de forma sencilla,<br>
+                    <strong>Para</strong> mantener actualizado el sistema sin depender de TI.
+                </div>
+            </section>
+
+            <section id="technical-requirements">
+                <h2>6. Requisitos Técnicos</h2>
+
+                <h3>6.1 Requisitos Funcionales</h3>
+                <ul>
+                    <li>El sistema DEBE autenticar usuarios contra la base de datos de Odoo</li>
+                    <li>El sistema DEBE filtrar solo usuarios autorizados mediante whitelist</li>
+                    <li>El dashboard DEBE mostrar datos en tiempo real (máximo 5 minutos de caché)</li>
+                    <li>Los filtros de cliente DEBEN recalcular todos los KPIs y gráficos dinámicamente</li>
+                    <li>Las exportaciones a Excel DEBEN incluir los 17 campos especificados</li>
+                    <li>Los gráficos DEBEN ser interactivos y permitir drill-down</li>
+                    <li>El sistema DEBE soportar paginación en vistas de tablas (configurable: 100, 500, 1000 registros)</li>
+                    <li>Las metas DEBEN poder configurarse por año/mes y persistirse en Google Sheets</li>
+                </ul>
+
+                <h3>6.2 Requisitos No Funcionales</h3>
+                <ul>
+                    <li><strong>Rendimiento:</strong> Tiempo de carga del dashboard < 3 segundos con caché</li>
+                    <li><strong>Escalabilidad:</strong> Soporte para mínimo 50 usuarios simultáneos</li>
+                    <li><strong>Disponibilidad:</strong> 99% uptime durante horario laboral</li>
+                    <li><strong>Seguridad:</strong> Sesiones con timeout de 24 horas, credenciales en variables de entorno</li>
+                    <li><strong>Usabilidad:</strong> Interfaz intuitiva sin necesidad de capacitación formal</li>
+                    <li><strong>Compatibilidad:</strong> Soporte para Chrome, Firefox, Edge (últimas 2 versiones)</li>
+                    <li><strong>Mantenibilidad:</strong> Código documentado, separación de capas (MVC)</li>
+                </ul>
+
+                <h3>6.3 Configuración del Entorno</h3>
+                <p>Variables de entorno requeridas en archivo <code>.env</code>:</p>
+                <ul class="tech-list">
+                    <li>ODOO_URL - URL del servidor Odoo</li>
+                    <li>ODOO_DB - Nombre de la base de datos</li>
+                    <li>ODOO_USER - Usuario con permisos de lectura</li>
+                    <li>ODOO_PASSWORD - Contraseña del usuario</li>
+                    <li>SECRET_KEY - Clave secreta para sesiones Flask</li>
+                    <li>GOOGLE_SHEET_NAME - Nombre de la hoja de metas</li>
+                </ul>
+            </section>
+
+            <section id="data-models">
+                <h2>7. Modelos de Datos Clave</h2>
+
+                <h3>7.1 Estructura de Ventas (sales_data)</h3>
+                <p>Registro procesado de líneas de factura desde Odoo:</p>
+                <ul>
+                    <li>Información del pedido: pedido, factura, fecha, mes</li>
+                    <li>Información del cliente: cliente, país, partner_id</li>
+                    <li>Información del producto: código, nombre, descripción, línea comercial</li>
+                    <li>Clasificaciones: farmacológica, forma farmacéutica, vía administración, línea producción</li>
+                    <li>Valores comerciales: cantidad_facturada, precio_unitario, total, amount_currency</li>
+                </ul>
+
+                <h3>7.2 Estructura de Pendientes (pending_data)</h3>
+                <p>Registro de líneas de pedidos no facturadas desde sale.order.line:</p>
+                <ul>
+                    <li>Similar a sales_data pero con cantidad_pendiente y total_pendiente</li>
+                    <li>Campo qty_to_invoice para determinar unidades no facturadas</li>
+                    <li>Incluye descuentos aplicados a la línea</li>
+                </ul>
+
+                <h3>7.3 Estructura de Metas (Google Sheets)</h3>
+                <p>Dos pestañas principales:</p>
+                <ul>
+                    <li><strong>Metas por Cliente:</strong> {año: {cliente_id: {linea_id: monto}}}</li>
+                    <li><strong>Metas por Línea:</strong> {mes: {linea_id: {meta: monto, meta_ipn: monto}}}</li>
+                </ul>
+            </section>
+
+            <section id="integration">
+                <h2>8. Integraciones</h2>
+
+                <h3>8.1 Integración con Odoo (XML-RPC)</h3>
+                <p><strong>Modelos consultados:</strong></p>
+                <ul>
+                    <li><code>account.move.line</code> - Líneas de facturas (ventas facturadas)</li>
+                    <li><code>account.move</code> - Cabecera de facturas (datos de factura, cliente, vendedor)</li>
+                    <li><code>sale.order</code> - Pedidos de venta (para mapeo y totales)</li>
+                    <li><code>sale.order.line</code> - Líneas de pedidos (pendientes de facturar)</li>
+                    <li><code>product.product</code> - Productos (atributos farmacéuticos)</li>
+                    <li><code>res.partner</code> - Clientes (datos de contacto y país)</li>
+                    <li><code>res.users</code> - Usuarios (autenticación)</li>
+                </ul>
+
+                <p><strong>Dominios de filtrado aplicados:</strong></p>
+                <ul>
+                    <li>Diario: <code>move_id.journal_id.name = 'F150 (Venta exterior)'</code></li>
+                    <li>Estado: <code>move_id.state = 'posted'</code></li>
+                    <li>Cuenta: <code>account_id.code like '70%'</code></li>
+                    <li>Impuesto: <code>tax_ids.name ilike 'EXE_IGV_EXP'</code></li>
+                    <li>Exclusiones: productos con código SERV, códigos que inician con 81</li>
+                </ul>
+
+                <h3>8.2 Integración con Google Sheets</h3>
+                <p><strong>Librería:</strong> gspread + google-auth</p>
+                <p><strong>Autenticación:</strong> Service Account con archivo credentials.json</p>
+                <p><strong>Operaciones:</strong></p>
+                <ul>
+                    <li>Lectura de metas por cliente (pestaña por año)</li>
+                    <li>Lectura de metas por línea (pestaña por mes)</li>
+                    <li>Escritura de metas desde interfaces web</li>
+                    <li>Gestión de equipos comerciales por línea</li>
+                </ul>
+            </section>
+
+            <section id="security">
+                <h2>9. Consideraciones de Seguridad</h2>
+                <ul>
+                    <li><strong>Autenticación:</strong> Credenciales validadas contra Odoo, sin almacenamiento local de contraseñas</li>
+                    <li><strong>Autorización:</strong> Lista blanca de emails en <code>allowed_users.json</code></li>
+                    <li><strong>Sesiones:</strong> HttpOnly cookies, SameSite=Lax, timeout de 24 horas</li>
+                    <li><strong>Credenciales:</strong> Almacenadas en variables de entorno, nunca en código</li>
+                    <li><strong>Comunicación:</strong> HTTPS recomendado en producción (configuración del servidor web)</li>
+                    <li><strong>Validación:</strong> Sanitización de inputs en filtros y búsquedas</li>
+                    <li><strong>Logs:</strong> Nivel INFO para operaciones normales, ERROR para excepciones</li>
+                </ul>
+            </section>
+
+            <section id="deployment">
+                <h2>10. Despliegue y Mantenimiento</h2>
+
+                <h3>10.1 Requisitos del Servidor</h3>
+                <ul>
+                    <li>Python 3.8 o superior</li>
+                    <li>Acceso de red a servidor Odoo (puerto según configuración)</li>
+                    <li>Acceso a internet para Google Sheets API</li>
+                    <li>4GB RAM mínimo (8GB recomendado)</li>
+                    <li>2 CPU cores mínimo</li>
+                </ul>
+
+                <h3>10.2 Instalación</h3>
+                <ol>
+                    <li>Clonar repositorio del proyecto</li>
+                    <li>Crear entorno virtual Python: <code>python -m venv venv</code></li>
+                    <li>Activar entorno: <code>venv\Scripts\activate.ps1</code> (Windows) o <code>source venv/bin/activate</code> (Linux)</li>
+                    <li>Instalar dependencias: <code>pip install -r requirements.txt</code></li>
+                    <li>Configurar archivo <code>.env</code> con credenciales</li>
+                    <li>Colocar <code>credentials.json</code> de Google en directorio raíz</li>
+                    <li>Ejecutar aplicación: <code>python app.py</code></li>
+                </ol>
+
+                <h3>10.3 Mantenimiento Periódico</h3>
+                <ul>
+                    <li><strong>Semanal:</strong> Revisión de logs de errores</li>
+                    <li><strong>Mensual:</strong> Actualización de metas en Google Sheets</li>
+                    <li><strong>Trimestral:</strong> Actualización de dependencias Python (pip upgrade)</li>
+                    <li><strong>Anual:</strong> Revisión de lista de usuarios autorizados</li>
+                </ul>
+            </section>
+
+            <section id="metrics">
+                <h2>11. Métricas de Éxito</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Métrica</th>
+                            <th>Objetivo</th>
+                            <th>Medición</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Adopción de Usuarios</td>
+                            <td>80% del equipo comercial usando semanalmente</td>
+                            <td>Logs de sesiones activas</td>
+                        </tr>
+                        <tr>
+                            <td>Tiempo de Generación de Reportes</td>
+                            <td>Reducción del 70% vs proceso manual</td>
+                            <td>Encuesta pre/post implementación</td>
+                        </tr>
+                        <tr>
+                            <td>Precisión de Datos</td>
+                            <td>99% de concordancia con reportes Odoo</td>
+                            <td>Auditoría mensual de KPIs</td>
+                        </tr>
+                        <tr>
+                            <td>Tiempo de Respuesta</td>
+                            <td>< 3 segundos carga de dashboard</td>
+                            <td>Monitoreo de performance</td>
+                        </tr>
+                        <tr>
+                            <td>Satisfacción del Usuario</td>
+                            <td>Puntuación ≥ 4/5</td>
+                            <td>Encuesta de satisfacción trimestral</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="roadmap">
+                <h2>12. Roadmap y Mejoras Futuras</h2>
+
+                <h3>Corto Plazo (1-3 meses)</h3>
+                <ul>
+                    <li>Implementar notificaciones por email para clientes bajo meta</li>
+                    <li>Añadir exportación a PDF de dashboards</li>
+                    <li>Gráfico de tendencia mensual de ventas por cliente</li>
+                    <li>Dashboard móvil responsive</li>
+                </ul>
+
+                <h3>Mediano Plazo (3-6 meses)</h3>
+                <ul>
+                    <li>Predicción de cierre de mes usando machine learning</li>
+                    <li>Integración con CRM para seguimiento de oportunidades</li>
+                    <li>Análisis de rentabilidad por producto/cliente</li>
+                    <li>API REST para consumo desde otras aplicaciones</li>
+                </ul>
+
+                <h3>Largo Plazo (6-12 meses)</h3>
+                <ul>
+                    <li>Dashboard de ventas nacionales con mismas funcionalidades</li>
+                    <li>Módulo de forecasting y planificación de demanda</li>
+                    <li>Integración con sistemas de logística para seguimiento de entregas</li>
+                    <li>App móvil nativa para iOS/Android</li>
+                </ul>
+            </section>
+
+            <section id="risks">
+                <h2>13. Riesgos y Mitigaciones</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Riesgo</th>
+                            <th>Probabilidad</th>
+                            <th>Impacto</th>
+                            <th>Mitigación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Caída del servidor Odoo</td>
+                            <td>Media</td>
+                            <td>Alto</td>
+                            <td>Sistema de caché, mensaje de error amigable, retry automático</td>
+                        </tr>
+                        <tr>
+                            <td>Cambios en API de Odoo</td>
+                            <td>Baja</td>
+                            <td>Alto</td>
+                            <td>Capa de abstracción (OdooManager), pruebas regulares</td>
+                        </tr>
+                        <tr>
+                            <td>Rendimiento con gran volumen</td>
+                            <td>Media</td>
+                            <td>Medio</td>
+                            <td>Optimización de queries, índices en Odoo, caché agresivo</td>
+                        </tr>
+                        <tr>
+                            <td>Inconsistencia de datos</td>
+                            <td>Baja</td>
+                            <td>Alto</td>
+                            <td>Validaciones en backend, logs detallados, auditorías periódicas</td>
+                        </tr>
+                        <tr>
+                            <td>Pérdida de credenciales</td>
+                            <td>Baja</td>
+                            <td>Alto</td>
+                            <td>Backup de .env, rotación periódica, acceso restringido</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="glossary">
+                <h2>14. Glosario</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Término</th>
+                            <th>Definición</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>KPI</td>
+                            <td>Key Performance Indicator - Indicador clave de rendimiento comercial</td>
+                        </tr>
+                        <tr>
+                            <td>Brecha Comercial</td>
+                            <td>Diferencia entre la meta anual y las ventas proyectadas (facturado + pendiente)</td>
+                        </tr>
+                        <tr>
+                            <td>Drill-Down</td>
+                            <td>Navegación jerárquica desde agregados generales hacia detalles específicos</td>
+                        </tr>
+                        <tr>
+                            <td>XML-RPC</td>
+                            <td>Protocolo de llamada a procedimientos remotos usado por Odoo para su API</td>
+                        </tr>
+                        <tr>
+                            <td>amount_currency</td>
+                            <td>Campo en Odoo que almacena el monto en la moneda de la transacción (USD)</td>
+                        </tr>
+                        <tr>
+                            <td>Línea Comercial Internacional</td>
+                            <td>Agrupación de productos para mercados de exportación (AGROVET, PETMEDICA, AVIVET)</td>
+                        </tr>
+                        <tr>
+                            <td>Pendiente de Facturar</td>
+                            <td>Líneas de pedido confirmadas pero aún no facturadas (qty_to_invoice > 0)</td>
+                        </tr>
+                        <tr>
+                            <td>SimpleCache</td>
+                            <td>Sistema de caché en memoria de Flask para reducir consultas repetitivas</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="appendix">
+                <h2>15. Apéndices</h2>
+
+                <h3>A. Estructura de Archivos del Proyecto</h3>
+                <ul class="tech-list">
+                    <li>app.py - Aplicación Flask principal (rutas y lógica de negocio)</li>
+                    <li>odoo_manager.py - Capa de acceso a datos Odoo</li>
+                    <li>google_sheets_manager.py - Capa de acceso a Google Sheets</li>
+                    <li>conectar_odoo.py - Script de prueba de conexión</li>
+                    <li>templates/ - Plantillas HTML Jinja2</li>
+                    <li>static/ - Archivos estáticos (CSS, JS, imágenes)</li>
+                    <li>credentials.json - Credenciales de Google Service Account</li>
+                    <li>.env - Variables de entorno (NO versionado)</li>
+                    <li>requirements.txt - Dependencias Python</li>
+                    <li>allowed_users.json - Whitelist de usuarios autorizados</li>
+                </ul>
+
+                <h3>B. Dependencias Principales (requirements.txt)</h3>
+                <ul class="tech-list">
+                    <li>Flask - Framework web</li>
+                    <li>Flask-Caching - Sistema de caché</li>
+                    <li>pandas - Análisis de datos</li>
+                    <li>openpyxl - Generación de Excel</li>
+                    <li>gspread - Cliente de Google Sheets</li>
+                    <li>google-auth - Autenticación Google</li>
+                    <li>python-dotenv - Gestión de variables de entorno</li>
+                </ul>
+
+                <h3>C. Referencias Técnicas</h3>
+                <ul>
+                    <li><a href="https://www.odoo.com/documentation" target="_blank">Documentación oficial Odoo API</a></li>
+                    <li><a href="https://flask.palletsprojects.com/" target="_blank">Documentación Flask</a></li>
+                    <li><a href="https://echarts.apache.org/" target="_blank">Documentación ECharts</a></li>
+                    <li><a href="https://docs.gspread.org/" target="_blank">Documentación gspread</a></li>
+                </ul>
+            </section>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 Dashboard de Ventas Internacional - Documento Confidencial</p>
+            <p style="margin-top: 0.5rem; opacity: 0.8; font-size: 0.9rem;">
+                Product Requirements Document v1.0
+            </p>
+        </footer>
+    </div>
+
+    <button class="print-button" onclick="window.print()">
+        🖨️ Imprimir PRD
+    </button>
+
+    <script>
+        // Smooth scroll para navegación interna
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Highlight de secciones al hacer scroll
+        const sections = document.querySelectorAll('section');
+        const observerOptions = {
+            threshold: 0.3
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        sections.forEach(section => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(20px)';
+            section.style.transition = 'opacity 0.5s, transform 0.5s';
+            observer.observe(section);
+        });
+    </script>
+</body>
+</html>

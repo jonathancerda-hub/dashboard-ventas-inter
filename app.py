@@ -605,16 +605,21 @@ def dashboard():
         
         # Procesar datos por producto para gráfico (usando ventas internacionales del año)
         ventas_por_producto = {}
+        producto_a_linea = {}  # Mapeo de producto a línea comercial
         
         for sale in sales_data_international:
             # Usar el campo "name" directamente para el nombre del producto
             nombre_producto = sale.get('name', 'Producto Sin Nombre')
+            linea_comercial = sale.get('linea_comercial', 'Sin Línea')
             
             # MODIFICACIÓN: Usar 'amount_currency' para consistencia con el cálculo de líneas comerciales.
             # 'total' puede ser 0 si la factura está pagada, pero 'amount_currency' mantiene el valor de la línea.
             venta_amount = sale.get('amount_currency', 0)
             if venta_amount > 0:  # Solo procesar ventas con monto
                 ventas_por_producto[nombre_producto] = ventas_por_producto.get(nombre_producto, 0) + venta_amount
+                # Guardar la línea comercial del producto
+                if nombre_producto not in producto_a_linea:
+                    producto_a_linea[nombre_producto] = linea_comercial
         
         # Generar datos para el gráfico de productos (Top 7)
         productos_ordenados = sorted(ventas_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
@@ -623,8 +628,31 @@ def dashboard():
             if venta > 0:
                 datos_productos.append({
                     'nombre': nombre_producto,
-                    'venta': venta
+                    'venta': venta,
+                    'linea_comercial': producto_a_linea.get(nombre_producto, 'Sin Línea')
                 })
+        
+        # Crear diccionario completo de productos por línea comercial para interactividad
+        productos_por_linea = {}
+        for sale in sales_data_international:
+            linea = sale.get('linea_comercial', 'Sin Línea')
+            producto = sale.get('name', 'Producto Sin Nombre')
+            venta = sale.get('amount_currency', 0)
+            
+            if linea not in productos_por_linea:
+                productos_por_linea[linea] = {}
+            
+            if producto not in productos_por_linea[linea]:
+                productos_por_linea[linea][producto] = 0
+            productos_por_linea[linea][producto] += venta
+        
+        # Convertir a formato para JavaScript (Top 7 por cada línea)
+        productos_por_linea_top = {}
+        for linea, productos in productos_por_linea.items():
+            top_productos = sorted(productos.items(), key=lambda x: x[1], reverse=True)[:7]
+            productos_por_linea_top[linea] = [
+                {'nombre': nombre, 'venta': venta} for nombre, venta in top_productos if venta > 0
+            ]
         
         # Calcular KPIs adicionales
         unique_clients = len(set(sale['cliente'] for sale in sales_data_international if sale.get('cliente')))
@@ -899,6 +927,7 @@ def dashboard():
                              datos_lineas=datos_lineas,
                              datos_lineas_tabla=datos_lineas_tabla,
                              datos_productos=datos_productos,
+                             productos_por_linea=productos_por_linea_top,
                              datos_forma_farmaceutica=datos_forma_farmaceutica,
                              drilldown_data=drilldown_data,                             
                              total_sales=total_sales_year + total_por_facturar, # Suma de facturado + por facturar

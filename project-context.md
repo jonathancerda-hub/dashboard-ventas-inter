@@ -82,15 +82,19 @@ La aplicación también provee interfaces para la visualización detallada de da
 *   **Dashboard Internacional (`/dashboard`)**:
     *   KPIs clave: Ventas totales, meta, brecha comercial.
     *   Filtro por cliente para visualizar los datos de un cliente específico, recalculando todos los KPIs y tablas en función de la selección.
-    *   Tabla de ventas y proyecciones por Línea Comercial.
+    *   Tabla de ventas y proyecciones por Línea Comercial Internacional (campo `Facturado` muestra monto facturado).
     *   **Gráficos Interactivos**:
         *   **Análisis Jerárquico (Drill-Down)**: Permite explorar las ventas a través de una jerarquía de Clasificación Farmacológica -> Forma Farmacéutica -> Vía de Administración -> Línea de Producción -> Producto.
-        *   **Avance de Facturación por Cliente**: Un gráfico general que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
+        *   **Top Productos Facturados**: Gráfico de barras horizontales que muestra los 7 productos con mayor facturación. Es interactivo y se actualiza al hacer clic en una línea comercial del gráfico de líneas.
+        *   **Venta Internacional del Año por Línea Comercial**: Gráfico de barras verticales con meta vs facturado. Al hacer clic en una línea comercial, filtra el gráfico de productos para mostrar solo los top productos de esa línea. Incluye botón "✕ Ver Todos" para resetear el filtro.
+        *   **Avance de Facturación por Cliente**: Un gráfico general tipo bullet chart que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
+        *   **Panel Ejecutivo - Desempeño por Cliente**: Vista comparativa (barras apiladas horizontales) que muestra Facturado, Pendiente y Meta para todos los clientes cuando no hay filtro. Al hacer clic en una línea comercial del gráfico de líneas, se puede navegar al cliente. Cuando hay un cliente seleccionado, cambia a vista individual compacta con barra única, resumen ejecutivo y KPIs calculados (% Facturado, % Proyectado, Brecha).
     *   **Visualización por Cliente Seleccionado**:
         *   **Tarjeta de Avance**: Al filtrar por un cliente, aparece una tarjeta dedicada con una barra de progreso y colores de semáforo (rojo/amarillo/verde) que muestra su avance de facturación.
+        *   **Panel Ejecutivo Individual**: Gráfico compacto ubicado justo después de la tarjeta de avance, mostrando barra apilada (Facturado + Pendiente), línea de meta y panel de resumen con indicadores ejecutivos.
         *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta y la barra interior muestra el monto ya facturado.
-    *   Exportación de datos de ventas facturadas y pendientes a Excel.
+    *   Exportación de datos de ventas facturadas y pendientes a Excel (usando campo `commercial_line_international_id` unificado).
 
 *   **Vistas de Datos Detallados**:
-    *   `/sales`: Tabla paginada y con filtros de todas las líneas de facturas de venta internacionales.
-    *   `/pending`: Tabla paginada y con filtros de todos los pedidos de venta internacionales pendientes de facturar.
+    *   `/sales`: Tabla paginada y con filtros de todas las líneas de facturas de venta internacionales. Columna "Descripcion" consolidada (sin columna "Medida" separada).
+    *   `/pending`: Tabla paginada y con filtros de todos los pedidos de venta internacionales pendientes de facturar. Columna "Descripcion" consolidada (sin columna "Medida" separada).

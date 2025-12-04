@@ -116,7 +116,7 @@
                     <thead>
                         <tr>
                             <th>Línea Comercial</th>
-                            <th>Venta Total ($)</th>
+                            <th>Facturado ($)</th>
                             <th>% Part.</th>
                             <th>Meta</th>
                             <th>Brecha</th>
@@ -211,6 +211,16 @@
     </div>
     {% endif %}
 
+    <!-- Gráfico Ejecutivo: Facturado vs Meta vs Pendiente por Cliente (se muestra solo con cliente seleccionado) -->
+    <div class="grafico-extra-container" id="container-grafico-ejecutivo" style="display: none; margin-top: 20px;">
+        <div class="grafico-echarts">
+            <h3 style="text-align: center; color: var(--odoo-primary); font-size: 1.5rem; margin-bottom: 20px;">
+                <i class="bi bi-bar-chart-fill"></i> Panel Ejecutivo - Desempeño por Cliente
+            </h3>
+            <div id="grafico-ejecutivo-clientes" style="width: 100%; min-height: 700px;"></div>
+        </div>
+    </div>
+
     <!-- Gráfico de Avance por Pedido (siempre existe, pero se muestra/oculta con JS) -->
     <div class="grafico-echarts" id="container-grafico-pedidos" style="display: none; margin-top: 20px;">
         <h3>Avance por Pedido ({{ avance_cliente_seleccionado.nombre }})</h3>
@@ -219,15 +229,18 @@
 
     <!-- Contenedor de todos los gráficos inferiores en una cuadrícula -->
     <div class="dashboard-charts-grid">
-        <!-- Gráfico de Productos (Barras Horizontales) -->
-        <div class="grafico-productos">
-            <h3>Top Productos Facturados</h3>
-            <div class="chart-container">
-                <canvas id="grafico-productos"></canvas>
-            </div>
+    <!-- Gráfico de Productos (Barras Horizontales) -->
+    <div class="grafico-productos">
+        <h3 id="titulo-productos">
+            Top Productos Facturados
+            <button id="btn-reset-productos" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductos()">
+                ✕ Ver Todos
+            </button>
+        </h3>
+        <div class="chart-container">
+            <canvas id="grafico-productos"></canvas>
         </div>
-
-        <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
+    </div>        <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
         <div class="grafico-lineas">
             <h3>Venta Internacional del Año por Línea Comercial</h3>
             <div class="chart-container">
@@ -255,14 +268,14 @@
             <div id="grafico-bullet-clientes" style="width: 100%; min-height: 600px;"></div>
         </div>
     </div>
-
-    <!-- Gráfico Ejecutivo: Facturado vs Meta vs Pendiente por Cliente -->
-    <div class="grafico-extra-container" style="margin-top: 30px;">
+    
+    <!-- Gráfico Ejecutivo Comparativo: visible solo cuando NO hay cliente seleccionado -->
+    <div class="grafico-extra-container" id="container-grafico-ejecutivo-comparativo" style="margin-top: 30px;">
         <div class="grafico-echarts">
             <h3 style="text-align: center; color: var(--odoo-primary); font-size: 1.5rem; margin-bottom: 20px;">
                 <i class="bi bi-bar-chart-fill"></i> Panel Ejecutivo - Desempeño por Cliente
             </h3>
-            <div id="grafico-ejecutivo-clientes" style="width: 100%; min-height: 700px;"></div>
+            <div id="grafico-ejecutivo-clientes-comparativo" style="width: 100%; min-height: 700px;"></div>
         </div>
     </div>
 </div>
@@ -805,6 +818,7 @@ body {
 // Datos del backend para los gráficos (con valores positivos)
 const datosLineas = {{ datos_lineas|default([])|tojson|safe }};
 const datosProductos = {{ datos_productos|default([])|tojson|safe }};
+const productosPorLinea = {{ productos_por_linea|default({})|tojson|safe }};
 const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|default([])|tojson|safe }};
 const drilldownData = {{ drilldown_data|default({})|tojson|safe }};
 const drilldownTitles = {{ drilldown_titles|default({})|tojson|safe }};
@@ -1034,7 +1048,30 @@ function crearGraficoProductos(productosData) {
     });
 }
 
+// Función para resetear el filtro de productos y mostrar todos
+function resetearProductos() {
+    // Restaurar datos originales
+    crearGraficoProductos();
+    
+    // Restaurar título
+    const tituloProductos = document.getElementById('titulo-productos');
+    if (tituloProductos) {
+        tituloProductos.innerHTML = `Top Productos Facturados
+            <button id="btn-reset-productos" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductos()">
+                ✕ Ver Todos
+            </button>`;
+        tituloProductos.style.color = '';
+    }
+    
+    // Ocultar botón de reset
+    const btnReset = document.getElementById('btn-reset-productos');
+    if (btnReset) {
+        btnReset.style.display = 'none';
+    }
+}
+
 // Gráfico de Líneas Comerciales (Barras Verticales)
+let lineasChart = null; // Variable global para el gráfico de líneas
 function crearGraficoLineas() {
     const ctx = document.getElementById('grafico-lineas').getContext('2d');
     
@@ -1048,7 +1085,12 @@ function crearGraficoLineas() {
     const dataVenta = datosLineas.map(item => item.venta || 0);
     const dataMeta = datosLineas.map(item => item.meta || 0);
 
-    new Chart(ctx, {
+    // Si el gráfico ya existe, lo destruimos
+    if (lineasChart) {
+        lineasChart.destroy();
+    }
+
+    lineasChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -1072,6 +1114,30 @@ function crearGraficoLineas() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onClick: (event, activeElements) => {
+                // Click handler para filtrar productos por línea comercial
+                if (activeElements && activeElements.length > 0) {
+                    const index = activeElements[0].index;
+                    const lineaComercial = labels[index];
+                    
+                    // Obtener productos de esta línea comercial
+                    if (productosPorLinea && productosPorLinea[lineaComercial]) {
+                        const productosLinea = productosPorLinea[lineaComercial];
+                        // Actualizar gráfico de productos con los de esta línea
+                        crearGraficoProductos(productosLinea);
+                        
+                        // Actualizar título del gráfico de productos
+                        const tituloProductos = document.getElementById('titulo-productos');
+                        if (tituloProductos) {
+                            tituloProductos.innerHTML = `Top Productos: ${lineaComercial}
+                                <button id="btn-reset-productos" style="margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductos()">
+                                    ✕ Ver Todos
+                                </button>`;
+                            tituloProductos.style.color = '#3498db';
+                        }
+                    }
+                }
+            },
             plugins: {
                 legend: {
                     position: 'bottom'
@@ -1451,8 +1517,8 @@ function crearGraficoBullet() {
 }
 
 // Gráfico Ejecutivo: Facturado vs Meta vs Pendiente por Cliente
-function crearGraficoEjecutivo() {
-    const chartDom = document.getElementById('grafico-ejecutivo-clientes');
+function crearGraficoEjecutivo(targetElementId = 'grafico-ejecutivo-clientes') {
+    const chartDom = document.getElementById(targetElementId);
     if (!chartDom) return;
     
     const myChart = echarts.init(chartDom);
@@ -1693,7 +1759,7 @@ function crearGraficoEjecutivo() {
                             left: 20,
                             top: 45,
                             style: {
-                                text: `✅ Avance Real: ${avance.toFixed(1)}%  |  📈 Proyectado: ${proyectado.toFixed(1)}%  |  ${brecha >= 0 ? '⚠️ Brecha' : '🎉 Excedente'}: $ ${Math.abs(brecha).toLocaleString('en-US')}`,
+                                text: `✅ Facturado: ${avance.toFixed(1)}%  |  📈 Proyectado: ${proyectado.toFixed(1)}%  |  ${brecha >= 0 ? '⚠️ Brecha' : '🎉 Excedente'}: $ ${Math.abs(brecha).toLocaleString('en-US')}`,
                                 font: '14px sans-serif',
                                 fill: '#555'
                             }
@@ -1933,11 +1999,12 @@ document.addEventListener('DOMContentLoaded', function() {
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica();
     crearGraficoDrilldown();
-    crearGraficoEjecutivo(); // Nuevo gráfico ejecutivo
 
     const bulletClientesCard = document.querySelector('#grafico-bullet-clientes').closest('.grafico-echarts');
     const pedidosCard = document.getElementById('container-grafico-pedidos');
-    const avanceClienteCard = document.getElementById('card-avance-cliente-container'); // Ahora apunta al contenedor correcto
+    const avanceClienteCard = document.getElementById('card-avance-cliente-container');
+    const graficoEjecutivoCard = document.getElementById('container-grafico-ejecutivo');
+    const graficoEjecutivoComparativoCard = document.getElementById('container-grafico-ejecutivo-comparativo');
 
     if (selectedClienteId && selectedClienteId !== '') {
         // Si hay un cliente seleccionado:
@@ -1946,9 +2013,22 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 2. Mostrar la tarjeta de avance del cliente
         if (avanceClienteCard) avanceClienteCard.style.display = 'block';
-        // 2. Mostrar y crear el gráfico de avance por pedidos para ESE cliente.
+        
+        // 3. Ocultar gráfico ejecutivo comparativo
+        if (graficoEjecutivoComparativoCard) graficoEjecutivoComparativoCard.style.display = 'none';
+        
+        // 4. Mostrar el gráfico ejecutivo individual del cliente
+        if (graficoEjecutivoCard) {
+            graficoEjecutivoCard.style.display = 'block';
+            // Crear el gráfico después de mostrar el contenedor
+            setTimeout(() => {
+                crearGraficoEjecutivo('grafico-ejecutivo-clientes');
+            }, 100);
+        }
+        
+        // 5. Mostrar y crear el gráfico de avance por pedidos para ESE cliente.
         if (pedidosCard) pedidosCard.style.display = 'block';
-        crearGraficoPedidos(selectedClienteId); // Esta función ya maneja la visibilidad del contenedor.
+        crearGraficoPedidos(selectedClienteId);
 
     } else {
         // Si NO hay cliente seleccionado (vista general):
@@ -1956,9 +2036,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (pedidosCard) {
             pedidosCard.style.display = 'none';
         }
-        // Ocultar la tarjeta de avance del cliente
+        // 2. Ocultar la tarjeta de avance del cliente
         if (avanceClienteCard) avanceClienteCard.style.display = 'none';
-        // 2. Mostrar y crear el gráfico general de avance por cliente.
+        
+        // 3. Ocultar el gráfico ejecutivo individual
+        if (graficoEjecutivoCard) graficoEjecutivoCard.style.display = 'none';
+        
+        // 4. Mostrar gráfico ejecutivo comparativo
+        if (graficoEjecutivoComparativoCard) {
+            graficoEjecutivoComparativoCard.style.display = 'block';
+            // Crear el gráfico después de mostrar el contenedor
+            setTimeout(() => {
+                crearGraficoEjecutivo('grafico-ejecutivo-clientes-comparativo');
+            }, 100);
+        }
+        
+        // 5. Mostrar y crear el gráfico general de avance por cliente.
         if (bulletClientesCard) bulletClientesCard.style.display = 'block';
         crearGraficoBullet();
     }
