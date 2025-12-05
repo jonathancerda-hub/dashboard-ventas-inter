@@ -234,8 +234,8 @@
     
     <!-- Tabla de Productos del Cliente (se muestra al hacer clic en el botón) -->
     <div class="grafico-echarts" id="container-productos-cliente" style="display: none; margin-top: 20px;">
-        <h3>
-            Productos del Cliente - {{ avance_cliente_seleccionado.nombre }}
+        <h3 id="titulo-productos-cliente">
+            📦 Productos del Cliente
             <button style="margin-left: 15px; padding: 8px 16px; font-size: 13px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="toggleProductosCliente()">
                 ✕ Cerrar
             </button>
@@ -278,6 +278,17 @@
                     <!-- Se llenará con JavaScript -->
                 </tbody>
             </table>
+        </div>
+        
+        <!-- Paginación -->
+        <div id="paginacion-productos" style="margin-top: 20px; text-align: center; display: none;">
+            <button onclick="cambiarPaginaProductos(-1)" style="padding: 8px 16px; margin: 0 5px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ← Anterior
+            </button>
+            <span id="info-pagina-productos" style="margin: 0 15px; font-weight: 600;"></span>
+            <button onclick="cambiarPaginaProductos(1)" style="padding: 8px 16px; margin: 0 5px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Siguiente →
+            </button>
         </div>
     </div>
 
@@ -1128,13 +1139,16 @@ function resetearProductos() {
 
 // Variable global para almacenar productos procesados
 let productosClienteGlobal = [];
+let productosFiltradosGlobal = [];
+let paginaActualProductos = 1;
+const productosPorPagina = 15;
 
 // Toggle entre vista de pedidos y vista de productos
-function toggleProductosCliente() {
+function toggleProductosCliente(abrirDirecto = false) {
     const containerPedidos = document.getElementById('container-grafico-pedidos');
     const containerProductos = document.getElementById('container-productos-cliente');
     
-    if (containerProductos.style.display === 'none') {
+    if (containerProductos.style.display === 'none' || abrirDirecto) {
         // Mostrar tabla de productos
         containerPedidos.style.display = 'none';
         containerProductos.style.display = 'block';
@@ -1154,12 +1168,11 @@ function toggleProductosCliente() {
 
 // Procesar productos del cliente seleccionado
 function procesarProductosCliente() {
-    if (!selectedClienteId) return;
-    
     const productosMap = new Map();
     
-    // Procesar ventas facturadas
+    // Procesar ventas facturadas - FILTRAR POR CLIENTE
     (salesDataAll || []).forEach(sale => {
+        // Obtener partner_id del registro
         let partnerId = null;
         if (sale.partner_id) {
             partnerId = Array.isArray(sale.partner_id) ? sale.partner_id[0] : sale.partner_id;
@@ -1169,13 +1182,19 @@ function procesarProductosCliente() {
             partnerId = sale.cliente_id;
         }
         
-        if (String(partnerId) === String(selectedClienteId)) {
-            const productoKey = sale.producto || sale.product_id || sale.name || 'Sin Producto';
-            const productoNombre = sale.descripcion || sale.producto || sale.name || 'Sin Descripción';
-            const productoCodigo = sale.default_code || sale.codigo_odoo || 'S/C';
-            const lineaComercial = sale.linea_comercial || 'Sin Línea';
-            const cantidad = parseFloat(sale.cantidad_facturada || 0);
-            const monto = parseFloat(sale.amount_currency || 0);
+        // FILTRAR: Solo procesar si es del cliente seleccionado
+        if (selectedClienteId && String(partnerId) !== String(selectedClienteId)) {
+            return; // Skip este registro
+        }
+        
+        const productoCodigo = sale.default_code || sale.codigo_odoo || 'S/C';
+        const productoKey = productoCodigo; // Usar código como clave única
+        const productoNombre = sale.descripcion || sale.producto || sale.name || 'Sin Descripción';
+        const lineaComercial = sale.linea_comercial || 'Sin Línea';
+        const cantidad = parseFloat(sale.cantidad_facturada || 0);
+        const monto = parseFloat(sale.amount_currency || 0);
+        
+        if (true) {
             
             if (!productosMap.has(productoKey)) {
                 productosMap.set(productoKey, {
@@ -1195,8 +1214,9 @@ function procesarProductosCliente() {
         }
     });
     
-    // Procesar pedidos pendientes
+    // Procesar pedidos pendientes - FILTRAR POR CLIENTE
     (pendingDataAll || []).forEach(order => {
+        // Obtener partner_id del registro
         let partnerId = null;
         if (order.partner_id) {
             partnerId = Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id;
@@ -1206,15 +1226,19 @@ function procesarProductosCliente() {
             partnerId = order.cliente_id;
         }
         
-        if (String(partnerId) === String(selectedClienteId)) {
-            const productoKey = order.producto || order.product_id || 'Sin Producto';
-            const productoNombre = order.descripcion || order.producto || 'Sin Descripción';
-            const productoCodigo = order.codigo_odoo || order.default_code || 'S/C';
-            const lineaComercial = order.linea_comercial || 'Sin Línea';
-            const cantidad = parseFloat(order.cantidad_pendiente || 0);
-            const monto = parseFloat(order.total_pendiente || 0);
-            
-            if (!productosMap.has(productoKey)) {
+        // FILTRAR: Solo procesar si es del cliente seleccionado
+        if (selectedClienteId && String(partnerId) !== String(selectedClienteId)) {
+            return; // Skip este registro
+        }
+        
+        const productoCodigo = order.codigo_odoo || order.default_code || 'S/C';
+        const productoKey = productoCodigo; // Usar código como clave única
+        const productoNombre = order.descripcion || order.producto || 'Sin Descripción';
+        const lineaComercial = order.linea_comercial || 'Sin Línea';
+        const cantidad = parseFloat(order.cantidad_pendiente || 0);
+        const monto = parseFloat(order.total_pendiente || 0);
+        
+        if (!productosMap.has(productoKey)) {
                 productosMap.set(productoKey, {
                     codigo: productoCodigo,
                     nombre: productoNombre,
@@ -1226,16 +1250,13 @@ function procesarProductosCliente() {
                 });
             }
             
-            const producto = productosMap.get(productoKey);
-            producto.cantidadPendiente += cantidad;
-            producto.montoPendiente += monto;
-        }
+        const producto = productosMap.get(productoKey);
+        producto.cantidadPendiente += cantidad;
+        producto.montoPendiente += monto;
     });
     
     // Convertir mapa a array
-    productosClienteGlobal = Array.from(productosMap.values());
-    
-    // Poblar selector de líneas comerciales
+    productosClienteGlobal = Array.from(productosMap.values());    // Poblar selector de líneas comerciales
     const lineasUnicas = [...new Set(productosClienteGlobal.map(p => p.linea))].sort();
     const selectLinea = document.getElementById('filtro-linea-comercial');
     selectLinea.innerHTML = '<option value="todas">Todas</option>';
@@ -1266,41 +1287,93 @@ function filtrarProductosCliente() {
         return true;
     });
     
-    // Ordenar por cantidad total descendente
+    // Ordenar por monto total o específico descendente según el filtro
     productosFiltrados.sort((a, b) => {
-        const totalA = a.cantidadFacturada + a.cantidadPendiente;
-        const totalB = b.cantidadFacturada + b.cantidadPendiente;
-        return totalB - totalA;
+        let montoA, montoB;
+        
+        if (estadoSeleccionado === 'facturado') {
+            montoA = a.montoFacturado;
+            montoB = b.montoFacturado;
+        } else if (estadoSeleccionado === 'pendiente') {
+            montoA = a.montoPendiente;
+            montoB = b.montoPendiente;
+        } else {
+            // Para 'todos', ordenar por monto total
+            montoA = a.montoFacturado + a.montoPendiente;
+            montoB = b.montoFacturado + b.montoPendiente;
+        }
+        
+        return montoB - montoA;
     });
     
-    // Renderizar tabla
-    renderizarTablaProductos(productosFiltrados, estadoSeleccionado);
+    // Guardar productos filtrados globalmente
+    productosFiltradosGlobal = productosFiltrados;
+    
+    // Resetear a página 1 cuando cambian los filtros
+    paginaActualProductos = 1;
+    
+    // Renderizar tabla con paginación
+    renderizarTablaProductos(estadoSeleccionado);
 }
 
-// Renderizar la tabla de productos
-function renderizarTablaProductos(productos, filtroEstado) {
-    const tbody = document.getElementById('tbody-productos-cliente');
+// Cambiar página de productos
+function cambiarPaginaProductos(direccion) {
+    const totalPaginas = Math.ceil(productosFiltradosGlobal.length / productosPorPagina);
     
-    if (productos.length === 0) {
+    paginaActualProductos += direccion;
+    
+    // Validar límites
+    if (paginaActualProductos < 1) paginaActualProductos = 1;
+    if (paginaActualProductos > totalPaginas) paginaActualProductos = totalPaginas;
+    
+    // Obtener filtro actual
+    const estadoSeleccionado = document.querySelector('input[name="filtro-estado"]:checked').value;
+    
+    // Renderizar tabla
+    renderizarTablaProductos(estadoSeleccionado);
+}
+
+// Renderizar la tabla de productos con paginación
+function renderizarTablaProductos(filtroEstado) {
+    const tbody = document.getElementById('tbody-productos-cliente');
+    const paginacion = document.getElementById('paginacion-productos');
+    const infoPagina = document.getElementById('info-pagina-productos');
+    
+    if (productosFiltradosGlobal.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #999;">No hay productos que coincidan con los filtros seleccionados</td></tr>';
+        paginacion.style.display = 'none';
         return;
     }
     
+    // Calcular paginación
+    const totalPaginas = Math.ceil(productosFiltradosGlobal.length / productosPorPagina);
+    const inicio = (paginaActualProductos - 1) * productosPorPagina;
+    const fin = inicio + productosPorPagina;
+    const productosPagina = productosFiltradosGlobal.slice(inicio, fin);
+    
+    // Mostrar/ocultar paginación
+    if (productosFiltradosGlobal.length > productosPorPagina) {
+        paginacion.style.display = 'block';
+        infoPagina.textContent = `Página ${paginaActualProductos} de ${totalPaginas} (${productosFiltradosGlobal.length} productos)`;
+    } else {
+        paginacion.style.display = 'none';
+    }
+    
     let html = '';
-    productos.forEach(producto => {
-        const cantidadTotal = producto.cantidadFacturada + producto.cantidadPendiente;
-        const montoTotal = producto.montoFacturado + producto.montoPendiente;
+    productosPagina.forEach(producto => {
+        const cantidadTotal = (producto.cantidadFacturada || 0) + (producto.cantidadPendiente || 0);
+        const montoTotal = (producto.montoFacturado || 0) + (producto.montoPendiente || 0);
         
         // Determinar qué mostrar según el filtro
         let cantidad, monto, estado, colorEstado;
         if (filtroEstado === 'facturado') {
-            cantidad = producto.cantidadFacturada;
-            monto = producto.montoFacturado;
+            cantidad = producto.cantidadFacturada || 0;
+            monto = producto.montoFacturado || 0;
             estado = 'Facturado';
             colorEstado = '#27ae60';
         } else if (filtroEstado === 'pendiente') {
-            cantidad = producto.cantidadPendiente;
-            monto = producto.montoPendiente;
+            cantidad = producto.cantidadPendiente || 0;
+            monto = producto.montoPendiente || 0;
             estado = 'Por Facturar';
             colorEstado = '#e67e22';
         } else {
