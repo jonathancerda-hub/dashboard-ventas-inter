@@ -40,6 +40,7 @@ Common fixes the project expects
 - When adding charts: prefer server-side aggregation in `app.py` and expose JSON via `render_template(..., orders_chart_data=orders_chart_data)` rather than re-aggregating client-side.
 - When handling money: round to integers for chart consumption and format with `toLocaleString('en-US')` + leading `$` in templates.
 - When filtering by client/order: pass `partner_id` (int) query param instead of names.
+- When aggregating products: ALWAYS use product code (`default_code`/`codigo_odoo`) as unique key, NEVER product name (names can vary for same product).
 
 Files to update with care
 - `app.py`: large, monolithic route functions — keep changes minimal and prefer extracting helpers rather than making functions even larger.
@@ -53,12 +54,29 @@ Examples (concrete patterns)
     percent = facturado / total if total > 0 else 0
   - Keep the `order_id` and `partner` fields with ids when possible for click-to-filter actions.
 
+Client-side features (dashboard_clean.html)
+- Tabla de Productos del Cliente:
+  - Accesible mediante botón "📦 Productos" en gráfico de Avance por Pedido
+  - Agrupa productos por código único (`default_code`/`codigo_odoo`) — NUNCA por nombre de producto
+  - Filtros: Estado (Todos/Facturado/Por Facturar) + Línea Comercial
+  - Paginación automática: 15 productos por página (constante `productosPorPagina`)
+  - Datos filtrados por cliente seleccionado (`selectedClienteId`)
+  - Función clave: `procesarProductosCliente()` usa `Map` con `productoKey = productoCodigo`
+  - Ordenamiento: descendente por monto (total/facturado/pendiente según filtro activo)
+  - Reset automático a página 1 al cambiar filtros
+- Data sources para productos:
+  - `salesDataAll`: datos facturados (campo clave: `amount_currency`)
+  - `pendingDataAll`: datos pendientes (campo clave: `total_pendiente`)
+  - Ambos arrays contienen TODOS los clientes; filtrado se hace en frontend por `partner_id`
+
 If you modify credentials or Google Sheets interaction
 - Do NOT commit real credentials. `credentials.json` in the repo should be a service account key used locally — in CI use secrets or mounted credentials.
 
 What not to change
 - Don't change the canonical currency display or the `amount_currency` based computations without a clear migration plan.
 - Avoid removing `partner_id`/`order_id` metadata when returning JSON to the templates — it's used for click-to-filter behavior.
+- Do NOT change product aggregation logic to use product names — use product codes (`default_code`/`codigo_odoo`) as unique identifiers.
+- Pagination constant `productosPorPagina = 15` in `dashboard_clean.html` — only change if explicitly requested.
 
 If you need more context
 - Ask for Odoo domain examples and a sample of `sales_data` JSON payload if you need to reproduce aggregation logic locally (I can instrument `odoo_manager.py` to dump limited mock data safely).

@@ -206,7 +206,17 @@
             </p>
             <ul>
                 <li><strong>Tarjeta de Avance de Facturación:</strong> Aparece una nueva tarjeta en la parte superior que muestra el progreso de facturación de los pedidos de ese cliente. Una barra de progreso con colores de semáforo (rojo, amarillo, verde) te permite evaluar rápidamente su estado.</li>
-                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente. La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado.</li>
+                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente. La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado. Incluye un botón "📦 Productos" que te permite alternar a una vista de tabla de productos.</li>
+                <li><strong>Tabla de Productos del Cliente:</strong> Al hacer clic en "📦 Productos", accedes a una tabla detallada con todos los productos del cliente:
+                    <ul>
+                        <li><strong>Filtro de Estado:</strong> Selecciona entre "Todos", "Facturado" o "Por Facturar" (por defecto muestra Por Facturar).</li>
+                        <li><strong>Filtro de Línea Comercial:</strong> Selector desplegable que te permite filtrar por línea comercial específica o ver todas.</li>
+                        <li><strong>Información mostrada:</strong> Código del producto, nombre, línea comercial, cantidad total, monto total y estado con colores visuales (verde=facturado, naranja=por facturar, azul=mixto).</li>
+                        <li><strong>Paginación:</strong> Si hay más de 15 productos, se activan controles de paginación para navegar entre páginas.</li>
+                        <li><strong>Ordenamiento:</strong> Los productos se ordenan automáticamente por monto de mayor a menor según el filtro activo.</li>
+                        <li><strong>Cerrar vista:</strong> Usa el botón "✕ Cerrar" para regresar al gráfico de pedidos.</li>
+                    </ul>
+                </li>
             </ul>
             <div class="note">
                 <strong><i class="bi bi-eye-slash-fill"></i>Ocultamiento de Gráfico General:</strong> Al seleccionar un cliente, el gráfico general "Avance de Facturación por Cliente" se oculta para dar paso a la vista detallada.

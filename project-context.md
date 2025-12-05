@@ -94,14 +94,17 @@ La aplicación también provee interfaces para la visualización detallada de da
         *   **Panel Ejecutivo Individual**: Gráfico compacto ubicado justo después de la tarjeta de avance, mostrando barra apilada (Facturado + Pendiente), línea de meta y panel de resumen con indicadores ejecutivos.
         *   **Gráfico de Avance por Pedido**: Al seleccionar un cliente, se muestra un gráfico detallado con el avance de cada pedido. La barra principal muestra el valor total original del pedido de venta y la barra interior muestra el monto ya facturado. Incluye botón "📦 Productos" que permite alternar a una vista de tabla de productos.
         *   **Tabla de Productos del Cliente**: Vista alternativa al gráfico de pedidos que muestra una tabla detallada con todos los productos del cliente seleccionado. Características:
-            *   Columnas: Código, Producto, Línea Comercial, Cantidad, Monto Total, Estado
+            *   **Acceso**: Botón "📦 Productos" en el gráfico de Avance por Pedido
+            *   **Columnas**: Código, Producto, Línea Comercial, Cantidad, Monto Total, Estado
             *   **Filtros interactivos**:
-                *   Estado: Todos / Facturado / Por Facturar (radio buttons)
+                *   Estado: Todos / Facturado / Por Facturar (radio buttons, Por Facturar por defecto)
                 *   Línea Comercial: selector desplegable dinámico con todas las líneas presentes en los productos del cliente
-            *   Agrupación automática por producto (suma cantidades y montos de facturado + pendiente)
-            *   Ordenamiento por cantidad total descendente
-            *   Estados visuales con colores: Facturado (verde), Pendiente (naranja), Mixto (azul)
-            *   Botón "✕ Cerrar" para volver al gráfico de pedidos
+            *   **Agrupación crítica**: Por código único de producto (`default_code`/`codigo_odoo`) — NUNCA por nombre de producto
+            *   **Paginación**: 15 productos por página con controles de navegación (← Anterior / Siguiente →) e información de página actual
+            *   **Ordenamiento**: Por monto descendente (facturado/pendiente/total según filtro activo)
+            *   **Estados visuales con colores**: Facturado (verde #27ae60), Por Facturar (naranja #e67e22), Mixto (azul #3498db)
+            *   **Datos**: Filtra automáticamente por `partner_id` del cliente seleccionado desde `salesDataAll` y `pendingDataAll`
+            *   **Navegación**: Botón "✕ Cerrar" para volver al gráfico de pedidos, reset automático a página 1 al cambiar filtros
     *   Exportación de datos de ventas facturadas y pendientes a Excel (usando campo `commercial_line_international_id` unificado).
 
 *   **Vistas de Datos Detallados**:

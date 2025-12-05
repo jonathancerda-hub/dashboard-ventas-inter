@@ -590,6 +590,32 @@ def dashboard():
                     <ul>
                         <li><strong>Cálculos Dinámicos:</strong> Si se detecta un <code>partner_id</code> en los filtros, los cálculos de KPIs y de la tabla principal se rehacen usando solo los datos de ventas y metas de ese cliente específico.</li>
                         <li><strong>Visualización de Gráficos:</strong> En el frontend, el JavaScript detecta la presencia de <code>selectedClienteId</code> y alterna la visibilidad: oculta el gráfico general de clientes y muestra la tarjeta de avance y el gráfico de detalle de pedidos para el cliente seleccionado.</li>
+                        <li><strong>Tabla de Productos del Cliente:</strong> Funcionalidad avanzada implementada en <code>dashboard_clean.html</code>:
+                            <ul>
+                                <li><strong>Activación:</strong> Botón "📦 Productos" en el gráfico de Avance por Pedido que ejecuta <code>toggleProductosCliente()</code></li>
+                                <li><strong>Procesamiento de datos:</strong> Función <code>procesarProductosCliente()</code> que:
+                                    <ul>
+                                        <li>Itera <code>salesDataAll</code> y <code>pendingDataAll</code> (inyectados desde backend)</li>
+                                        <li>Filtra por <code>partner_id === selectedClienteId</code></li>
+                                        <li><strong>CRÍTICO:</strong> Usa <code>Map</code> con <code>productoKey = productoCodigo</code> (campo <code>default_code</code> o <code>codigo_odoo</code>) — NUNCA nombre del producto</li>
+                                        <li>Acumula cantidades y montos (facturado + pendiente) por código único</li>
+                                        <li>Pobla selector dinámico de líneas comerciales</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Filtrado:</strong> Función <code>filtrarProductosCliente()</code> aplica filtros de estado y línea comercial, ordena por monto descendente</li>
+                                <li><strong>Paginación:</strong> Sistema completo con:
+                                    <ul>
+                                        <li>Constante <code>productosPorPagina = 15</code></li>
+                                        <li>Variables globales: <code>productosFiltradosGlobal</code>, <code>paginaActualProductos</code></li>
+                                        <li>Función <code>cambiarPaginaProductos(direccion)</code> para navegación</li>
+                                        <li>Función <code>renderizarTablaProductos()</code> usa <code>slice()</code> para mostrar solo página actual</li>
+                                        <li>Reset automático a página 1 al cambiar filtros</li>
+                                        <li>Info visual: "Página X de Y (Z productos)"</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Datos de origen:</strong> Arrays globales inyectados con <code>{{ sales_data|tojson|safe }}</code> y <code>{{ pending_data|tojson|safe }}</code></li>
+                            </ul>
+                        </li>
                     </ul>
                 </li>
             </ol>
