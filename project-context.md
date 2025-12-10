@@ -84,7 +84,20 @@ La aplicación también provee interfaces para la visualización detallada de da
     *   Filtro por cliente para visualizar los datos de un cliente específico, recalculando todos los KPIs y tablas en función de la selección.
     *   Tabla de ventas y proyecciones por Línea Comercial Internacional (campo `Facturado` muestra monto facturado).
     *   **Gráficos Interactivos**:
-        *   **Análisis Jerárquico (Drill-Down)**: Permite explorar las ventas a través de una jerarquía de Clasificación Farmacológica -> Forma Farmacéutica -> Vía de Administración -> Línea de Producción -> Producto.
+        *   **Análisis Jerárquico (Drill-Down)**: Permite explorar las ventas a través de una jerarquía de 5 niveles: Clasificación Farmacológica -> Forma Farmacéutica -> Vía de Administración -> Línea de Producción -> Producto. Características:
+            *   **Sincronización bidireccional**: Al navegar entre niveles, el gráfico de pastel "Top Productos por Venta" se actualiza automáticamente mostrando los top 20 productos del nivel actual
+            *   **Títulos dinámicos**: El título se actualiza según el nivel de navegación (ej: "Análisis Jerárquico: Ventas por Forma Farmacéutica")
+            *   **Ordenamiento inteligente**: Todos los niveles se ordenan automáticamente de mayor a menor por monto de venta
+            *   **Filtrado automático**: Excluye productos "No Definido" en todos los niveles
+            *   **Normalización de nombres**: 13 productos especiales tienen nombres simplificados para agrupación consistente (ATREVIA 360°, ATREVIA ONE, BIOCAN, SURALAN, EARTHBORN, FORMULA NATURAL, GO NATIVE, GO NATIVE ESSENTIALS, NUTRIBITES, etc.)
+            *   **Botón "Volver"**: Permite navegar hacia atrás en la jerarquía
+        *   **Top Productos por Venta**: Gráfico de pastel tipo donut (radio 30%-60%) que muestra los top 20 productos con mayor facturación del nivel actual del Análisis Jerárquico. Características:
+            *   **Formato donut**: Visualización con anillo central para mejor legibilidad
+            *   **Porcentajes visibles**: Labels muestran "Nombre: XX%" directamente en el gráfico
+            *   **Tooltip mejorado**: Muestra nombre, monto formateado y porcentaje con hint de interactividad
+            *   **Sincronización automática**: Se actualiza al navegar en el gráfico jerárquico
+            *   **Título dinámico**: Cambia según el nivel activo (ej: "Top Productos - Forma Farmacéutica: Comprimidos")
+            *   **Agrupación por código**: Productos agrupados por `default_code` usando nombres normalizados
         *   **Top Productos Facturados**: Gráfico de barras horizontales que muestra los 7 productos con mayor facturación. Es interactivo y se actualiza al hacer clic en una línea comercial del gráfico de líneas.
         *   **Venta Internacional del Año por Línea Comercial**: Gráfico de barras verticales con meta vs facturado. Al hacer clic en una línea comercial, filtra el gráfico de productos para mostrar solo los top productos de esa línea. Incluye botón "✕ Ver Todos" para resetear el filtro.
         *   **Avance de Facturación por Cliente**: Un gráfico general tipo bullet chart que compara el avance de todos los clientes. Se oculta al seleccionar un cliente específico.
