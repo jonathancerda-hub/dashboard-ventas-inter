@@ -1127,10 +1127,20 @@ def dashboard():
                 if total > 0:
                     info = product_info.get(codigo, {'nombre_completo': '', 'linea_comercial': '', 'categoria': ''})
                     
-                    # Usar nombre_completo que ya tiene toda la info
-                    producto_display = f"[{codigo}] {info['nombre_completo']}"
+                    # Limpiar nombre_completo para evitar que el código aparezca duplicado
+                    nombre_limpio = info['nombre_completo']
+                    # Remover el código si aparece al inicio entre corchetes
+                    if nombre_limpio.startswith(f'[{codigo}]'):
+                        nombre_limpio = nombre_limpio[len(f'[{codigo}]'):].strip()
+                    # También remover si aparece sin corchetes al inicio
+                    if nombre_limpio.startswith(codigo):
+                        nombre_limpio = nombre_limpio[len(codigo):].strip()
+                    
+                    # Crear display name sin duplicar el código
+                    producto_display = nombre_limpio if nombre_limpio else codigo
                     
                     products_chart_data.append({
+                        'codigo': codigo,  # Código separado para facilitar copia
                         'producto': producto_display,
                         'facturado': facturado,
                         'pendiente': pendiente,

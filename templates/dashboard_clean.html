@@ -2083,7 +2083,9 @@ function renderizarGraficoProductos() {
     productosGraficoChartInstance.resize();
 
     // Preparar datos
+    const codigos = datosPagina.map(d => d.codigo || '');
     const productos = datosPagina.map(d => d.producto);
+    const productosDisplay = datosPagina.map((d, i) => `[${codigos[i]}] ${d.producto}`);
     const totales = datosPagina.map(d => Math.max(0, Number(d.total || 0)));
     const facturados = datosPagina.map(d => Math.max(0, Number(d.facturado || 0)));
     const porcentajes = datosPagina.map(d => Number(d.porcentaje || 0));
@@ -2123,6 +2125,7 @@ function renderizarGraficoProductos() {
             axisPointer: { type: 'shadow' },
             formatter: function (params) {
                 const idx = params[0].dataIndex;
+                const codigo = codigos[idx];
                 const producto = productos[idx];
                 const fact = Math.round(facturados[idx] || 0);
                 const total = Math.round(totales[idx] || 0);
@@ -2152,7 +2155,7 @@ function renderizarGraficoProductos() {
                 }
                 
                 return `<div style="padding: 8px;">
-                    <strong style="font-size: 13px;">${producto}</strong><br/>
+                    <strong style="font-size: 13px;">[${codigo}] ${producto}</strong><br/>
                     <div style="margin-top: 8px; padding: 6px; background-color: ${colorIndicador}22; border-left: 3px solid ${colorIndicador}; border-radius: 4px;">
                         <strong>${emoji} ${estado}</strong> - Avance: <strong>${pct.toFixed(1)}%</strong>
                     </div>
@@ -2173,7 +2176,7 @@ function renderizarGraficoProductos() {
         },
         yAxis: {
             type: 'category',
-            data: productos,
+            data: productosDisplay,
             axisLabel: {
                 interval: 0,
                 formatter: value => value.length > 80 ? value.substring(0, 80) + '...' : value,
