@@ -859,7 +859,7 @@ class OdooManager:
                 for i in range(0, len(order_ids), batch_size):
                     batch_ids = order_ids[i:i+batch_size]
                     try:
-                        batch_orders = self.models.execute_kw(self.db, self.uid, self.password, 'sale.order', 'read', [batch_ids], {'fields': ['id', 'name', 'partner_id', 'date_order', 'state', 'amount_total', 'team_id', 'user_id']})
+                        batch_orders = self.models.execute_kw(self.db, self.uid, self.password, 'sale.order', 'read', [batch_ids], {'fields': ['id', 'name', 'partner_id', 'date_order', 'state', 'amount_total', 'team_id', 'user_id', 'commitment_date']})
                         for order in batch_orders:
                             order_data[order['id']] = order
                     except Exception as e:
@@ -948,6 +948,16 @@ class OdooManager:
                         # CAMBIO: Usar la línea comercial internacional en lugar de la nacional.
                         commercial_line_id = product.get('commercial_line_international_id')
                         
+                        # Extraer commitment_date del pedido
+                        commitment_date = order.get('commitment_date', '')
+                        commitment_year = ''
+                        if commitment_date:
+                            try:
+                                # El commitment_date viene en formato 'YYYY-MM-DD' o 'YYYY-MM-DD HH:MM:SS'
+                                commitment_year = commitment_date.split('-')[0]
+                            except:
+                                commitment_year = ''
+                        
                         pending_record = {
                             # 16 campos específicos
                             'pedido': order.get('name', ''),
@@ -971,6 +981,10 @@ class OdooManager:
                             'precio_unitario': line.get('price_unit', 0),
                             'discount': line.get('discount', 0),
                             'total_pendiente': line.get('qty_to_invoice_calculated', line.get('qty_to_invoice', 0)) * line.get('price_unit', 0) * (1 - (line.get('discount', 0) / 100)),
+                            
+                            # Campos de fecha de entrega
+                            'commitment_date': commitment_date,
+                            'commitment_year': commitment_year,
                             
                             # Campos adicionales
                             'team_id': order.get('team_id'),

@@ -155,6 +155,7 @@
             <li><a href="#gestion-metas-cliente">Gestión de Metas (Cliente)</a></li>
             <li><a href="#vistas-detalladas">Vistas Detalladas</a></li>
             <li><a href="#exportacion">Exportación de Datos</a></li>
+            <li><a href="#solucion-problemas">Solución de Problemas</a></li>
         </ul>
     </nav>
 
@@ -169,6 +170,45 @@
             <p>
                 El sistema se conecta directamente con <strong>Odoo</strong> para obtener datos de ventas y con <strong>Google Sheets</strong> para gestionar las metas comerciales, ofreciendo una herramienta centralizada para el análisis y la toma de decisiones.
             </p>
+            
+            <h3><i class="bi bi-info-circle-fill"></i>Conceptos Clave y Terminología</h3>
+            <p>
+                Antes de comenzar, es importante comprender algunos conceptos fundamentales que se utilizan a lo largo del sistema:
+            </p>
+            
+            <h4>Estados de Facturación</h4>
+            <ul>
+                <li><strong>Facturado <span style="color: #27ae60;">●</span>:</strong> Representa las ventas que ya han sido facturadas al cliente. Son ingresos confirmados que se han registrado en el sistema contable. En los gráficos y tablas aparecen con color <strong style="color: #27ae60;">verde</strong>.</li>
+                
+                <li><strong>Por Facturar <span style="color: #e67e22;">●</span>:</strong> Son los pedidos confirmados que ya están en el sistema pero aún no se han emitido las facturas correspondientes. Representan ventas comprometidas pero pendientes de facturación. Aparecen con color <strong style="color: #e67e22;">naranja</strong>.</li>
+                
+                <li><strong>Mixto <span style="color: #3498db;">●</span>:</strong> Indica productos o pedidos que tienen facturación parcial, es decir, una parte ya fue facturada y otra parte está pendiente. Se visualizan con color <strong style="color: #3498db;">azul</strong>.</li>
+            </ul>
+
+            <h4>Indicadores de Rendimiento</h4>
+            <ul>
+                <li><strong>Venta Proyectada:</strong> Es la suma del monto ya facturado más el monto pendiente de facturar. Representa la estimación total de ventas que se espera alcanzar considerando los pedidos confirmados.</li>
+                
+                <li><strong>Meta:</strong> Es el objetivo de ventas establecido para un período específico (año o mes) por cliente o línea comercial. Se configura en la sección de "Gestión de Metas".</li>
+                
+                <li><strong>Brecha Comercial:</strong> Es la diferencia entre la Venta Proyectada y la Meta. Un valor negativo indica que se está por debajo de la meta, mientras que un valor positivo indica que se superará la meta.</li>
+                
+                <li><strong>% Avance:</strong> Muestra el porcentaje de la meta que ya se ha alcanzado con las ventas facturadas (no incluye lo pendiente). Es un indicador del progreso real hacia el objetivo.</li>
+                
+                <li><strong>% Participación (% Part.):</strong> Representa el porcentaje que representa una línea comercial o producto respecto al total de ventas. Ayuda a identificar qué áreas tienen mayor peso en el negocio.</li>
+            </ul>
+
+            <h4>Indicadores Visuales de Semáforo</h4>
+            <p>El sistema utiliza colores tipo semáforo para facilitar la evaluación rápida del rendimiento:</p>
+            <ul>
+                <li><strong style="color: #27ae60;">Verde:</strong> Rendimiento excelente. Se ha alcanzado el 80% o más de la meta.</li>
+                <li><strong style="color: #f39c12;">Amarillo:</strong> Rendimiento aceptable. Se ha alcanzado entre el 60% y el 79% de la meta.</li>
+                <li><strong style="color: #e74c3c;">Rojo:</strong> Rendimiento bajo. Se ha alcanzado menos del 60% de la meta. Requiere atención inmediata.</li>
+            </ul>
+
+            <div class="note">
+                <strong><i class="bi bi-lightbulb-fill"></i>Nota Importante:</strong> Todos los montos en el sistema se muestran en dólares estadounidenses (USD) y se formatean con el símbolo "$" y separadores de miles para facilitar la lectura. Por ejemplo: $125,450
+            </div>
         </section>
 
         <section id="inicio-sesion">
@@ -192,69 +232,672 @@
             </p>
             <h3><i class="bi bi-bar-chart-line-fill"></i>KPIs Principales</h3>
             <p>
-                La fila superior muestra los indicadores clave de rendimiento:
-                <ul>
-                    <li><strong>Venta Proyectada del Año:</strong> Suma de todo lo facturado en el año más los pedidos pendientes de facturar para el cliente seleccionado (o todos).</li>
-                    <li><strong>Meta:</strong> La meta de ventas definida en la sección "Metas por Cliente". Si se selecciona un cliente, muestra la meta de ese cliente. Si no, muestra la suma de las metas de todos los clientes.</li>
-                    <li><strong>Brecha Comercial:</strong> La diferencia entre la Venta Proyectada y la Meta.</li>
-                    <li><strong>% Avance:</strong> El porcentaje de la meta que se ha alcanzado con la venta facturada.</li>
-                </ul>
+                La fila superior muestra los indicadores clave de rendimiento (KPIs) que resumen el estado actual de las ventas. Estas son las <strong>4 tarjetas principales</strong> del dashboard:
             </p>
+
+            <h4>📊 Tarjeta 1: Venta Proyectada del Año</h4>
+            <p><strong>¿Qué mide?</strong> El valor total estimado de ventas que se alcanzará al finalizar el año, considerando tanto lo ya facturado como los compromisos pendientes.</p>
+            
+            <p><strong>Fórmula de Cálculo:</strong></p>
+            <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
+                Venta Proyectada = Facturado del Año + Pedidos Pendientes de Facturar
+            </code>
+            
+            <p><strong>Origen de los Datos:</strong></p>
+            <ul>
+                <li><strong>Facturado del Año:</strong> Suma del campo <code>amount_currency</code> de todas las líneas de facturas de venta internacionales confirmadas del año actual (estado: Publicado). Se obtiene del modelo <code>account.move.line</code> de Odoo.</li>
+                <li><strong>Pedidos Pendientes:</strong> Suma del campo <code>total_pendiente</code> de todas las líneas de pedidos de venta confirmados (estado: "Pedido de Venta") que aún no tienen factura asociada. Se calcula multiplicando cantidad pendiente × precio unitario por cada línea del modelo <code>sale.order.line</code> de Odoo.</li>
+            </ul>
+            
+            <p><strong>Comportamiento con Filtros:</strong></p>
+            <ul>
+                <li><strong>Sin filtro de cliente:</strong> Suma las ventas de TODOS los clientes internacionales.</li>
+                <li><strong>Con cliente seleccionado:</strong> Suma únicamente las ventas del cliente filtrado.</li>
+            </ul>
+            
+            <p><strong>Estado Visual:</strong> Esta tarjeta no tiene colores de estado (siempre es neutral).</p>
+
+            <h4>🎯 Tarjeta 2: Meta Anual</h4>
+            <p><strong>¿Qué mide?</strong> El objetivo de ventas establecido para el año. Es el benchmark contra el cual se compara el desempeño real.</p>
+            
+            <p><strong>Fórmula de Cálculo:</strong></p>
+            <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
+                Meta Total = Suma de metas por línea comercial del cliente (o todos los clientes)
+            </code>
+            
+            <p><strong>Origen de los Datos:</strong></p>
+            <ul>
+                <li><strong>Fuente:</strong> Google Sheets, pestaña específica del año (ej: "2025").</li>
+                <li><strong>Estructura:</strong> Cada cliente tiene metas definidas por línea comercial (AGROVET, PETMEDICA, AVIVET).</li>
+                <li><strong>Lectura:</strong> El sistema lee las metas al cargar el dashboard usando la función <code>read_metas_por_cliente()</code> del <code>GoogleSheetsManager</code>.</li>
+            </ul>
+            
+            <p><strong>Comportamiento con Filtros:</strong></p>
+            <ul>
+                <li><strong>Sin filtro de cliente:</strong> 
+                    <code>Meta Total = Suma de todas las metas de todos los clientes para todas las líneas</code>
+                </li>
+                <li><strong>Con cliente seleccionado:</strong> 
+                    <code>Meta Total = Suma de metas del cliente para AGROVET + PETMEDICA + AVIVET</code>
+                </li>
+            </ul>
+            
+            <p><strong>Configuración:</strong> Las metas se modifican en la sección <a href="#gestion-metas-cliente">Gestión de Metas por Cliente</a>.</p>
+            
+            <p><strong>Estado Visual:</strong> Esta tarjeta no tiene colores de estado (siempre es neutral).</p>
+
+            <h4>📈 Tarjeta 3: Brecha Comercial</h4>
+            <p><strong>¿Qué mide?</strong> La diferencia entre la proyección de ventas y la meta establecida. Indica si se está en camino de superar, cumplir o quedar por debajo del objetivo.</p>
+            
+            <p><strong>Fórmula de Cálculo:</strong></p>
+            <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
+                Brecha Comercial = (Facturado + Pendiente) - Meta Total
+                              = Venta Proyectada - Meta Total
+            </code>
+            
+            <p><strong>Proceso de Cálculo Técnico:</strong></p>
+            <ol>
+                <li>Se calcula <code>total_sales_year</code> sumando todas las ventas facturadas.</li>
+                <li>Se calcula <code>total_por_facturar</code> sumando todos los pedidos pendientes.</li>
+                <li>Se obtiene <code>meta_total_general</code> desde Google Sheets.</li>
+                <li>Se aplica la fórmula: <code>brecha_comercial = (total_sales_year + total_por_facturar) - meta_total_general</code></li>
+            </ol>
+            
+            <p><strong>Interpretación de Valores:</strong></p>
+            <ul>
+                <li><strong>Valor <span style="color: #27ae60;">positivo (+)</span>:</strong> Se proyecta superar la meta. Ejemplo: +$15,000 significa que se espera facturar $15,000 más que el objetivo. <strong>Buena señal.</strong></li>
+                
+                <li><strong>Valor <span style="color: #e74c3c;">negativo (-)</span>:</strong> Se proyecta quedar por debajo de la meta. Ejemplo: -$8,000 significa que faltan $8,000 para alcanzar el objetivo. <strong>Requiere acciones correctivas inmediatas.</strong></li>
+                
+                <li><strong>Valor cercano a cero:</strong> Se proyecta cumplir exactamente con la meta (±2% es considerado "en meta").</li>
+            </ul>
+            
+            <p><strong>Estados Visuales:</strong></p>
+            <ul>
+                <li><span style="color: #27ae60; font-weight: bold;">Verde (positivo):</span> Número verde con signo +</li>
+                <li><span style="color: #e74c3c; font-weight: bold;">Rojo (negativo):</span> Número rojo con signo -</li>
+                <li><span style="color: #555; font-weight: bold;">Negro (cero):</span> Número neutro</li>
+            </ul>
+            
+            <p><strong>Actualización:</strong> Se recalcula cada vez que cargas el dashboard, reflejando los datos más actuales de Odoo.</p>
+
+            <h4>✅ Tarjeta 4: % Avance</h4>
+            <p><strong>¿Qué mide?</strong> El porcentaje de progreso real hacia la meta basándose <strong>exclusivamente</strong> en ventas ya facturadas (ingresos confirmados). No considera pedidos pendientes.</p>
+            
+            <p><strong>Fórmula de Cálculo:</strong></p>
+            <code style="display: block; padding: 10px; background: #f5f5f5; margin: 10px 0;">
+                % Avance = (Facturado del Año / Meta Total) × 100
+            </code>
+            
+            <p><strong>Proceso de Cálculo Técnico:</strong></p>
+            <ol>
+                <li>Se suma el <code>amount_currency</code> de todas las facturas confirmadas del año.</li>
+                <li>Se obtiene la <code>meta_total_general</code> desde Google Sheets.</li>
+                <li>Se divide y multiplica por 100: <code>(total_sales_year / meta_total_general) * 100</code></li>
+                <li>Si <code>meta_total_general == 0</code>, el resultado es 0% (para evitar división por cero).</li>
+            </ol>
+            
+            <p><strong>¿Por qué no incluye pedidos pendientes?</strong> Esta métrica representa progreso <strong>real y confirmado</strong>, no proyectado. Solo cuenta dinero que ya fue facturado (ingreso contable registrado). Es el indicador más conservador y confiable del desempeño.</p>
+            
+            <p><strong>Estados Visuales con Semáforo:</strong></p>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+                <tr style="background: #27ae60; color: white;">
+                    <td style="padding: 10px; border: 1px solid #ddd;"><strong>Verde</strong></td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">≥ 80%</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Excelente progreso. Se ha alcanzado el 80% o más de la meta.</td>
+                </tr>
+                <tr style="background: #f39c12; color: white;">
+                    <td style="padding: 10px; border: 1px solid #ddd;"><strong>Amarillo</strong></td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">60% - 79%</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Progreso aceptable. Se está en camino pero se debe acelerar.</td>
+                </tr>
+                <tr style="background: #e74c3c; color: white;">
+                    <td style="padding: 10px; border: 1px solid #ddd;"><strong>Rojo</strong></td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">< 60%</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">Requiere atención urgente. Muy por debajo de la meta esperada.</td>
+                </tr>
+            </table>
+            
+            <p><strong>Código de Colores en la Tarjeta:</strong></p>
+            <ul>
+                <li><strong>Fondo de la tarjeta:</strong> Cambia según el rango (verde/amarillo/rojo).</li>
+                <li><strong>Icono:</strong> Puede cambiar (✓ para verde, ⚠ para amarillo/rojo).</li>
+                <li><strong>Porcentaje:</strong> Se muestra en grande con 1 decimal (ej: 75.3%).</li>
+            </ul>
+            
+            <p><strong>Contexto Temporal:</strong> El % Avance debe interpretarse considerando en qué mes del año estamos. Por ejemplo:</p>
+            <ul>
+                <li>En marzo (25% del año): Esperaríamos ~25% de avance.</li>
+                <li>En junio (50% del año): Esperaríamos ~50% de avance.</li>
+                <li>En septiembre (75% del año): Esperaríamos ~75% de avance.</li>
+            </ul>
+            <p>Si el % Avance está significativamente por debajo del % del año transcurrido, es señal de alerta.</p>
+            </ul>
+            
+            <div class="note">
+                <strong><i class="bi bi-calculator-fill"></i>Ejemplo de Interpretación:</strong> Si un cliente tiene:
+                <ul style="margin-top: 10px;">
+                    <li>Facturado: $80,000</li>
+                    <li>Pendiente: $30,000</li>
+                    <li>Meta: $100,000</li>
+                </ul>
+                Entonces:
+                <ul style="margin-top: 5px;">
+                    <li>Venta Proyectada = $110,000 ($80,000 + $30,000)</li>
+                    <li>Brecha = +$10,000 (proyección supera meta)</li>
+                    <li>% Avance = 80% (basado solo en lo facturado)</li>
+                </ul>
+            </div>
             <h3><i class="bi bi-card-checklist"></i>Análisis por Cliente Seleccionado</h3>
             <p>
-                Cuando filtras por un cliente específico, el dashboard se transforma para ofrecerte un análisis detallado de ese cliente:
+                Cuando filtras por un cliente específico utilizando el selector de la parte superior, el dashboard se transforma para ofrecerte un análisis detallado y personalizado de ese cliente en particular:
+            </p>
+            
+            <h4>1. Tarjeta de Avance de Facturación</h4>
+            <p>
+                Aparece una nueva tarjeta destacada en la parte superior que muestra el progreso de facturación del cliente seleccionado. Incluye:
             </p>
             <ul>
-                <li><strong>Tarjeta de Avance de Facturación:</strong> Aparece una nueva tarjeta en la parte superior que muestra el progreso de facturación de los pedidos de ese cliente. Una barra de progreso con colores de semáforo (rojo, amarillo, verde) te permite evaluar rápidamente su estado.</li>
-                <li><strong>Gráfico de Avance por Pedido:</strong> Justo debajo, verás un gráfico que desglosa el avance de cada pedido individual del cliente. La barra principal representa el valor total original del pedido y la barra interior (bala) muestra cuánto se ha facturado. Incluye un botón "📦 Productos" que te permite alternar a una vista de tabla de productos.</li>
-                <li><strong>Tabla de Productos del Cliente:</strong> Al hacer clic en "📦 Productos", accedes a una tabla detallada con todos los productos del cliente:
+                <li><strong>Barra de Progreso con Semáforo:</strong> Visualización gráfica del % de facturación completada.
                     <ul>
-                        <li><strong>Filtro de Estado:</strong> Selecciona entre "Todos", "Facturado" o "Por Facturar" (por defecto muestra Por Facturar).</li>
-                        <li><strong>Filtro de Línea Comercial:</strong> Selector desplegable que te permite filtrar por línea comercial específica o ver todas.</li>
-                        <li><strong>Información mostrada:</strong> Código del producto, nombre, línea comercial, cantidad total, monto total y estado con colores visuales (verde=facturado, naranja=por facturar, azul=mixto).</li>
-                        <li><strong>Paginación:</strong> Si hay más de 15 productos, se activan controles de paginación para navegar entre páginas.</li>
-                        <li><strong>Ordenamiento:</strong> Los productos se ordenan automáticamente por monto de mayor a menor según el filtro activo.</li>
-                        <li><strong>Cerrar vista:</strong> Usa el botón "✕ Cerrar" para regresar al gráfico de pedidos.</li>
+                        <li><span style="color: #27ae60;">Verde:</span> 80% o más facturado - Cliente en excelente estado</li>
+                        <li><span style="color: #f39c12;">Amarillo:</span> 60% - 79% facturado - Cliente con progreso aceptable</li>
+                        <li><span style="color: #e74c3c;">Rojo:</span> Menos de 60% facturado - Cliente requiere seguimiento urgente</li>
+                    </ul>
+                </li>
+                <li><strong>Valor Pedidos:</strong> Monto total de todos los pedidos confirmados del cliente.</li>
+                <li><strong>Facturado:</strong> Monto ya facturado al cliente (ingresos confirmados).</li>
+                <li><strong>% Facturado:</strong> Porcentaje que representa lo facturado sobre el total de pedidos.</li>
+            </ul>
+
+            <h4>2. Panel Ejecutivo Individual</h4>
+            <p>
+                Gráfico compacto que muestra el desempeño del cliente de forma visual:
+            </p>
+            <ul>
+                <li><strong>Barra Apilada:</strong> Muestra la composición de Facturado (verde) + Pendiente (naranja)</li>
+                <li><strong>Línea de Meta:</strong> Marca visual que indica dónde está ubicada la meta anual</li>
+                <li><strong>Panel de Resumen:</strong> Indicadores ejecutivos calculados:
+                    <ul>
+                        <li><strong>% Facturado:</strong> (Facturado / Meta) × 100</li>
+                        <li><strong>% Proyectado:</strong> ((Facturado + Pendiente) / Meta) × 100</li>
+                        <li><strong>Brecha:</strong> (Facturado + Pendiente) - Meta</li>
                     </ul>
                 </li>
             </ul>
+
+            <h4>3. Gráfico de Avance por Pedido</h4>
+            <p>
+                Visualización detallada del estado de facturación de cada pedido individual del cliente:
+            </p>
+            <ul>
+                <li><strong>Barra Principal (exterior):</strong> Representa el valor total original del pedido de venta confirmado.</li>
+                <li><strong>Barra Interior (bala):</strong> Muestra el monto que ya ha sido facturado de ese pedido.</li>
+                <li><strong>Información del Pedido:</strong> Cada barra incluye:
+                    <ul>
+                        <li>Número de pedido (ID)</li>
+                        <li>Nombre del cliente</li>
+                        <li>Total del pedido</li>
+                        <li>Monto facturado</li>
+                        <li>Porcentaje de avance</li>
+                    </ul>
+                </li>
+                <li><strong>Botón "📦 Productos":</strong> Permite alternar a la vista de tabla de productos del cliente.</li>
+            </ul>
+
+            <h4>4. Tabla de Productos del Cliente</h4>
+            <p>
+                Vista alternativa que se activa al hacer clic en el botón "📦 Productos" del gráfico de pedidos. Muestra información detallada de todos los productos asociados al cliente seleccionado:
+            </p>
+            
+            <h5>Estructura de la Tabla:</h5>
+            <ul>
+                <li><strong>Código:</strong> Código único del producto (default_code en Odoo). Este es el identificador principal que se usa para agrupar productos.</li>
+                <li><strong>Producto:</strong> Nombre comercial del producto.</li>
+                <li><strong>Línea Comercial:</strong> Categoría o línea a la que pertenece el producto (AGROVET, PETMEDICA, AVIVET).</li>
+                <li><strong>Cantidad:</strong> Cantidad total de unidades del producto (sumando lo facturado y lo pendiente).</li>
+                <li><strong>Monto Total:</strong> Valor monetario total del producto para el cliente, formateado en USD.</li>
+                <li><strong>Estado:</strong> Indicador visual del estado de facturación:
+                    <ul>
+                        <li><span style="color: #27ae60; font-weight: bold;">Facturado</span> - Todo el monto de este producto ya fue facturado</li>
+                        <li><span style="color: #e67e22; font-weight: bold;">Por Facturar</span> - Todo el monto está pendiente de facturación</li>
+                        <li><span style="color: #3498db; font-weight: bold;">Mixto</span> - El producto tiene facturación parcial (una parte facturada y otra pendiente)</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h5>Filtros Disponibles:</h5>
+            <ul>
+                <li><strong>Filtro de Estado (Radio Buttons):</strong>
+                    <ul>
+                        <li><strong>Por Facturar (predeterminado):</strong> Muestra solo productos que tienen montos pendientes de facturar. Útil para conocer compromisos futuros.</li>
+                        <li><strong>Facturado:</strong> Muestra solo productos que ya fueron completamente facturados. Útil para reportes de ingresos confirmados.</li>
+                        <li><strong>Todos:</strong> Muestra todos los productos sin distinción de estado.</li>
+                    </ul>
+                </li>
+                <li><strong>Filtro de Línea Comercial (Selector desplegable):</strong> Permite filtrar productos por línea comercial específica o ver todas las líneas juntas. Se actualiza dinámicamente según los productos del cliente.</li>
+            </ul>
+
+            <h5>Características Adicionales:</h5>
+            <ul>
+                <li><strong>Ordenamiento Automático:</strong> Los productos se ordenan de mayor a menor por monto (total, facturado o pendiente según el filtro de estado activo).</li>
+                <li><strong>Paginación:</strong> Si hay más de 15 productos, aparecen controles de navegación (← Anterior / Siguiente →) con información de página actual (ej: "Página 1 de 3").</li>
+                <li><strong>Agrupación Inteligente:</strong> Los productos se agrupan por código único (default_code), no por nombre, evitando duplicados por variaciones en los nombres.</li>
+                <li><strong>Reset Automático:</strong> Al cambiar cualquier filtro, la vista regresa automáticamente a la página 1.</li>
+                <li><strong>Botón "✕ Cerrar":</strong> Cierra la tabla y regresa a la vista de gráfico de Avance por Pedido.</li>
+            </ul>
+
             <div class="note">
-                <strong><i class="bi bi-eye-slash-fill"></i>Ocultamiento de Gráfico General:</strong> Al seleccionar un cliente, el gráfico general "Avance de Facturación por Cliente" se oculta para dar paso a la vista detallada.
+                <strong><i class="bi bi-info-circle-fill"></i>¿Cuándo usar cada vista?</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Gráfico de Avance por Pedido:</strong> Para evaluar rápidamente el estado general de facturación por pedido y detectar pedidos con bajo avance.</li>
+                    <li><strong>Tabla de Productos:</strong> Para análisis detallado de productos específicos, planificación de facturación futura, o cuando necesites exportar/copiar información de productos.</li>
+                </ul>
+            </div>
+
+            <div class="note">
+                <strong><i class="bi bi-eye-slash-fill"></i>Ocultamiento de Gráfico General:</strong> Al seleccionar un cliente, el gráfico general "Avance de Facturación por Cliente" se oculta automáticamente para dar paso a las vistas detalladas específicas del cliente, optimizando el espacio en pantalla y mejorando el enfoque en la información relevante.
             </div>
 
 
 
             <h3><i class="bi bi-table"></i>Tabla de Ventas por Línea Comercial</h3>
             <p>
-                Esta tabla desglosa el rendimiento por cada línea comercial internacional:
-                <ul>
-                    <li><strong>Venta Total ($):</strong> Lo que ya ha sido facturado para esa línea.</li>
-                    <li><strong>Por Facturar ($):</strong> El valor de los pedidos de venta que están confirmados pero aún no se han facturado.</li>
-                    <li><strong>% Part.:</strong> Porcentaje de participación de la línea sobre la venta total.</li>
-                    <li><strong>Meta:</strong> La meta específica para esa línea, calculada a partir de los datos de "Metas por Cliente".</li>
-                    <li><strong>Brecha:</strong> La diferencia entre la proyección (Venta + Por Facturar) y la meta de la línea.</li>
-                    <li><strong>% Avance:</strong> El progreso porcentual hacia la meta de la línea.</li>
-                </ul>
+                Esta tabla estratégica desglosa el rendimiento comercial por cada línea de negocio internacional, ofreciendo un análisis completo que combina datos históricos (facturado), proyecciones (pendiente) y objetivos (metas):
             </p>
+            
+            <h4>Columnas de la Tabla y su Significado:</h4>
+            <ul>
+                <li><strong>Línea Comercial:</strong> Nombre de la línea de negocio (AGROVET, PETMEDICA, AVIVET). Representa una categoría de productos o división comercial.</li>
+                
+                <li><strong>Venta Total ($):</strong> Monto que ya ha sido facturado durante el año para esa línea comercial. Representa <strong>ingresos confirmados</strong> y registrados contablemente.
+                    <ul>
+                        <li>Este es dinero que ya ingresó o está por ingresar (dependiendo de las condiciones de pago).</li>
+                        <li>Se calcula sumando el campo <code>amount_currency</code> de todas las líneas de factura de la línea comercial.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Por Facturar ($):</strong> Valor de los pedidos de venta confirmados que aún no se han convertido en facturas. Representa <strong>compromisos comerciales pendientes</strong>.
+                    <ul>
+                        <li>Son ventas prácticamente aseguradas pero que aún no generan ingreso contable.</li>
+                        <li>Se calculan sumando el valor de las líneas de pedido en estado confirmado que no tienen factura asociada.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>% Part. (Participación):</strong> Porcentaje que representa la línea comercial sobre el total de ventas de todas las líneas.
+                    <ul>
+                        <li>Fórmula: (Venta Total de la Línea / Venta Total de Todas las Líneas) × 100</li>
+                        <li>Útil para identificar cuáles líneas son las más importantes en el negocio.</li>
+                        <li>Ejemplo: Si AGROVET tiene % Part. = 45%, significa que casi la mitad de las ventas provienen de esa línea.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Meta ($):</strong> Objetivo de ventas establecido para esa línea comercial durante el año.
+                    <ul>
+                        <li>Se calcula sumando las metas individuales de cada cliente para esa línea (configuradas en "Gestión de Metas por Cliente").</li>
+                        <li>Sirve como referencia para evaluar si el desempeño es adecuado.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Brecha ($):</strong> Diferencia entre la proyección total y la meta de la línea.
+                    <ul>
+                        <li>Fórmula: (Venta Total + Por Facturar) - Meta</li>
+                        <li><span style="color: #27ae60;">Valor positivo (+):</span> La proyección supera la meta. La línea va bien encaminada y podría superar el objetivo.</li>
+                        <li><span style="color: #e74c3c;">Valor negativo (-):</span> La proyección está por debajo de la meta. Indica que se necesitan acciones para alcanzar el objetivo (buscar más ventas, acelerar pedidos pendientes, etc.).</li>
+                        <li>Ejemplo: Brecha = -$10,000 significa que falta generar $10,000 adicionales para cumplir la meta.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>% Avance:</strong> Porcentaje de progreso hacia la meta considerando únicamente lo que ya fue facturado (no incluye lo pendiente).
+                    <ul>
+                        <li>Fórmula: (Venta Total / Meta) × 100</li>
+                        <li>Es el indicador más conservador porque solo cuenta ingresos confirmados.</li>
+                        <li>Interpretación por color (semáforo):
+                            <ul>
+                                <li><span style="color: #27ae60;">≥ 80%:</span> Verde - Excelente desempeño</li>
+                                <li><span style="color: #f39c12;">60% - 79%:</span> Amarillo - Desempeño aceptable</li>
+                                <li><span style="color: #e74c3c;">< 60%:</span> Rojo - Requiere atención urgente</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>Cómo Interpretar la Tabla - Ejemplo Práctico:</h4>
+            <div class="note">
+                <strong><i class="bi bi-calculator-fill"></i>Ejemplo: Línea AGROVET</strong>
+                <ul style="margin-top: 10px;">
+                    <li>Venta Total: $85,000</li>
+                    <li>Por Facturar: $20,000</li>
+                    <li>% Part.: 42%</li>
+                    <li>Meta: $100,000</li>
+                    <li>Brecha: +$5,000</li>
+                    <li>% Avance: 85%</li>
+                </ul>
+                <strong>Interpretación:</strong>
+                <ul style="margin-top: 10px;">
+                    <li>AGROVET representa el 42% del negocio (es la línea más importante).</li>
+                    <li>Ya se facturaron $85,000 de los $100,000 de meta (85% de avance) - <span style="color: #27ae60;">Estado: Verde</span></li>
+                    <li>Hay $20,000 adicionales en pedidos pendientes.</li>
+                    <li>Proyección total: $105,000 ($85,000 + $20,000)</li>
+                    <li>La brecha es positiva (+$5,000), lo que significa que se superará la meta si se facturan todos los pedidos pendientes.</li>
+                    <li><strong>Conclusión:</strong> Línea en excelente estado, cumplirá y superará la meta.</li>
+                </ul>
+            </div>
+
+            <h4>Fila de Totales:</h4>
+            <p>
+                La última fila de la tabla (generalmente en negrita) muestra la suma de todas las líneas comerciales:
+            </p>
+            <ul>
+                <li><strong>Total Venta:</strong> Suma de todas las ventas facturadas.</li>
+                <li><strong>Total Por Facturar:</strong> Suma de todos los pedidos pendientes.</li>
+                <li><strong>% Part.:</strong> Siempre será 100% (representa el total).</li>
+                <li><strong>Total Meta:</strong> Suma de todas las metas de las líneas.</li>
+                <li><strong>Brecha Total:</strong> Diferencia entre proyección total y meta total de la empresa.</li>
+                <li><strong>% Avance Global:</strong> Progreso general de la empresa hacia su meta anual.</li>
+            </ul>
             <h3><i class="bi bi-pie-chart-fill"></i>Gráficos de Análisis</h3>
             <p>
-                La parte inferior del dashboard contiene varios gráficos para un análisis más profundo:
-                <ul>
-                    <li><strong>Top Productos Facturados:</strong> Muestra los productos con mayor volumen de venta facturada.</li>
-                    <li><strong>Venta Internacional por Línea Comercial:</strong> Un resumen visual de la tabla principal.</li>
-                    <li><strong>Análisis Jerárquico de Ventas:</strong> Un potente gráfico "drill-down" que te permite explorar las ventas a través de múltiples niveles. La nueva jerarquía es:
-                        <ol>
-                            <li>Clasificación Farmacológica</li>
-                            <li>Formas Farmacéuticas</li>
-                            <li>Vía de Administración</li>
-                            <li>Línea de Producción</li>
-                            <li>Producto</li>
-                        </ol>
-                        Al hacer clic en una barra, el gráfico de pastel "Venta por Clasificación Farmacológica" se actualizará para mostrar el desglose del siguiente nivel.
-                    </li>
-                    <li><strong>Avance de Facturación por Cliente:</strong> Un gráfico de tipo "bullet" que compara lo facturado contra el total de pedidos para cada cliente, mostrando el porcentaje de avance.</li>
-                </ul>
+                La sección inferior del dashboard contiene múltiples gráficos interactivos diseñados para facilitar el análisis visual de las ventas desde diferentes perspectivas. Estos gráficos están interconectados y se actualizan dinámicamente según los filtros aplicados.
             </p>
+
+            <h4>1. Análisis Jerárquico de Ventas (Drill-Down de 5 Niveles)</h4>
+            <p>
+                Este es uno de los gráficos más potentes del sistema. Permite explorar las ventas a través de una jerarquía de 5 niveles, permitiéndote "profundizar" desde categorías amplias hasta productos específicos.
+            </p>
+            
+            <h5>🔧 Funcionamiento Técnico Interno:</h5>
+            <p><strong>Origen de los Datos:</strong></p>
+            <ul>
+                <li><strong>Nivel 1 (Clasificación Farmacológica):</strong> Campo <code>pharmacological_classification_id</code> de las líneas de factura en Odoo.</li>
+                <li><strong>Nivel 2 (Formas Farmacéuticas):</strong> Campo <code>pharmaceutical_forms_id</code> del producto asociado.</li>
+                <li><strong>Nivel 3 (Vía de Administración):</strong> Campo <code>administration_route_id</code> del producto.</li>
+                <li><strong>Nivel 4 (Línea de Producción):</strong> Campo <code>production_line_id</code> del producto.</li>
+                <li><strong>Nivel 5 (Producto):</strong> Campo <code>product_id</code> (nombre del producto).</li>
+            </ul>
+            
+            <p><strong>Proceso de Construcción del Gráfico:</strong></p>
+            <ol>
+                <li><strong>Lectura de datos:</strong> Al cargar el dashboard, se itera sobre todas las líneas de factura (<code>sales_data_international</code>).</li>
+                <li><strong>Agrupación jerárquica:</strong> Se construye un diccionario multinivel (<code>drilldown_data</code>) donde cada nivel contiene:
+                    <ul>
+                        <li>Clave: ID del elemento actual (ej: "Antibióticos", "Comprimidos")</li>
+                        <li>Valor: Objeto con <code>venta</code> (monto acumulado) y <code>children</code> (siguiente nivel)</li>
+                    </ul>
+                </li>
+                <li><strong>Normalización de productos:</strong> Se aplica un mapeo de nombres usando la función <code>normalize_product_name()</code> que unifica 13 productos especiales:
+                    <code style="display: block; padding: 5px; background: #f5f5f5; margin: 5px 0;">
+                    ATREVIA 360° → ATREVIA 360<br>
+                    ATREVIA ONE → ATREVIA ONE<br>
+                    BIOCAN → BIOCAN<br>
+                    SURALAN → SURALAN<br>
+                    ... (9 productos más)
+                    </code>
+                </li>
+                <li><strong>Filtrado:</strong> Se excluyen automáticamente elementos con valor "No Definido" en cualquier nivel.</li>
+                <li><strong>Ordenamiento:</strong> Cada nivel se ordena descendente por <code>amount_currency</code> (de mayor a menor venta).</li>
+            </ol>
+            
+            <p><strong>Mecanismo de Navegación (Drill-Down):</strong></p>
+            <ul>
+                <li>Al hacer clic en una barra, se ejecuta JavaScript que:
+                    <ol>
+                        <li>Identifica el elemento clickeado y su nivel actual.</li>
+                        <li>Busca en <code>drilldown_data</code> el sub-nivel correspondiente (propiedad <code>children</code>).</li>
+                        <li>Destruye el gráfico ECharts actual usando <code>drillChart.dispose()</code>.</li>
+                        <li>Crea un nuevo gráfico ECharts con los datos del siguiente nivel.</li>
+                        <li>Actualiza el título dinámicamente según el nivel.</li>
+                        <li>Muestra el botón "Volver" si no estás en el nivel 1.</li>
+                        <li>Dispara un evento para actualizar el gráfico de pastel sincronizado.</li>
+                    </ol>
+                </li>
+            </ul>
+            
+            <p><strong>Jerarquía de Niveles:</strong></p>
+            <ol>
+                <li><strong>Nivel 1 - Clasificación Farmacológica:</strong> Categorización de productos según su uso terapéutico o aplicación principal (ej: Antibióticos, Antiparasitarios, Nutricionales).</li>
+                <li><strong>Nivel 2 - Formas Farmacéuticas:</strong> Presentación física del producto (ej: Comprimidos, Suspensión Oral, Inyectable, Polvo).</li>
+                <li><strong>Nivel 3 - Vía de Administración:</strong> Método de aplicación del producto (ej: Oral, Parenteral, Tópica, Sublingual).</li>
+                <li><strong>Nivel 4 - Línea de Producción:</strong> Línea de manufactura o categoría de producto dentro de la empresa.</li>
+                <li><strong>Nivel 5 - Producto:</strong> Nombre específico del producto final.</li>
+            </ol>
+
+            <h5>Características del Análisis Jerárquico:</h5>
+            <ul>
+                <li><strong>Navegación Interactiva:</strong> Haz clic en cualquier barra para "profundizar" al siguiente nivel de detalle. El gráfico se actualiza mostrando el desglose del elemento seleccionado.</li>
+                
+                <li><strong>Título Dinámico:</strong> El título del gráfico cambia según el nivel actual de navegación. Ejemplos:
+                    <ul>
+                        <li>"Análisis Jerárquico: Ventas por Clasificación Farmacológica" (Nivel 1)</li>
+                        <li>"Análisis Jerárquico: Ventas por Forma Farmacéutica" (Nivel 2)</li>
+                        <li>"Análisis Jerárquico: Ventas por Producto" (Nivel 5)</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Sincronización Bidireccional:</strong> Al navegar entre niveles, el gráfico de pastel "Top Productos por Venta" (ubicado a la derecha) se actualiza automáticamente para mostrar los top 20 productos del nivel actual, manteniendo coherencia visual.</li>
+                
+                <li><strong>Ordenamiento Inteligente:</strong> Todas las barras se ordenan automáticamente de mayor a menor por monto de venta, facilitando la identificación de los elementos más importantes.</li>
+                
+                <li><strong>Filtrado Automático:</strong> El sistema excluye automáticamente productos marcados como "No Definido" en todos los niveles, asegurando que solo se visualicen datos válidos y útiles.</li>
+                
+                <li><strong>Normalización de Nombres:</strong> El sistema agrupa correctamente productos con nombres similares o variantes. Por ejemplo: "ATREVIA 360°", "ATREVIA ONE", "BIOCAN", "SURALAN", etc., tienen nombres normalizados para evitar duplicados y garantizar agrupación consistente.</li>
+                
+                <li><strong>Botón "Volver":</strong> Permite retroceder al nivel anterior de la jerarquía. Aparece cuando estás en niveles 2-5, facilitando la navegación hacia atrás sin necesidad de recargar la página.</li>
+            </ul>
+
+            <h5>Cómo usar el Análisis Jerárquico:</h5>
+            <div class="note">
+                <strong><i class="bi bi-lightbulb-fill"></i>Ejemplo de Uso:</strong>
+                <ol style="margin-top: 10px;">
+                    <li>Inicias en Nivel 1 viendo las ventas por "Clasificación Farmacológica" y notas que "Antibióticos" tiene ventas altas.</li>
+                    <li>Haces clic en la barra "Antibióticos" → Avanzas al Nivel 2 y ves que dentro de Antibióticos, la forma "Inyectable" es la más vendida.</li>
+                    <li>Haces clic en "Inyectable" → Nivel 3 muestra que la vía "Parenteral" domina.</li>
+                    <li>Continúas navegando hasta llegar a productos específicos en el Nivel 5.</li>
+                    <li>Usas el botón "Volver" para regresar y explorar otras ramas de la jerarquía.</li>
+                </ol>
+            </div>
+
+            <h4>2. Top Productos por Venta (Gráfico de Pastel Tipo Donut)</h4>
+            <p>
+                Gráfico circular complementario que muestra los 20 productos con mayor facturación del nivel actual del Análisis Jerárquico.
+            </p>
+            
+            <h5>🔧 Funcionamiento Técnico Interno:</h5>
+            <p><strong>Proceso de Generación:</strong></p>
+            <ol>
+                <li><strong>Agrupación de productos:</strong> Se usa un <code>Map</code> de JavaScript con clave = <code>productoCodigo</code> (default_code de Odoo).</li>
+                <li><strong>Acumulación de ventas:</strong> Para cada línea de factura, se suma <code>amount_currency</code> al producto correspondiente.</li>
+                <li><strong>Normalización:</strong> Se aplica la misma función <code>normalize_product_name()</code> del gráfico jerárquico.</li>
+                <li><strong>Ordenamiento:</strong> Se ordena descendente por monto total de venta.</li>
+                <li><strong>Limitación:</strong> Se toman solo los primeros 20 productos (top 20).</li>
+                <li><strong>Cálculo de porcentajes:</strong> 
+                    <code style="display: block; padding: 5px; background: #f5f5f5; margin: 5px 0;">
+                    % = (Venta del Producto / Suma de Ventas de los Top 20) × 100
+                    </code>
+                </li>
+            </ol>
+            
+            <p><strong>Sincronización con Análisis Jerárquico:</strong></p>
+            <ul>
+                <li>El gráfico "escucha" eventos del gráfico jerárquico usando un sistema de eventos custom de JavaScript.</li>
+                <li>Cuando el usuario navega en el drill-down, se dispara un evento <code>drilldownChange</code>.</li>
+                <li>El gráfico de pastel recibe el evento con los datos del nivel actual.</li>
+                <li>Se recalculan los top 20 productos del contexto actual (puede ser top 20 de una forma farmacéutica específica, por ejemplo).</li>
+                <li>Se actualiza el título: <code>"Top Productos - [Nivel]: [Elemento Seleccionado]"</code></li>
+                <li>Se redibuja el gráfico con ECharts usando <code>chart.setOption(newOptions)</code>.</li>
+            </ul>
+            
+            <p><strong>Configuración de ECharts:</strong></p>
+            <ul>
+                <li><strong>Formato Donut:</strong> Radio interno 30%, radio externo 60% (configurado en <code>series.radius: ['30%', '60%']</code>).</li>
+                <li><strong>Labels:</strong> Posición <code>outside</code> con formato <code>'{b}: {d}%'</code> donde {b}=nombre, {d}=porcentaje.</li>
+                <li><strong>Colores:</strong> Paleta predefinida de ECharts con 20 colores distintos.</li>
+                <li><strong>Hover:</strong> Efecto de agrandamiento configurado en <code>emphasis.scale: 1.1</code>.</li>
+            </ul>
+            
+            <ul>
+                <li><strong>Formato Donut:</strong> Visualización con anillo central (radio interno 30%, radio externo 60%) que mejora la legibilidad al crear espacio en el centro.</li>
+                
+                <li><strong>Porcentajes Visibles:</strong> Cada segmento muestra directamente "Nombre: XX%" haciendo fácil identificar la proporción de cada producto sin necesidad de pasar el cursor.</li>
+                
+                <li><strong>Tooltip Mejorado:</strong> Al pasar el cursor sobre un segmento, aparece información detallada:
+                    <ul>
+                        <li>Nombre completo del producto</li>
+                        <li>Monto de venta formateado en USD (ej: $45,230)</li>
+                        <li>Porcentaje exacto con decimales</li>
+                        <li>Hint: "Haz clic en el gráfico de barras para filtrar"</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Sincronización Automática:</strong> Se actualiza automáticamente cuando navegas en el gráfico jerárquico, mostrando siempre el top 20 del contexto actual.</li>
+                
+                <li><strong>Título Dinámico:</strong> Cambia según el nivel activo del gráfico jerárquico. Ejemplos:
+                    <ul>
+                        <li>"Top Productos - Clasificación Farmacológica: Antibióticos"</li>
+                        <li>"Top Productos - Forma Farmacéutica: Comprimidos"</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Agrupación por Código:</strong> Los productos se agrupan usando su código único (default_code) y nombres normalizados, evitando que variaciones menores en los nombres creen entradas duplicadas.</li>
+            </ul>
+
+            <h4>3. Venta Internacional del Año por Línea Comercial</h4>
+            <p>
+                Gráfico de barras verticales que compara la meta vs. lo facturado para cada línea comercial (AGROVET, PETMEDICA, AVIVET).
+            </p>
+            
+            <h5>🔧 Funcionamiento Técnico Interno:</h5>
+            <p><strong>Origen de Datos:</strong></p>
+            <ul>
+                <li><strong>Líneas comerciales:</strong> Campo <code>commercial_line_international_id</code> de las líneas de factura de Odoo.</li>
+                <li><strong>Ventas facturadas:</strong> Suma de <code>amount_currency</code> de todas las líneas de factura agrupadas por línea comercial.</li>
+                <li><strong>Metas:</strong> Suma de las metas por cliente para cada línea comercial, obtenidas de Google Sheets.</li>
+            </ul>
+            
+            <p><strong>Proceso de Construcción:</strong></p>
+            <ol>
+                <li><strong>Agrupación:</strong> Se itera sobre <code>sales_data_international</code> y se agrupa por <code>linea_comercial</code>.</li>
+                <li><strong>Suma de ventas:</strong> Para cada línea, se acumula <code>venta_total = suma de amount_currency</code>.</li>
+                <li><strong>Cálculo de meta:</strong> 
+                    <ul>
+                        <li>Si hay cliente seleccionado: <code>meta_linea = metas_clientes_año[partner_id][linea_id]</code></li>
+                        <li>Si no hay cliente: <code>meta_linea = suma de todas las metas de esa línea de todos los clientes</code></li>
+                    </ul>
+                </li>
+                <li><strong>Preparación de datos:</strong> Se crea un array con objetos <code>{ linea: nombre, meta: valor, facturado: valor }</code></li>
+                <li><strong>Renderizado con Chart.js:</strong> Se usa un gráfico de barras (<code>type: 'bar'</code>) con dos datasets.</li>
+            </ol>
+            
+            <p><strong>Interactividad (Filtro de Productos):</strong></p>
+            <ol>
+                <li>Cada barra tiene un evento <code>onClick</code> configurado.</li>
+                <li>Al hacer clic, se captura el <code>datasetIndex</code> y el <code>index</code> de la barra.</li>
+                <li>Se identifica la línea comercial clickeada.</li>
+                <li>Se dispara una función que filtra los datos de productos:
+                    <code style="display: block; padding: 5px; background: #f5f5f5; margin: 5px 0;">
+                    productos_filtrados = productos.filter(p => p.linea_comercial === linea_seleccionada)
+                    </code>
+                </li>
+                <li>Se actualiza el gráfico "Top Productos Facturados" con solo los top 7 de esa línea.</li>
+                <li>Aparece el botón "✕ Ver Todos" para resetear el filtro.</li>
+            </ol>
+            
+            <ul>
+                <li><strong>Barras Comparativas:</strong> Cada línea comercial tiene dos barras:
+                    <ul>
+                        <li><span style="color: #3498db;">Azul:</span> Meta establecida</li>
+                        <li><span style="color: #27ae60;">Verde:</span> Monto facturado</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Interactividad con Productos:</strong> Al hacer clic en una línea comercial, se filtra automáticamente el gráfico "Top Productos Facturados" para mostrar solo los top productos de esa línea específica.</li>
+                
+                <li><strong>Botón "✕ Ver Todos":</strong> Aparece cuando hay un filtro activo. Al hacer clic, resetea el filtro y vuelve a mostrar el top general de todos los productos.</li>
+                
+                <li><strong>Indicador Visual:</strong> La diferencia entre las barras te permite identificar rápidamente:
+                    <ul>
+                        <li>Barra verde más alta que azul: Línea superó la meta</li>
+                        <li>Barra verde más baja que azul: Línea está por debajo de la meta</li>
+                        <li>Barras similares: Línea cerca de cumplir la meta</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>4. Top Productos Facturados (Barras Horizontales)</h4>
+            <p>
+                Gráfico de barras horizontales que muestra los 7 productos con mayor volumen de facturación.
+            </p>
+            <ul>
+                <li><strong>Ordenamiento:</strong> Los productos están ordenados de arriba hacia abajo por monto de facturación (de mayor a menor).</li>
+                
+                <li><strong>Filtro por Línea Comercial:</strong> Se actualiza dinámicamente cuando haces clic en una línea comercial del gráfico anterior, mostrando solo los top productos de esa línea.</li>
+                
+                <li><strong>Vista General:</strong> Cuando no hay filtro activo, muestra los 7 productos más vendidos de todas las líneas comerciales combinadas.</li>
+                
+                <li><strong>Información Mostrada:</strong> Cada barra incluye el nombre del producto y su monto de facturación formateado.</li>
+            </ul>
+
+            <h4>5. Avance de Facturación por Cliente (Vista General)</h4>
+            <p>
+                Gráfico tipo "bullet chart" que compara el avance de todos los clientes internacionales. <strong>Solo se muestra cuando NO hay ningún cliente seleccionado en el filtro principal.</strong>
+            </p>
+            <ul>
+                <li><strong>Estructura:</strong> Cada cliente tiene:
+                    <ul>
+                        <li><strong>Barra gris (fondo):</strong> Valor total de los pedidos confirmados</li>
+                        <li><strong>Barra de color (frente):</strong> Monto ya facturado, con color tipo semáforo:
+                            <ul>
+                                <li><span style="color: #27ae60;">Verde:</span> ≥80% facturado</li>
+                                <li><span style="color: #f39c12;">Amarillo:</span> 60-79% facturado</li>
+                                <li><span style="color: #e74c3c;">Rojo:</span> <60% facturado</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                
+                <li><strong>Porcentaje Visible:</strong> Cada barra muestra el % de facturación completada, permitiendo evaluación rápida del estado de cada cliente.</li>
+                
+                <li><strong>Orden:</strong> Los clientes se pueden ordenar alfabéticamente o por porcentaje de avance, según la configuración del gráfico.</li>
+            </ul>
+
+            <h4>6. Panel Ejecutivo - Desempeño por Cliente</h4>
+            <p>
+                Gráfico que cambia su visualización según si hay o no un cliente seleccionado en el filtro principal:
+            </p>
+            
+            <h5>Modo General (sin cliente seleccionado):</h5>
+            <ul>
+                <li><strong>Vista Comparativa:</strong> Barras apiladas horizontales para todos los clientes mostrando:
+                    <ul>
+                        <li><span style="color: #27ae60;">Facturado</span> (segmento verde)</li>
+                        <li><span style="color: #e67e22;">Pendiente</span> (segmento naranja)</li>
+                        <li>Línea de meta (marca visual)</li>
+                    </ul>
+                </li>
+                <li><strong>Navegación:</strong> Al hacer clic en una línea comercial del gráfico de líneas, puedes navegar a ese cliente específico.</li>
+            </ul>
+
+            <h5>Modo Individual (cliente seleccionado):</h5>
+            <ul>
+                <li><strong>Vista Compacta:</strong> Barra única apilada que muestra la composición de Facturado + Pendiente del cliente seleccionado.</li>
+                <li><strong>Resumen Ejecutivo:</strong> Panel lateral con KPIs calculados:
+                    <ul>
+                        <li><strong>% Facturado:</strong> Porcentaje de la meta ya facturado</li>
+                        <li><strong>% Proyectado:</strong> Porcentaje que se alcanzará si se factura todo lo pendiente</li>
+                        <li><strong>Brecha:</strong> Diferencia monetaria entre proyección y meta</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <div class="note">
+                <strong><i class="bi bi-lightbulb-fill"></i>Tip de Navegación:</strong> Los gráficos están diseñados para trabajar juntos. Experimenta haciendo clic en diferentes elementos para descubrir las interacciones y filtros automáticos. Por ejemplo:
+                <ul style="margin-top: 10px;">
+                    <li>Navega por el Análisis Jerárquico y observa cómo el gráfico de pastel se actualiza.</li>
+                    <li>Haz clic en una línea comercial y mira cómo se filtran los productos.</li>
+                    <li>Selecciona un cliente y descubre toda la información detallada que aparece.</li>
+                </ul>
+            </div>
         </section>
 
         <section id="gestion-metas-linea">
@@ -295,28 +938,302 @@
         <section id="vistas-detalladas">
             <h2><i class="bi bi-layout-text-sidebar-reverse"></i>Vistas Detalladas</h2>
             <p>
-                Desde el menú de navegación superior, puedes acceder a vistas de tabla detalladas:
+                Desde el menú de navegación superior del dashboard, puedes acceder a vistas de tabla completas que muestran el detalle transaccional de las ventas. Estas vistas son ideales para auditorías, reportes detallados y búsquedas específicas.
             </p>
+            
+            <h3>1. Ventas Facturadas (<code>/sales</code>)</h3>
+            <p>
+                Muestra una tabla detallada con todas las líneas de facturas de venta internacionales registradas en el sistema.
+            </p>
+            
+            <h4>Información mostrada:</h4>
             <ul>
-                <li><strong>Ventas (<code>/sales</code>):</strong> Muestra una tabla con todas las líneas de facturas de venta internacionales. Incluye filtros por fecha, cliente y un campo de búsqueda general.</li>
-                <li><strong>Pendientes (<code>/pending</code>):</strong> Muestra una tabla con todos los pedidos de venta internacionales que están pendientes de facturar. También cuenta con filtros similares.</li>
+                <li><strong>Fecha:</strong> Fecha de emisión de la factura.</li>
+                <li><strong>Factura:</strong> Número de documento de la factura.</li>
+                <li><strong>Cliente:</strong> Nombre completo del cliente internacional.</li>
+                <li><strong>Producto:</strong> Nombre del producto vendido.</li>
+                <li><strong>Descripción:</strong> Descripción completa del producto, incluyendo presentación y medida (campo consolidado).</li>
+                <li><strong>Cantidad:</strong> Cantidad de unidades vendidas en esa línea.</li>
+                <li><strong>Línea Comercial:</strong> Categoría comercial del producto (AGROVET, PETMEDICA, AVIVET).</li>
+                <li><strong>Importe:</strong> Valor monetario de la línea en USD (campo <code>amount_currency</code> de Odoo).</li>
+                <li><strong>Estado:</strong> Estado de la factura (Borrador, Publicado, Cancelado, etc.).</li>
+            </ul>
+
+            <h4>Herramientas de Filtrado y Búsqueda:</h4>
+            <ul>
+                <li><strong>Filtro por Fechas:</strong> 
+                    <ul>
+                        <li>Fecha Inicio: Define la fecha mínima de las facturas a mostrar.</li>
+                        <li>Fecha Fin: Define la fecha máxima de las facturas a mostrar.</li>
+                        <li>Al aplicar ambos filtros, solo se mostrarán facturas dentro de ese rango.</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Filtro por Cliente:</strong> Selector desplegable que permite filtrar todas las facturas de un cliente específico. Útil para auditorías por cliente o para generar reportes individuales.</li>
+                
+                <li><strong>Campo de Búsqueda General:</strong> Permite buscar por cualquier texto presente en la tabla (número de factura, nombre de producto, descripción, etc.). La búsqueda es instantánea y resalta los resultados coincidentes.</li>
+                
+                <li><strong>Botón "Filtrar":</strong> Aplica todos los filtros seleccionados simultáneamente.</li>
+                
+                <li><strong>Botón "Limpiar Filtros":</strong> Resetea todos los filtros y muestra nuevamente todas las ventas sin restricciones.</li>
+            </ul>
+
+            <h4>Funcionalidades Adicionales:</h4>
+            <ul>
+                <li><strong>Paginación:</strong> Si hay muchos registros, la tabla se divide en páginas para facilitar la navegación. Controles en la parte inferior permiten cambiar de página.</li>
+                <li><strong>Ordenamiento:</strong> Haz clic en los encabezados de columna para ordenar ascendente o descendentemente por ese campo.</li>
+                <li><strong>Exportación a Excel:</strong> Botón que descarga toda la información filtrada a un archivo .xlsx para análisis offline.</li>
+            </ul>
+
+            <h3>2. Pedidos Pendientes de Facturar (<code>/pending</code>)</h3>
+            <p>
+                Muestra una tabla detallada con todos los pedidos de venta internacionales que han sido confirmados pero aún no se han facturado. Esta vista es crítica para la gestión del flujo de caja y planificación de entregas.
+            </p>
+            
+            <h4>Información mostrada:</h4>
+            <ul>
+                <li><strong>Pedido:</strong> Número de identificación del pedido de venta.</li>
+                <li><strong>Cliente:</strong> Nombre completo del cliente que realizó el pedido.</li>
+                <li><strong>Producto:</strong> Nombre del producto incluido en el pedido.</li>
+                <li><strong>Descripción:</strong> Descripción completa del producto, incluyendo presentación y medida (campo consolidado).</li>
+                <li><strong>Cantidad:</strong> Cantidad de unidades del producto en el pedido.</li>
+                <li><strong>Línea Comercial:</strong> Categoría comercial del producto (AGROVET, PETMEDICA, AVIVET).</li>
+                <li><strong>Total Pendiente:</strong> Valor monetario pendiente de facturar en USD. Representa el monto que se convertirá en ingreso cuando se emita la factura.</li>
+                <li><strong>Estado Pedido:</strong> Estado actual del pedido en Odoo:
+                    <ul>
+                        <li><strong>Cotización:</strong> Pedido en fase de negociación, no confirmado.</li>
+                        <li><strong>Pedido de Venta:</strong> Pedido confirmado, comprometido para entrega.</li>
+                        <li><strong>Bloqueado:</strong> Pedido con alguna restricción o bloqueo administrativo.</li>
+                        <li><strong>Cancelado:</strong> Pedido anulado (generalmente no aparece en esta vista).</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>Herramientas de Filtrado y Búsqueda:</h4>
+            <ul>
+                <li><strong>Filtro por Fechas:</strong> Similar a la vista de Ventas, permite definir un rango de fechas para filtrar pedidos por su fecha de creación o confirmación.</li>
+                
+                <li><strong>Filtro por Cliente:</strong> Selector para filtrar pedidos de un cliente específico. Útil para hacer seguimiento de compromisos pendientes por cliente.</li>
+                
+                <li><strong>Campo de Búsqueda General:</strong> Búsqueda instantánea por número de pedido, producto, descripción, etc.</li>
+                
+                <li><strong>Botón "Filtrar":</strong> Aplica los filtros seleccionados.</li>
+                
+                <li><strong>Botón "Limpiar Filtros":</strong> Resetea todos los filtros a su estado inicial.</li>
+            </ul>
+
+            <h4>Funcionalidades Adicionales:</h4>
+            <ul>
+                <li><strong>Paginación:</strong> Navegación por páginas cuando hay muchos registros.</li>
+                <li><strong>Ordenamiento:</strong> Click en encabezados para ordenar por cualquier columna.</li>
+                <li><strong>Exportación a Excel:</strong> Descarga los pedidos pendientes filtrados a formato .xlsx.</li>
+            </ul>
+
+            <h4>Estados de Pedido - Interpretación Detallada:</h4>
+            <div class="note">
+                <strong><i class="bi bi-info-circle-fill"></i>¿Qué significa cada estado?</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Cotización:</strong> El cliente solicitó una propuesta pero aún no confirmó la compra. El monto NO se incluye en las proyecciones del dashboard principal.</li>
+                    
+                    <li><strong>Pedido de Venta:</strong> El cliente confirmó la compra. El pedido está comprometido para ser entregado y facturado. Este monto SÍ se incluye en la "Venta Proyectada" del dashboard.</li>
+                    
+                    <li><strong>Bloqueado:</strong> El pedido está confirmado pero tiene alguna restricción (puede ser por crédito, stock, aprobaciones internas, etc.). Dependiendo de la configuración, puede o no incluirse en proyecciones.</li>
+                    
+                    <li><strong>Cancelado:</strong> El pedido fue anulado. No se incluye en ningún cálculo y generalmente no aparece en esta vista.</li>
+                </ul>
+            </div>
+
+            <h4>Casos de Uso Prácticos:</h4>
+            <ul>
+                <li><strong>Planificación de Flujo de Caja:</strong> Filtra por fechas para ver qué pedidos están programados para facturarse en un período específico.</li>
+                <li><strong>Seguimiento de Cliente:</strong> Filtra por cliente para revisar todos sus compromisos pendientes y hacer seguimiento de entregas.</li>
+                <li><strong>Análisis por Línea Comercial:</strong> Ordena o busca por línea comercial para identificar qué categorías tienen más pedidos pendientes.</li>
+                <li><strong>Detección de Retrasos:</strong> Ordena por fecha para identificar pedidos antiguos que aún no se han facturado y requieren atención.</li>
             </ul>
         </section>
 
         <section id="exportacion">
             <h2><i class="bi bi-file-earmark-excel-fill"></i>Exportación de Datos</h2>
             <p>
-                La aplicación permite exportar datos a formato <strong>Excel (.xlsx)</strong> desde varias ubicaciones:
+                El sistema permite exportar datos a formato <strong>Microsoft Excel (.xlsx)</strong> desde múltiples ubicaciones, facilitando el análisis offline, reportes ejecutivos y compartir información con otras áreas de la empresa.
+            </p>
+
+            <h3>Ubicaciones de Exportación</h3>
+
+            <h4>1. Desde el Dashboard Internacional</h4>
+            <p>
+                En la tabla "Total por Línea Comercial" (parte central del dashboard), encontrarás dos botones de exportación en la parte superior derecha:
             </p>
             <ul>
-                <li><strong>Desde el Dashboard Internacional:</strong> En la tabla de "Total por Línea Comercial", encontrarás dos botones:
+                <li><strong>Botón "Exp. Facturado" (icono Excel verde):</strong>
                     <ul>
-                        <li><code>Exp. Facturado</code>: Descarga un detalle de todas las ventas ya facturadas para el cliente seleccionado (o todos si no hay selección).</li>
-                        <li><code>Exp. Por Facturar</code>: Descarga un detalle de todos los pedidos pendientes de facturar.</li>
+                        <li><strong>Contenido:</strong> Descarga un detalle completo de todas las ventas que ya han sido facturadas.</li>
+                        <li><strong>Alcance del filtro:</strong> Si tienes un cliente seleccionado en el filtro principal, exportará solo las ventas de ese cliente. Si no hay filtro, exportará todas las ventas de todos los clientes internacionales.</li>
+                        <li><strong>Columnas incluidas:</strong> Fecha de factura, número de factura, cliente, producto, descripción completa, cantidad, línea comercial, importe en USD, estado de factura.</li>
+                        <li><strong>Uso recomendado:</strong> Reportes de ingresos confirmados, análisis de ventas históricas, auditorías contables.</li>
                     </ul>
                 </li>
-                <li><strong>Desde las Vistas Detalladas:</strong> En las páginas <code>/sales</code> y <code>/pending</code>, también encontrarás botones para exportar los datos que se están visualizando.</li>
+
+                <li><strong>Botón "Exp. Por Facturar" (icono Excel naranja):</strong>
+                    <ul>
+                        <li><strong>Contenido:</strong> Descarga un detalle de todos los pedidos de venta confirmados que aún no se han facturado.</li>
+                        <li><strong>Alcance del filtro:</strong> Respeta el filtro de cliente activo. Si hay un cliente seleccionado, exportará solo sus pedidos pendientes. Si no, exportará todos los pendientes.</li>
+                        <li><strong>Columnas incluidas:</strong> Número de pedido, cliente, producto, descripción completa, cantidad, línea comercial, total pendiente en USD, estado del pedido.</li>
+                        <li><strong>Uso recomendado:</strong> Planificación de facturación, proyecciones de flujo de caja, seguimiento de compromisos comerciales, coordinación con logística.</li>
+                    </ul>
+                </li>
             </ul>
+
+            <h4>2. Desde la Vista de Ventas Detalladas (<code>/sales</code>)</h4>
+            <ul>
+                <li><strong>Botón de Exportación:</strong> Ubicado en la parte superior de la tabla.</li>
+                <li><strong>Contenido:</strong> Exporta los datos exactos que están siendo visualizados en la tabla, <strong>respetando todos los filtros aplicados</strong> (fecha, cliente, búsqueda).</li>
+                <li><strong>Ventaja:</strong> Permite crear reportes muy específicos aplicando múltiples filtros antes de exportar. Por ejemplo: "Todas las ventas del cliente X entre enero y marzo".</li>
+            </ul>
+
+            <h4>3. Desde la Vista de Pedidos Pendientes (<code>/pending</code>)</h4>
+            <ul>
+                <li><strong>Botón de Exportación:</strong> Ubicado en la parte superior de la tabla.</li>
+                <li><strong>Contenido:</strong> Exporta los pedidos pendientes visibles en la tabla, <strong>respetando todos los filtros aplicados</strong>.</li>
+                <li><strong>Ventaja:</strong> Útil para generar listas de trabajo específicas. Por ejemplo: "Pedidos del cliente Y pendientes de facturar en el mes actual".</li>
+            </ul>
+
+            <h3>Formato del Archivo Exportado</h3>
+            <ul>
+                <li><strong>Tipo de archivo:</strong> Excel (.xlsx), compatible con Microsoft Excel, Google Sheets, LibreOffice Calc, etc.</li>
+                <li><strong>Estructura:</strong> Hoja única con los datos en formato tabular, listo para análisis.</li>
+                <li><strong>Encabezados:</strong> Primera fila contiene los nombres de las columnas en español.</li>
+                <li><strong>Formato de montos:</strong> Los valores numéricos se exportan como números (no como texto), permitiendo realizar operaciones matemáticas directamente en Excel.</li>
+                <li><strong>Formato de fechas:</strong> Fechas en formato estándar reconocible por Excel.</li>
+            </ul>
+
+            <h3>Casos de Uso de Exportación</h3>
+            <div class="note">
+                <strong><i class="bi bi-briefcase-fill"></i>Ejemplos Prácticos:</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Reporte Mensual de Ventas:</strong> Desde <code>/sales</code>, aplica filtro de fechas del mes deseado y exporta. Tendrás un Excel con todas las ventas del mes para análisis o presentación.</li>
+                    
+                    <li><strong>Análisis de Cliente Específico:</strong> Selecciona el cliente en el dashboard, exporta "Facturado" y "Por Facturar". Con ambos archivos puedes hacer un análisis completo del cliente en Excel.</li>
+                    
+                    <li><strong>Planificación de Flujo de Caja:</strong> Desde <code>/pending</code>, filtra por rango de fechas futuro y exporta. Tendrás una proyección de ingresos esperados por período.</li>
+                    
+                    <li><strong>Reporte por Línea Comercial:</strong> Exporta datos generales y en Excel aplica filtros o tablas dinámicas para analizar por línea comercial.</li>
+                    
+                    <li><strong>Auditoría de Productos:</strong> Exporta ventas facturadas, luego en Excel usa filtros para analizar el desempeño de productos específicos.</li>
+                    
+                    <li><strong>Comparativa Anual:</strong> Exporta ventas del año actual y del año anterior (cambiando filtros de fecha), luego compara en Excel.</li>
+                </ul>
+            </div>
+
+            <h3>Recomendaciones para Exportación</h3>
+            <ul>
+                <li><strong>Aplica filtros antes de exportar:</strong> Es más eficiente filtrar en el sistema y exportar solo lo necesario que exportar todo y filtrar en Excel.</li>
+                <li><strong>Nombra los archivos apropiadamente:</strong> Cuando descargues, renombra el archivo con información relevante (ej: "Ventas_CLIENTE_X_Enero_2025.xlsx").</li>
+                <li><strong>Combina exportaciones:</strong> Para análisis completos, exporta tanto facturado como pendiente del mismo cliente y consolida en Excel.</li>
+                <li><strong>Verifica los datos:</strong> Antes de exportar, revisa que los filtros aplicados sean correctos y que la tabla muestre la información esperada.</li>
+                <li><strong>Actualización de datos:</strong> Los archivos exportados son "fotografías" de un momento. Si los datos en Odoo cambian, deberás exportar nuevamente.</li>
+            </ul>
+
+            <div class="note">
+                <strong><i class="bi bi-shield-check"></i>Confidencialidad:</strong> Los archivos exportados contienen información comercial sensible. Asegúrate de almacenarlos en ubicaciones seguras y compartirlos solo con personal autorizado. No envíes archivos con datos financieros por correo electrónico sin protección (usa contraseñas o canales seguros).
+            </div>
+        </section>
+
+        <section id="solucion-problemas">
+            <h2><i class="bi bi-tools"></i>Solución de Problemas y Preguntas Frecuentes</h2>
+            
+            <h3>Problemas Comunes</h3>
+            
+            <h4>1. No puedo iniciar sesión</h4>
+            <ul>
+                <li><strong>Verificar credenciales:</strong> Asegúrate de usar el mismo usuario y contraseña que usas para acceder a Odoo.</li>
+                <li><strong>Mayúsculas y minúsculas:</strong> Las contraseñas distinguen entre mayúsculas y minúsculas.</li>
+                <li><strong>Espacios adicionales:</strong> Verifica que no haya espacios antes o después del usuario/contraseña.</li>
+                <li><strong>Cuenta bloqueada:</strong> Si has intentado varias veces sin éxito, tu cuenta de Odoo podría estar temporalmente bloqueada. Contacta al administrador del sistema.</li>
+            </ul>
+
+            <h4>2. Los datos no se actualizan o parecen desactualizados</h4>
+            <ul>
+                <li><strong>Recargar la página:</strong> Presiona F5 o el botón de recargar del navegador para obtener los datos más recientes.</li>
+                <li><strong>Borrar caché:</strong> Si el problema persiste, limpia la caché del navegador (Ctrl + Shift + Delete).</li>
+                <li><strong>Conexión con Odoo:</strong> El sistema obtiene datos en tiempo real de Odoo. Si Odoo está lento o no responde, el dashboard también se verá afectado.</li>
+                <li><strong>Datos recién ingresados:</strong> Si acabas de ingresar datos en Odoo, espera unos segundos y recarga el dashboard.</li>
+            </ul>
+
+            <h4>3. Las metas no aparecen o muestran valores incorrectos</h4>
+            <ul>
+                <li><strong>Verificar Google Sheets:</strong> Las metas se almacenan en Google Sheets. Verifica que el archivo tenga los permisos correctos.</li>
+                <li><strong>Año seleccionado:</strong> Asegúrate de estar en el año correcto. Las metas son anuales y se definen por año.</li>
+                <li><strong>Guardar cambios:</strong> Después de modificar metas, debes hacer clic en "Guardar Metas" para que se persistan.</li>
+                <li><strong>Formato de números:</strong> Las metas deben ingresarse como números sin símbolos (ej: 100000, no $100,000).</li>
+            </ul>
+
+            <h4>4. Los gráficos no se muestran correctamente</h4>
+            <ul>
+                <li><strong>Navegador compatible:</strong> Usa Chrome, Firefox, Edge o Safari actualizado. Navegadores muy antiguos pueden tener problemas.</li>
+                <li><strong>JavaScript habilitado:</strong> Asegúrate de que JavaScript esté habilitado en tu navegador (es necesario para los gráficos).</li>
+                <li><strong>Extensiones del navegador:</strong> Algunos bloqueadores de anuncios o extensiones de privacidad pueden interferir. Intenta deshabilítarlos temporalmente.</li>
+                <li><strong>Tamaño de ventana:</strong> Si la ventana es muy pequeña, algunos gráficos pueden no renderizarse correctamente. Maximiza la ventana o usa zoom menor.</li>
+            </ul>
+
+            <h4>5. La exportación a Excel falla o el archivo está vacío</h4>
+            <ul>
+                <li><strong>Datos disponibles:</strong> Verifica que realmente haya datos para exportar. Si la tabla está vacía, el Excel también lo estará.</li>
+                <li><strong>Permisos de descarga:</strong> Asegúrate de que tu navegador permita descargas desde el sitio.</li>
+                <li><strong>Bloqueo de popup:</strong> Si el archivo no se descarga, verifica que no haya un bloqueador de ventanas emergentes activo.</li>
+                <li><strong>Reintentar:</strong> Si falla, recarga la página e intenta nuevamente.</li>
+            </ul>
+
+            <h3>Mejores Prácticas de Uso</h3>
+            
+            <h4>Para Análisis Efectivo:</h4>
+            <ul>
+                <li><strong>Comienza con la vista general:</strong> Inicia sin filtros para tener una visión completa del negocio, luego profundiza en clientes específicos.</li>
+                <li><strong>Usa el análisis jerárquico:</strong> Es una herramienta poderosa para descubrir patrones. Navega los 5 niveles para encontrar insights ocultos.</li>
+                <li><strong>Monitorea los colores de semáforo:</strong> Los indicadores rojos requieren atención inmediata. Prioriza la acción en clientes o líneas en rojo.</li>
+                <li><strong>Combina vistas:</strong> Usa el dashboard para identificar problemas, luego ve a las vistas detalladas (/sales, /pending) para investigar a fondo.</li>
+                <li><strong>Exporta regularmente:</strong> Genera reportes mensuales exportando datos y archivándolos para análisis históricos futuros.</li>
+            </ul>
+
+            <h4>Para Gestión de Metas:</h4>
+            <ul>
+                <li><strong>Define metas realistas:</strong> Basa las metas en datos históricos y proyecciones de crecimiento razonables.</li>
+                <li><strong>Revisa trimestralmente:</strong> Aunque las metas son anuales, revísalas cada trimestre para hacer ajustes si es necesario.</li>
+                <li><strong>Documenta cambios:</strong> Si modificas metas, mantén un registro externo del motivo (cambios de mercado, nuevos contratos, etc.).</li>
+                <li><strong>Comunica a los equipos:</strong> Asegúrate de que los equipos comerciales conozcan sus metas y tengan acceso al dashboard para hacer seguimiento.</li>
+            </ul>
+
+            <h4>Para Optimización del Sistema:</h4>
+            <ul>
+                <li><strong>Horarios de menor carga:</strong> Para consultas muy extensas o exportaciones masivas, úsalo en horarios de menor actividad (temprano en la mañana).</li>
+                <li><strong>Aplica filtros antes de exportar:</strong> Exportar datos filtrados es más rápido y eficiente que exportar todo.</li>
+                <li><strong>No dejes sesiones abiertas:</strong> Cierra sesión cuando termines, especialmente en computadoras compartidas.</li>
+                <li><strong>Usa marcadores:</strong> Agrega el dashboard a tus favoritos del navegador para acceso rápido.</li>
+            </ul>
+
+            <h3>Glosario de Términos</h3>
+            <ul>
+                <li><strong>Odoo:</strong> Sistema ERP (Enterprise Resource Planning) que almacena todos los datos de ventas, pedidos y clientes.</li>
+                <li><strong>ERP:</strong> Sistema integrado de gestión empresarial.</li>
+                <li><strong>Drill-Down:</strong> Técnica de análisis que permite profundizar desde datos agregados hacia datos más detallados.</li>
+                <li><strong>KPI:</strong> Key Performance Indicator (Indicador Clave de Rendimiento). Métrica que evalúa el éxito de una actividad.</li>
+                <li><strong>Bullet Chart:</strong> Tipo de gráfico que compara un valor actual contra un objetivo, común en dashboards ejecutivos.</li>
+                <li><strong>Donut Chart:</strong> Gráfico de pastel con un espacio vacío en el centro (forma de dona).</li>
+                <li><strong>Amount Currency:</strong> Campo técnico de Odoo que almacena el valor monetario de una transacción en la moneda especificada.</li>
+                <li><strong>Default Code:</strong> Código único interno del producto en Odoo, también llamado "Referencia interna".</li>
+                <li><strong>XML-RPC:</strong> Protocolo de comunicación que usa el dashboard para conectarse con Odoo.</li>
+            </ul>
+
+            <div class="note">
+                <strong><i class="bi bi-question-circle-fill"></i>¿Necesitas más ayuda?</strong><br>
+                Si encuentras un problema que no está cubierto en este manual o necesitas soporte técnico adicional, contacta al administrador del sistema o al departamento de TI. Cuando reportes un problema, incluye:
+                <ul style="margin-top: 10px;">
+                    <li>Descripción detallada del problema</li>
+                    <li>Pasos para reproducir el error</li>
+                    <li>Capturas de pantalla si es posible</li>
+                    <li>Navegador y sistema operativo que estás usando</li>
+                </ul>
+            </div>
         </section>
 
     </main>
@@ -326,22 +1243,54 @@
         document.addEventListener('DOMContentLoaded', () => {
             const sections = document.querySelectorAll('section');
             const navLinks = document.querySelectorAll('#toc a');
+            
+            // Variable para rastrear la última sección activa
+            let currentActiveSection = null;
 
             const observer = new IntersectionObserver(entries => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
+                // Ordenar entries por intersectionRatio descendente para obtener la más visible
+                const sortedEntries = entries
+                    .filter(entry => entry.isIntersecting)
+                    .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+                
+                // Solo procesar si hay al menos una sección visible
+                if (sortedEntries.length > 0) {
+                    const mostVisibleEntry = sortedEntries[0];
+                    
+                    // Solo actualizar si cambió la sección activa
+                    if (currentActiveSection !== mostVisibleEntry.target.id) {
+                        currentActiveSection = mostVisibleEntry.target.id;
+                        
+                        // Remover clase active de todos los links
+                        navLinks.forEach(link => link.classList.remove('active'));
+                        
+                        // Agregar clase active solo al link correspondiente
                         navLinks.forEach(link => {
-                            link.classList.remove('active');
-                            if (link.getAttribute('href').substring(1) === entry.target.id) {
+                            if (link.getAttribute('href').substring(1) === currentActiveSection) {
                                 link.classList.add('active');
                             }
                         });
                     }
-                });
-            }, { threshold: 0.5 });
+                }
+            }, { 
+                threshold: [0, 0.25, 0.5, 0.75, 1],
+                rootMargin: '-100px 0px -66% 0px'
+            });
 
             sections.forEach(section => {
                 observer.observe(section);
+            });
+
+            // También manejar clicks en los links del menú
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    const targetId = link.getAttribute('href').substring(1);
+                    currentActiveSection = targetId;
+                    
+                    // Actualizar inmediatamente la clase active
+                    navLinks.forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                });
             });
         });
     </script>

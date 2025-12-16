@@ -122,6 +122,9 @@
                             <th>Brecha</th>
                             <th>% Avance</th>
                             <th>Por Facturar ($)</th>
+                            <th>2025 ($)</th>
+                            <th>2026 ($)</th>
+                            <th>2027 ($)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -135,9 +138,12 @@
                             {% set pct_linea = (linea.venta / linea.meta * 100) if (linea.meta is defined and (linea.meta|float) > 0) else 0 %}
                             <td class="porcentaje">{{ "{:.1f}%".format(pct_linea) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar_2025 if linea.por_facturar_2025 is defined else 0) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar_2026 if linea.por_facturar_2026 is defined else 0) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar_2027 if linea.por_facturar_2027 is defined else 0) }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
+                        <tr><td colspan="11" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="fila-total">
@@ -150,6 +156,9 @@
                             {% set pct_total_kpi = (kpis.venta_total / meta_total_kpi * 100) if (meta_total_kpi is defined and (meta_total_kpi|float) > 0 and kpis and kpis.venta_total is defined) else 0 %}
                             <td class="porcentaje"><strong>{{ "{:.1f}%".format(pct_total_kpi) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar_2025 if kpis.total_por_facturar_2025 is defined else 0) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar_2026 if kpis.total_por_facturar_2026 is defined else 0) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar_2027 if kpis.total_por_facturar_2027 is defined else 0) }}</strong></td>
                         </tr>
                     </tfoot>
                 </table>

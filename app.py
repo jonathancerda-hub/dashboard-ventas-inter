@@ -581,13 +581,61 @@ def dashboard():
             ventas_por_linea[nombre_linea] = ventas_por_linea.get(nombre_linea, 0) + venta_amount
             total_sales_year += venta_amount
         
-        # Procesar datos pendientes para la tabla
+        # Procesar datos pendientes para la tabla - POR AÑO
+        por_facturar_2025_por_linea = {}
+        por_facturar_2026_por_linea = {}
+        por_facturar_2027_por_linea = {}
+        por_facturar_otros_por_linea = {}  # Lo que no es 2025, 2026, 2027
+        total_por_facturar_2025 = 0
+        total_por_facturar_2026 = 0
+        total_por_facturar_2027 = 0
+        total_por_facturar_otros = 0
+        
+        # Debug temporal: contar cuántos pedidos tienen commitment_date
+        debug_count_with_date = 0
+        debug_count_2025 = 0
+        debug_count_2026 = 0
+        debug_count_2027 = 0
+        
         for pending_item in pending_data:
             linea_nombre = pending_item.get('linea_comercial', 'Sin Línea Comercial')
             total_pendiente = pending_item.get('total_pendiente', 0)
+            commitment_year = pending_item.get('commitment_year', '')
+            
+            # Debug
+            if commitment_year:
+                debug_count_with_date += 1
+                if commitment_year == '2025':
+                    debug_count_2025 += 1
+                elif commitment_year == '2026':
+                    debug_count_2026 += 1
+                elif commitment_year == '2027':
+                    debug_count_2027 += 1
+            
             por_facturar_por_linea[linea_nombre] = por_facturar_por_linea.get(linea_nombre, 0) + total_pendiente
             total_por_facturar += total_pendiente
+            
+            # Acumular por año según commitment_date
+            if commitment_year == '2025':
+                por_facturar_2025_por_linea[linea_nombre] = por_facturar_2025_por_linea.get(linea_nombre, 0) + total_pendiente
+                total_por_facturar_2025 += total_pendiente
+            elif commitment_year == '2026':
+                por_facturar_2026_por_linea[linea_nombre] = por_facturar_2026_por_linea.get(linea_nombre, 0) + total_pendiente
+                total_por_facturar_2026 += total_pendiente
+            elif commitment_year == '2027':
+                por_facturar_2027_por_linea[linea_nombre] = por_facturar_2027_por_linea.get(linea_nombre, 0) + total_pendiente
+                total_por_facturar_2027 += total_pendiente
+            else:
+                # Lo que no tiene fecha o es de otro año
+                por_facturar_otros_por_linea[linea_nombre] = por_facturar_otros_por_linea.get(linea_nombre, 0) + total_pendiente
+                total_por_facturar_otros += total_pendiente
+            
             todas_las_lineas.add(linea_nombre)
+        
+        # Log temporal para debug
+        logging.info(f"DEBUG: Total pedidos pendientes: {len(pending_data)}")
+        logging.info(f"DEBUG: Pedidos con commitment_date: {debug_count_with_date}")
+        logging.info(f"DEBUG: Pedidos 2025: {debug_count_2025}, 2026: {debug_count_2026}, 2027: {debug_count_2027}")
         
         # La línea que añadía "OTROS" ha sido eliminada. Ahora solo se mostrarán líneas con datos.
         
@@ -863,15 +911,22 @@ def dashboard():
                 meta_linea = sum(metas_cliente.get(linea_id_actual, 0) for metas_cliente in metas_clientes_año.values())
 
             venta_total_linea = linea.get('venta', 0)
-            por_facturar_linea = por_facturar_por_linea.get(linea['nombre'], 0)
+            por_facturar_linea = por_facturar_otros_por_linea.get(linea['nombre'], 0)  # Solo "otros" años
+            por_facturar_2025_linea = por_facturar_2025_por_linea.get(linea['nombre'], 0)
+            por_facturar_2026_linea = por_facturar_2026_por_linea.get(linea['nombre'], 0)
+            por_facturar_2027_linea = por_facturar_2027_por_linea.get(linea['nombre'], 0)
             
-            # Calcular brecha y avance
-            venta_proyectada = venta_total_linea + por_facturar_linea
+            # Calcular brecha y avance (usando el total real de por facturar)
+            total_por_facturar_linea_real = por_facturar_por_linea.get(linea['nombre'], 0)
+            venta_proyectada = venta_total_linea + total_por_facturar_linea_real
             brecha = venta_proyectada - meta_linea # Brecha contra la meta real
             porcentaje_avance_meta = (venta_proyectada / meta_linea * 100) if meta_linea > 0 else 0
 
             linea.update({
-                'por_facturar': por_facturar_linea,
+                'por_facturar': por_facturar_linea,  # Solo "otros" años
+                'por_facturar_2025': por_facturar_2025_linea,
+                'por_facturar_2026': por_facturar_2026_linea,
+                'por_facturar_2027': por_facturar_2027_linea,
                 'porcentaje_sobre_total': (venta_total_linea / total_sales_year * 100) if total_sales_year > 0 else 0,
                 'meta': meta_linea,
                 'brecha': brecha,
@@ -885,7 +940,10 @@ def dashboard():
             # KPIs que el template espera (usando total_sales_year para consistencia con la tabla)
             'meta_total': meta_total_general,
             'venta_total': total_sales_year,  # Usar el total del año que coincide con la suma de líneas comerciales
-            'total_por_facturar': total_por_facturar,
+            'total_por_facturar': total_por_facturar_otros,  # Solo "otros" años
+            'total_por_facturar_2025': total_por_facturar_2025,
+            'total_por_facturar_2026': total_por_facturar_2026,
+            'total_por_facturar_2027': total_por_facturar_2027,
             'porcentaje_avance': (total_sales_year / meta_total_general * 100) if meta_total_general > 0 else 0, # Avance sobre facturado
             'total_brecha': brecha_comercial
         }
@@ -1825,6 +1883,7 @@ def export_excel_pending():
             'formas_farmaceuticas': 'Formas Farmacéuticas',
             'via_administracion': 'Vía de Administración',
             'linea_produccion': 'Línea de producción',
+            'commitment_date': 'Fecha de entrega',
             # --- FIN NUEVAS COLUMNAS ---
             'cantidad_pendiente': 'Cantidad Pendiente', 'precio_unitario': 'Precio unitario ($)',
             'total_pendiente': 'Total Pendiente ($)'
@@ -1832,6 +1891,10 @@ def export_excel_pending():
         
         df_export = df[list(column_mapping.keys())].copy()
         df_export.rename(columns=column_mapping, inplace=True)
+        
+        # Formatear fecha de entrega para mostrar solo la fecha sin hora
+        if 'commitment_date' in df_export.columns:
+            df_export['Fecha de entrega'] = pd.to_datetime(df_export['Fecha de entrega'], errors='coerce').dt.strftime('%Y-%m-%d')
         
         # Crear archivo Excel en memoria
         output = io.BytesIO()
