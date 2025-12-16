@@ -1028,6 +1028,137 @@ def dashboard():
                     'porcentaje': (data.get('facturado', 0) / total_cliente_meta_val * 100) if total_cliente_meta_val > 0 else 0
                 }
         
+        # --- NUEVO: GRÁFICO DE AVANCE POR PRODUCTO ---
+        products_chart_data = []
+        if not partner_id:  # Solo mostrar cuando NO hay cliente seleccionado
+            # Primero, recopilar toda la información de productos
+            product_info = {}
+            facturado_by_product = {}
+            pendiente_by_product = {}
+            qty_facturada_by_product = {}
+            qty_pendiente_by_product = {}
+            
+            # Procesar datos de ventas
+            for s in sales_data_raw:
+                codigo = s.get('codigo_odoo', '')
+                if not codigo:
+                    continue
+                
+                producto_nombre = s.get('producto', '')
+                descripcion = s.get('descripcion', '')
+                linea_comercial_obj = s.get('commercial_line_international_id')
+                linea_comercial = ''
+                
+                # Obtener categoría
+                categ_obj = s.get('categ_id')
+                categoria = ''
+                if categ_obj and isinstance(categ_obj, list) and len(categ_obj) > 1:
+                    categoria = categ_obj[1]
+                
+                if linea_comercial_obj and isinstance(linea_comercial_obj, list) and len(linea_comercial_obj) > 1:
+                    linea_comercial = linea_comercial_obj[1]
+                
+                # Acumular facturado y cantidad
+                facturado_by_product[codigo] = facturado_by_product.get(codigo, 0) + (s.get('amount_currency', 0) or 0)
+                qty_facturada_by_product[codigo] = qty_facturada_by_product.get(codigo, 0) + (s.get('quantity', 0) or 0)
+                
+                # Guardar info solo si no existe (primera vez que vemos este código)
+                if codigo not in product_info:
+                    # Usar descripcion si existe y tiene contenido, sino usar producto_nombre
+                    nombre_completo = descripcion if descripcion and descripcion.strip() else producto_nombre
+                    product_info[codigo] = {
+                        'nombre_completo': nombre_completo,
+                        'linea_comercial': linea_comercial,
+                        'categoria': categoria
+                    }
+                # Actualizar linea comercial o categoria si están vacías y ahora tenemos una
+                elif linea_comercial and not product_info[codigo].get('linea_comercial'):
+                    product_info[codigo]['linea_comercial'] = linea_comercial
+                elif categoria and not product_info[codigo].get('categoria'):
+                    product_info[codigo]['categoria'] = categoria
+            
+            # Procesar datos pendientes
+            for p in pending_data:
+                codigo = p.get('codigo_odoo', '')
+                if not codigo:
+                    continue
+                
+                producto_nombre = p.get('producto', '')
+                descripcion = p.get('descripcion', '')
+                linea_comercial = p.get('linea_comercial', '')
+                
+                # Obtener categoría
+                categ_obj = p.get('categ_id')
+                categoria = ''
+                if categ_obj and isinstance(categ_obj, list) and len(categ_obj) > 1:
+                    categoria = categ_obj[1]
+                
+                # Acumular pendiente y cantidad
+                pendiente_by_product[codigo] = pendiente_by_product.get(codigo, 0) + (p.get('total_pendiente', 0) or 0)
+                qty_pendiente_by_product[codigo] = qty_pendiente_by_product.get(codigo, 0) + (p.get('cantidad_pendiente', 0) or 0)
+                
+                # Guardar info solo si no existe
+                if codigo not in product_info:
+                    # Usar descripcion si existe y tiene contenido, sino usar producto_nombre
+                    nombre_completo = descripcion if descripcion and descripcion.strip() else producto_nombre
+                    product_info[codigo] = {
+                        'nombre_completo': nombre_completo,
+                        'linea_comercial': linea_comercial,
+                        'categoria': categoria
+                    }
+                # Actualizar linea comercial o categoria si están vacías y ahora tenemos una
+                elif linea_comercial and not product_info[codigo].get('linea_comercial'):
+                    product_info[codigo]['linea_comercial'] = linea_comercial
+                elif categoria and not product_info[codigo].get('categoria'):
+                    product_info[codigo]['categoria'] = categoria
+            
+            # Combinar y crear chart data (una entrada por código único)
+            all_product_codes = set(facturado_by_product.keys()) | set(pendiente_by_product.keys())
+            
+            for codigo in all_product_codes:
+                facturado = facturado_by_product.get(codigo, 0)
+                pendiente = pendiente_by_product.get(codigo, 0)
+                total = facturado + pendiente
+                
+                qty_facturada = qty_facturada_by_product.get(codigo, 0)
+                qty_pendiente = qty_pendiente_by_product.get(codigo, 0)
+                qty_total = qty_facturada + qty_pendiente
+                
+                if total > 0:
+                    info = product_info.get(codigo, {'nombre_completo': '', 'linea_comercial': '', 'categoria': ''})
+                    
+                    # Usar nombre_completo que ya tiene toda la info
+                    producto_display = f"[{codigo}] {info['nombre_completo']}"
+                    
+                    products_chart_data.append({
+                        'producto': producto_display,
+                        'facturado': facturado,
+                        'pendiente': pendiente,
+                        'total': total,
+                        'porcentaje': (facturado / total * 100) if total > 0 else 0,
+                        'qty_facturada': qty_facturada,
+                        'qty_pendiente': qty_pendiente,
+                        'qty_total': qty_total,
+                        'linea_comercial': info.get('linea_comercial', 'Sin Línea'),
+                        'categoria': info.get('categoria', 'Sin Categoría')
+                    })
+            
+            # Debug: verificar duplicados
+            codigos_vistos = set()
+            duplicados = []
+            for item in products_chart_data:
+                if item['producto'] in codigos_vistos:
+                    duplicados.append(item['producto'])
+                codigos_vistos.add(item['producto'])
+            
+            if duplicados:
+                logging.warning(f"DEBUG: Productos duplicados encontrados: {duplicados[:5]}")
+            
+            logging.info(f"DEBUG: Total productos únicos: {len(products_chart_data)}")
+            
+            # Ordenar por total descendente (sin límite, el filtro lo hará en frontend)
+            products_chart_data = sorted(products_chart_data, key=lambda x: x['total'], reverse=True)
+        
         response = render_template('dashboard_clean.html',
                              sales_data=sales_data,
                              kpis=kpis, # kpis ahora se basa en el total del año
@@ -1053,6 +1184,7 @@ def dashboard():
                              meta_total_kpi=meta_total_general,
                              brecha_comercial=brecha_comercial,
                              bullet_chart_data=bullet_chart_data,
+                             products_chart_data=products_chart_data,  # NUEVO
                              orders_chart_data=orders_chart_data,
                              avance_cliente_seleccionado=avance_cliente_seleccionado,
                              drilldown_titles=drilldown_titles,

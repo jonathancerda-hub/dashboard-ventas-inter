@@ -352,6 +352,53 @@
             <div id="grafico-ejecutivo-clientes-comparativo" style="width: 100%; min-height: 700px;"></div>
         </div>
     </div>
+    
+    <!-- NUEVO: Gráfico de Avance por Producto (solo visible cuando NO hay cliente seleccionado) -->
+    {% if not nombre_cliente_seleccionado and products_chart_data %}
+    <div class="grafico-extra-container" style="margin-top: 30px;">
+        <div class="grafico-echarts">
+            <h3 style="text-align: center; color: var(--odoo-primary); font-size: 1.5rem; margin-bottom: 15px;">
+                <i class="bi bi-box-seam-fill"></i> Avance de Facturación por Producto
+            </h3>
+            
+            <!-- Filtros por Línea Comercial, Categoría y Estado -->
+            <div style="text-align: center; margin-bottom: 20px;">
+                <label style="font-weight: 600; margin-right: 10px;">Línea Comercial:</label>
+                <select id="filtro-linea-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 200px;">
+                    <option value="todas">Todas las líneas</option>
+                </select>
+                
+                <label style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Categoría:</label>
+                <select id="filtro-categoria-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 200px;">
+                    <option value="todas">Todas las categorías</option>
+                </select>
+                
+                <label style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Estado:</label>
+                <select id="filtro-estado-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 180px;">
+                    <option value="todos">Todos los estados</option>
+                    <option value="critico" style="color: #e74c3c;">🔴 Crítico (< 40%)</option>
+                    <option value="en_progreso" style="color: #f1c40f;">🟡 En Progreso (40-80%)</option>
+                    <option value="exitoso" style="color: #2ecc71;">🟢 Exitoso (> 80%)</option>
+                </select>
+                
+                <span id="productos-contador" style="margin-left: 20px; font-weight: 600; color: #666;"></span>
+            </div>
+            
+            <!-- Controles de Paginación -->
+            <div style="text-align: center; margin-bottom: 15px;">
+                <button id="btn-productos-prev" onclick="cambiarPaginaProductos(-1)" style="padding: 8px 16px; margin-right: 10px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    ← Anterior
+                </button>
+                <span id="productos-paginacion-info" style="font-weight: 600; color: #333; margin: 0 15px;"></span>
+                <button id="btn-productos-next" onclick="cambiarPaginaProductos(1)" style="padding: 8px 16px; margin-left: 10px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                    Siguiente →
+                </button>
+            </div>
+            
+            <div id="grafico-bullet-productos" style="width: 100%; min-height: 700px;"></div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <style>
@@ -1904,6 +1951,268 @@ function crearGraficoBullet() {
     window.addEventListener('resize', () => myChart.resize());
 }
 
+// NUEVO: Gráfico Bullet Chart para Productos
+let productosGraficoDataGlobal = [];
+let productosGraficoChartInstance = null;
+let productosGraficoFiltrados = [];
+let paginaActualGraficoProductos = 1;
+const productosGraficoPorPagina = 20;
+
+function crearGraficoBulletProductos() {
+    const chartDom = document.getElementById('grafico-bullet-productos');
+    if (!chartDom) return;
+    
+    // Prevenir inicialización múltiple
+    if (productosGraficoDataGlobal.length > 0) return;
+    
+    productosGraficoDataGlobal = {{ products_chart_data|default([])|tojson|safe }};
+    if (!productosGraficoDataGlobal || productosGraficoDataGlobal.length === 0) return;
+    
+    // Poblar el select de líneas comerciales
+    const lineasSet = new Set();
+    const categoriasSet = new Set();
+    productosGraficoDataGlobal.forEach(p => {
+        if (p.linea_comercial) {
+            lineasSet.add(p.linea_comercial);
+        }
+        if (p.categoria) {
+            categoriasSet.add(p.categoria);
+        }
+    });
+    
+    const selectLinea = document.getElementById('filtro-linea-productos');
+    if (selectLinea && selectLinea.options.length === 1) { // Solo agregar si aún no tiene opciones
+        const lineasOrdenadas = Array.from(lineasSet).sort();
+        lineasOrdenadas.forEach(linea => {
+            const option = document.createElement('option');
+            option.value = linea;
+            option.textContent = linea;
+            selectLinea.appendChild(option);
+        });
+    }
+    
+    const selectCategoria = document.getElementById('filtro-categoria-productos');
+    if (selectCategoria && selectCategoria.options.length === 1) { // Solo agregar si aún no tiene opciones
+        const categoriasOrdenadas = Array.from(categoriasSet).sort();
+        categoriasOrdenadas.forEach(categoria => {
+            const option = document.createElement('option');
+            option.value = categoria;
+            option.textContent = categoria;
+            selectCategoria.appendChild(option);
+        });
+    }
+    
+    // Inicializar el gráfico con todos los productos
+    if (!productosGraficoChartInstance) {
+        productosGraficoChartInstance = echarts.init(chartDom);
+    }
+    
+    filtrarProductosPorLinea();
+}
+
+function cambiarPaginaProductos(direccion) {
+    const totalPaginas = Math.ceil(productosGraficoFiltrados.length / productosGraficoPorPagina);
+    paginaActualGraficoProductos += direccion;
+    
+    if (paginaActualGraficoProductos < 1) paginaActualGraficoProductos = 1;
+    if (paginaActualGraficoProductos > totalPaginas) paginaActualGraficoProductos = totalPaginas;
+    
+    renderizarGraficoProductos();
+}
+
+function filtrarProductosPorLinea() {
+    const selectLinea = document.getElementById('filtro-linea-productos');
+    const selectCategoria = document.getElementById('filtro-categoria-productos');
+    const selectEstado = document.getElementById('filtro-estado-productos');
+    const lineaSeleccionada = selectLinea ? selectLinea.value : 'todas';
+    const categoriaSeleccionada = selectCategoria ? selectCategoria.value : 'todas';
+    const estadoSeleccionado = selectEstado ? selectEstado.value : 'todos';
+    
+    // Filtrar datos por línea comercial, categoría y estado
+    productosGraficoFiltrados = productosGraficoDataGlobal.filter(p => {
+        const cumpleLinea = lineaSeleccionada === 'todas' || p.linea_comercial === lineaSeleccionada;
+        const cumpleCategoria = categoriaSeleccionada === 'todas' || p.categoria === categoriaSeleccionada;
+        
+        // Filtrar por estado según porcentaje
+        let cumpleEstado = true;
+        if (estadoSeleccionado !== 'todos') {
+            const pct = p.porcentaje || 0;
+            if (estadoSeleccionado === 'critico') {
+                cumpleEstado = pct < 40;
+            } else if (estadoSeleccionado === 'en_progreso') {
+                cumpleEstado = pct >= 40 && pct < 80;
+            } else if (estadoSeleccionado === 'exitoso') {
+                cumpleEstado = pct >= 80;
+            }
+        }
+        
+        return cumpleLinea && cumpleCategoria && cumpleEstado;
+    });
+    
+    // Resetear a página 1 cuando cambia el filtro
+    paginaActualGraficoProductos = 1;
+    
+    renderizarGraficoProductos();
+}
+
+function renderizarGraficoProductos() {
+    if (!productosGraficoChartInstance || productosGraficoFiltrados.length === 0) return;
+    // Calcular paginación
+    const totalPaginas = Math.ceil(productosGraficoFiltrados.length / productosGraficoPorPagina);
+    const inicio = (paginaActualGraficoProductos - 1) * productosGraficoPorPagina;
+    const fin = Math.min(inicio + productosGraficoPorPagina, productosGraficoFiltrados.length);
+    const datosPagina = productosGraficoFiltrados.slice(inicio, fin);
+    
+    // Actualizar controles de paginación
+    const btnPrev = document.getElementById('btn-productos-prev');
+    const btnNext = document.getElementById('btn-productos-next');
+    const paginacionInfo = document.getElementById('productos-paginacion-info');
+    const contador = document.getElementById('productos-contador');
+    
+    if (btnPrev) btnPrev.disabled = paginaActualGraficoProductos === 1;
+    if (btnNext) btnNext.disabled = paginaActualGraficoProductos === totalPaginas || totalPaginas === 0;
+    if (paginacionInfo) paginacionInfo.textContent = `Página ${paginaActualGraficoProductos} de ${totalPaginas || 1}`;
+    if (contador) contador.textContent = `Total: ${productosGraficoFiltrados.length} productos`;
+    
+    const chartDom = document.getElementById('grafico-bullet-productos');
+    
+    // Ajustar altura del gráfico dinámicamente
+    const barHeight = 30;
+    const chartHeight = Math.max(700, datosPagina.length * barHeight + 100);
+    chartDom.style.height = chartHeight + 'px';
+    productosGraficoChartInstance.resize();
+
+    // Preparar datos
+    const productos = datosPagina.map(d => d.producto);
+    const totales = datosPagina.map(d => Math.max(0, Number(d.total || 0)));
+    const facturados = datosPagina.map(d => Math.max(0, Number(d.facturado || 0)));
+    const porcentajes = datosPagina.map(d => Number(d.porcentaje || 0));
+    const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
+    const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
+    const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
+    
+    // Debug: verificar duplicados en la página actual
+    const productosUnicos = new Set(productos);
+    if (productosUnicos.size !== productos.length) {
+        console.warn('⚠️ Duplicados detectados en la página:', productos.length - productosUnicos.size);
+    }
+
+    // Colores según porcentaje
+    const facturadoSeriesData = facturados.map((valor, i) => {
+        const pct = porcentajes[i];
+        let color = '#3498db';
+        if (pct < 40) color = '#e74c3c';
+        else if (pct < 80) color = '#f1c40f';
+        else color = '#2ecc71';
+
+        return {
+            value: valor,
+            itemStyle: { color: color },
+            label: {
+                show: true,
+                position: 'right',
+                color: '#333',
+                formatter: function(params) { return porcentajes[params.dataIndex].toFixed(1) + '%'; }
+            }
+        };
+    });
+
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: function (params) {
+                const idx = params[0].dataIndex;
+                const producto = productos[idx];
+                const fact = Math.round(facturados[idx] || 0);
+                const total = Math.round(totales[idx] || 0);
+                const pend = total - fact;
+                const pct = porcentajes[idx] || 0;
+                
+                const qtyFact = qtyFacturadas[idx] || 0;
+                const qtyPend = qtyPendientes[idx] || 0;
+                const qtyTotal = qtyTotales[idx] || 0;
+                
+                // Determinar estado y emoji según porcentaje
+                let estado = '';
+                let emoji = '';
+                let colorIndicador = '';
+                if (pct < 40) {
+                    estado = 'Crítico';
+                    emoji = '🔴';
+                    colorIndicador = '#e74c3c';
+                } else if (pct < 80) {
+                    estado = 'En Progreso';
+                    emoji = '🟡';
+                    colorIndicador = '#f1c40f';
+                } else {
+                    estado = 'Exitoso';
+                    emoji = '🟢';
+                    colorIndicador = '#2ecc71';
+                }
+                
+                return `<div style="padding: 8px;">
+                    <strong style="font-size: 13px;">${producto}</strong><br/>
+                    <div style="margin-top: 8px; padding: 6px; background-color: ${colorIndicador}22; border-left: 3px solid ${colorIndicador}; border-radius: 4px;">
+                        <strong>${emoji} ${estado}</strong> - Avance: <strong>${pct.toFixed(1)}%</strong>
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <span style="color: #2ecc71;">● Facturado:</span> <strong>$ ${fact.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyFact.toLocaleString('en-US')}</strong><br/>
+                        <span style="color: #f39c12;">● Pendiente:</span> <strong>$ ${pend.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyPend.toLocaleString('en-US')}</strong><br/>
+                        <span style="color: #666;">● Total:</span> <strong>$ ${total.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyTotal.toLocaleString('en-US')}</strong>
+                    </div>
+                </div>`;
+            }
+        },
+        grid: { left: '3%', right: '4%', bottom: '3%', top: '20px', containLabel: true },
+        xAxis: {
+            type: 'value',
+            min: 0,
+            axisLabel: { formatter: value => '$ ' + Math.round(value).toLocaleString('en-US') },
+            splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+        },
+        yAxis: {
+            type: 'category',
+            data: productos,
+            axisLabel: {
+                interval: 0,
+                formatter: value => value.length > 80 ? value.substring(0, 80) + '...' : value,
+                fontSize: 11
+            }
+        },
+        dataZoom: [{
+            type: 'inside',
+            yAxisIndex: 0,
+            filterMode: 'empty',
+            start: 0,
+            end: 100
+        }],
+        series: [
+            {
+                name: 'Total',
+                type: 'bar',
+                barGap: '-100%',
+                barWidth: '24px',
+                itemStyle: { color: '#e9ecef' },
+                data: totales,
+                animation: false
+            },
+            {
+                name: 'Facturado',
+                type: 'bar',
+                barWidth: '24px',
+                z: 10,
+                data: facturadoSeriesData,
+                itemStyle: { barBorderRadius: 6 }
+            }
+        ],
+        animationDuration: 600
+    };
+
+    productosGraficoChartInstance.setOption(option, true);
+    window.addEventListener('resize', () => productosGraficoChartInstance.resize());
+}
+
 // Gráfico Ejecutivo: Facturado vs Meta vs Pendiente por Cliente
 function crearGraficoEjecutivo(targetElementId = 'grafico-ejecutivo-clientes') {
     const chartDom = document.getElementById(targetElementId);
@@ -2442,6 +2751,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // 5. Mostrar y crear el gráfico general de avance por cliente.
         if (bulletClientesCard) bulletClientesCard.style.display = 'block';
         crearGraficoBullet();
+        
+        // 6. NUEVO: Crear gráfico de productos si existe
+        crearGraficoBulletProductos();
     }
 
     // Verificar que el select de clientes tiene opciones (silencioso check)
