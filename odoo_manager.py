@@ -117,9 +117,11 @@ class OdooManager:
             if self.uid:
                 # Usar el mismo transport para el endpoint de object
                 self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', transport=transport)
+                logging.info(f"Conexión a Odoo exitosa. UID: {self.uid}.")
             else:
                 self.uid = None
                 self.models = None
+                logging.warning("Falló la autenticación con Odoo. UID es None.")
                 
         except Exception as e:
             logging.error(f"Error en la conexión a Odoo: {e}")
@@ -335,7 +337,8 @@ class OdooManager:
                 # Filtros para excluir productos no deseados
                 ('product_id', '!=', False),
                 ('product_id.default_code', 'not ilike', '%SERV%'), # Excluir servicios
-                ('product_id.default_code', 'not like', '81%'),      # Excluir códigos que empiezan con 81
+                # ('product_id.default_code', 'not like', '81%'), # DESACTIVADO: Este filtro causa un bug en un módulo custom de Odoo
+                                                                  # que excluye productos incorrectamente (ej: 35000PER00081).
                 ('product_id.name', '!=', 'VTA SERV GENERALES') # Excluir explícitamente el producto de servicio
             ]
             

@@ -2263,7 +2263,6 @@ def export_dashboard_details():
         flash(f'Error al exportar los detalles del dashboard: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
-
 if __name__ == '__main__':
     # Startup info via logger instead of print
     app.logger.info("Iniciando Dashboard de Ventas Farmacéuticas...")

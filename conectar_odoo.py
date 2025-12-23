@@ -36,6 +36,7 @@ except Exception as e:
     exit()
 
 # --- 3. EJECUTAR UNA ACCIÓN (LEER DATOS) ---
+# --- 3. EJECUTAR LA BÚSQUEDA (REPLICANDO EL DASHBOARD) ---
 models = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/object')
 
 try:
@@ -50,5 +51,6 @@ try:
         for product in products:
             # No imprimir la contraseña ni datos sensibles en producción
             print(f"  - ID: {product['id']}, Código: {product['default_code']}, Nombre: {product['name']}")
+
 except Exception as e:
-    print(f"Error al consultar datos de Odoo: {e}")
+    print(f"\nError al consultar datos de Odoo: {e}")
