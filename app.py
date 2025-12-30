@@ -1857,7 +1857,7 @@ def metas_cliente():
 
         # GET request: Cargar y mostrar datos
         metas_historicas = gs_manager.read_metas_por_cliente()
-        
+
         # Lógica para evitar latencia de Google Sheets:
         # 1. Intentar obtener las metas de la sesión (que se guardaron en el POST)
         session_key = f'metas_cliente_{año_seleccionado}'
@@ -1869,7 +1869,23 @@ def metas_cliente():
             # CORRECCIÓN: Asegurarse de obtener el diccionario del año correcto.
             # metas_historicas es {'2024': {cliente_id: {...}}, '2025': ...}
             metas_actuales = metas_historicas.get(año_seleccionado, {})
-            
+
+        # Asegurar que los clientes que sólo existen en las metas también se muestren
+        try:
+            existing_ids = {str(c[0]) for c in clientes}
+            for cliente_id_str, meta_obj in (metas_actuales or {}).items():
+                if cliente_id_str not in existing_ids:
+                    # Añadir usando el nombre guardado en la hoja, o un placeholder
+                    nombre = meta_obj.get('cliente_nombre') if isinstance(meta_obj, dict) else None
+                    if not nombre:
+                        nombre = f'Cliente {cliente_id_str}'
+                    clientes.append([int(cliente_id_str), nombre])
+            # Reordenar la lista final por nombre para presentación consistente
+            clientes = sorted(clientes, key=lambda x: x[1])
+        except Exception:
+            # En caso de cualquier fallo, continuar con la lista original de clientes
+            pass
+
         return render_template('metas_cliente.html',
                              clientes=clientes,
                              lineas_comerciales=lineas_comerciales_columnas,
