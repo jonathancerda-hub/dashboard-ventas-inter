@@ -50,21 +50,38 @@
 <div class="dashboard-container">
     <!-- NUEVO LAYOUT CON CSS GRID 2x2 -->
     <div class="dashboard-grid">
-        <!-- Posición 1: Filtro de Clientes (arriba izquierda) -->
+        <!-- Posición 1: Filtro de Clientes y Año (arriba izquierda) -->
         <div class="grid-item grid-1">
             <div class="filtro-container">
-                <h3>Filtrar por Cliente</h3>
-                <!-- DEBUG: Clientes disponibles = {{ filter_options.clientes|length if filter_options and filter_options.clientes else 0 }} -->
-                <select id="filtro-cliente" class="select-filtro" onchange="cambiarCliente(this.value)">
-                    <option value="">Todos los clientes</option>
-                    {% if filter_options and filter_options.clientes %}
-                        {% for cliente in filter_options.clientes %}
-                            <option value="{{ cliente[0] }}" {% if selected_filters.cliente_id and selected_filters.cliente_id == cliente[0]|string %}selected{% endif %}>{{ cliente[1] }}</option>
-                        {% endfor %}
-                    {% else %}
-                        <!-- DEBUG: No hay clientes - filter_options={{ filter_options }} -->
-                    {% endif %}
-                </select>
+                <h3>Filtros</h3>
+                <!-- Selector de Año -->
+                <div style="margin-bottom: 15px;">
+                    <label for="filtro-año" style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">Año:</label>
+                    <select id="filtro-año" class="select-filtro" onchange="cambiarAño(this.value)">
+                        {% if años_disponibles %}
+                            {% for año in años_disponibles %}
+                                <option value="{{ año }}" {% if año_seleccionado and año == año_seleccionado %}selected{% endif %}>{{ año }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="2025" selected>2025</option>
+                            <option value="2026">2026</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <!-- Selector de Cliente -->
+                <div>
+                    <label for="filtro-cliente" style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">Cliente:</label>
+                    <select id="filtro-cliente" class="select-filtro" onchange="cambiarCliente(this.value)">
+                        <option value="">Todos los clientes</option>
+                        {% if filter_options and filter_options.clientes %}
+                            {% for cliente in filter_options.clientes %}
+                                <option value="{{ cliente[0] }}" {% if selected_filters.cliente_id and selected_filters.cliente_id == cliente[0]|string %}selected{% endif %}>{{ cliente[1] }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <!-- DEBUG: No hay clientes - filter_options={{ filter_options }} -->
+                        {% endif %}
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -104,10 +121,10 @@
                         <a href="https://stockodoo.onrender.com" target="_blank" class="btn-custom-action">
                             <i class="bi bi-box-arrow-up-right"></i> Stock Odoo
                         </a>
-                        <a href="{{ url_for('export_excel_sales', cliente_id=selected_filters.cliente_id) }}" class="btn-export-tabla" title="Exportar datos ya facturados">
+                        <a href="{{ url_for('export_excel_sales', cliente_id=selected_filters.cliente_id, año=año_seleccionado) }}" class="btn-export-tabla" title="Exportar datos ya facturados">
                             <i class="bi bi-file-earmark-excel"></i> Exp. Facturado
                         </a>
-                        <a href="{{ url_for('export_excel_pending', cliente_id=selected_filters.cliente_id) }}" class="btn-export-tabla btn-export-pending" title="Exportar pedidos pendientes de facturar">
+                        <a href="{{ url_for('export_excel_pending', cliente_id=selected_filters.cliente_id, año=año_seleccionado) }}" class="btn-export-tabla btn-export-pending" title="Exportar pedidos pendientes de facturar">
                             <i class="bi bi-file-earmark-excel"></i> Exp. Por Facturar
                         </a>
                     </div>
@@ -2688,6 +2705,19 @@ function cambiarCliente(clienteId) {
         currentUrl.searchParams.set('cliente_id', clienteId);
     } else {
         currentUrl.searchParams.delete('cliente_id');
+    }
+    
+    window.location.href = currentUrl.toString();
+}
+
+// Función para manejar cambio de año
+function cambiarAño(año) {
+    const currentUrl = new URL(window.location.href);
+    
+    if (año && año !== '') {
+        currentUrl.searchParams.set('año', año);
+    } else {
+        currentUrl.searchParams.delete('año');
     }
     
     window.location.href = currentUrl.toString();

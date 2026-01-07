@@ -378,8 +378,8 @@ def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    # Construir una clave de caché única basada en los filtros
-    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
+    # Construir una clave de caché única basada en los filtros incluyendo el año
+    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('año', '2025')}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
     
     # Intentar obtener datos de caché solo para GET requests
     if request.method == 'GET':
@@ -401,8 +401,10 @@ def dashboard():
             selected_filters = {'cliente_id': request.form.get('cliente_id')}
             selected_filters['date_from'] = request.form.get('date_from')
             selected_filters['date_to'] = request.form.get('date_to')
+            selected_filters['año'] = request.form.get('año')
         else:
             selected_filters = {'cliente_id': request.args.get('cliente_id')}
+            selected_filters['año'] = request.args.get('año')
 
         # Limpiar filtros para la consulta
         query_filters = selected_filters.copy()
@@ -420,9 +422,21 @@ def dashboard():
         
     # Debug info removed
         
-        # MODIFICACIÓN: Usar fechas dinámicas. Si no se especifican, usar el año actual por defecto.
-        date_from = selected_filters.get('date_from') or f"{datetime.now().year}-01-01"
-        date_to = selected_filters.get('date_to') or f"{datetime.now().year}-12-31"
+        # MODIFICACIÓN: Soporte para filtro de año
+        # Si no hay año seleccionado, usar 2025 por defecto (inicio del proyecto)
+        año_seleccionado = selected_filters.get('año') or '2025'
+        try:
+            año_seleccionado = int(año_seleccionado)
+        except (ValueError, TypeError):
+            año_seleccionado = 2025
+        
+        # Generar lista de años disponibles (desde 2025 hasta el año actual + 1)
+        año_actual = datetime.now().year
+        años_disponibles = list(range(2025, año_actual + 2))
+        
+        # Establecer date_from y date_to según el año seleccionado
+        date_from = selected_filters.get('date_from') or f"{año_seleccionado}-01-01"
+        date_to = selected_filters.get('date_to') or f"{año_seleccionado}-12-31"
         
         # CORRECCIÓN: get_sales_lines ahora devuelve una tupla (datos, paginación).
         # Desempaquetamos y solo usamos los datos.
@@ -708,10 +722,10 @@ def dashboard():
         total_invoices = len(set(sale['factura'] for sale in sales_data_international if sale.get('factura')))
         
         # --- INTEGRACIÓN DE METAS POR CLIENTE ---
-        # 1. Cargar metas de clientes para el año actual
+        # 1. Cargar metas de clientes para el año seleccionado (no el año actual)
         metas_clientes_historicas = gs_manager.read_metas_por_cliente()
-        año_actual_str = str(datetime.now().year)
-        metas_clientes_año = metas_clientes_historicas.get(año_actual_str, {})
+        año_str = str(año_seleccionado)  # Usar año_seleccionado en lugar de datetime.now().year
+        metas_clientes_año = metas_clientes_historicas.get(año_str, {})
 
         # 2. Calcular la meta total para el KPI principal (condicional al filtro de cliente)
         meta_total_general = 0
@@ -1179,8 +1193,10 @@ def dashboard():
                              dia_actual=dia_actual,
                              nombre_cliente_seleccionado=nombre_cliente_seleccionado,
                              # Variables adicionales que el template pueda necesitar
-                             meses_disponibles=get_meses_del_año(fecha_actual.year),
+                             meses_disponibles=get_meses_del_año(año_seleccionado),
                              mes_seleccionado=fecha_actual.strftime('%Y-%m'),
+                             año_seleccionado=año_seleccionado,
+                             años_disponibles=años_disponibles,
                              datos_lineas=datos_lineas,
                              datos_lineas_tabla=datos_lineas_tabla,
                              datos_productos=datos_productos,
@@ -1909,8 +1925,8 @@ def export_excel_sales():
     
     try:
         # Obtener filtros de la URL
-        # Para el dashboard, solo necesitamos el cliente_id. Las fechas se manejan por defecto (año actual).
         cliente_id = request.args.get('cliente_id')
+        año = request.args.get('año')
         
         # Convertir a tipos apropiados
         partner_id = None
@@ -1920,10 +1936,16 @@ def export_excel_sales():
             except (ValueError, TypeError):
                 partner_id = None
         
-        # Obtener datos de ventas para el cliente seleccionado (o todos si no hay selección)
-        # Usando las fechas por defecto del año actual, igual que el dashboard.
-        date_from = f"{datetime.now().year}-01-01"
-        date_to = f"{datetime.now().year}-12-31"
+        # Establecer año (por defecto 2025 si no se especifica)
+        año_seleccionado = año or '2025'
+        try:
+            año_seleccionado = int(año_seleccionado)
+        except (ValueError, TypeError):
+            año_seleccionado = 2025
+        
+        # Obtener datos de ventas para el cliente y año seleccionado
+        date_from = f"{año_seleccionado}-01-01"
+        date_to = f"{año_seleccionado}-12-31"
         
         # CORRECCIÓN: Desempaquetar la tupla devuelta por get_sales_lines
         sales_data_raw, _ = data_manager.get_sales_lines(
@@ -2004,8 +2026,9 @@ def export_excel_pending():
         return redirect(url_for('login'))
     
     try:
-        # Obtener el cliente_id de la URL
+        # Obtener filtros de la URL
         cliente_id = request.args.get('cliente_id')
+        año = request.args.get('año')
         
         partner_id = None
         if cliente_id:
@@ -2013,6 +2036,13 @@ def export_excel_pending():
                 partner_id = int(cliente_id)
             except (ValueError, TypeError):
                 partner_id = None
+        
+        # Establecer año (por defecto 2025 si no se especifica)
+        año_seleccionado = año or '2025'
+        try:
+            año_seleccionado = int(año_seleccionado)
+        except (ValueError, TypeError):
+            año_seleccionado = 2025
         
         # Obtener datos de pedidos pendientes para el cliente seleccionado
         # CORRECCIÓN: Desempaquetar la tupla y pedir todos los registros
