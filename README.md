@@ -4,10 +4,14 @@ Una aplicación web desarrollada en Flask que funciona como un **Dashboard de Ve
 
 ## Características Principales
 - **Dashboard Internacional**: Visualización de KPIs y análisis de ventas por cliente. Incluye un potente gráfico jerárquico (drill-down) para explorar los datos de ventas a través de múltiples dimensiones de producto.
+- **Filtro de Año**: Selector de año que permite analizar datos históricos y proyecciones futuras:
+  - **Ventas facturadas**: Se filtran por el año seleccionado.
+  - **Pedidos pendientes**: Se muestran TODOS los pedidos activos sin filtro de fecha (permite seguimiento continuo de pedidos de años anteriores que aún no se han facturado completamente).
+  - **Metas**: Se cargan automáticamente del año seleccionado.
 - **Dashboard Nacional**: Enfocado en el rendimiento de las líneas comerciales y los vendedores individuales contra sus metas mensuales.
 - **Gestión de Metas**: Interfaces para configurar metas de venta por línea comercial y por vendedor, almacenadas en Google Sheets.
 - **Autenticación Segura**: Sistema de inicio de sesión que valida credenciales contra Odoo y verifica al usuario contra una lista blanca (whitelist) para un control de acceso granular.
-- **Exportación de Datos**: Funcionalidad para exportar datos de ventas facturadas y pedidos pendientes a formato Excel (`.xlsx`).
+- **Exportación de Datos**: Funcionalidad para exportar datos de ventas facturadas y pedidos pendientes a formato Excel (`.xlsx`), respetando el año seleccionado.
 - **Visualización Detallada**: Tablas paginadas y con filtros para explorar en detalle las ventas y los pedidos pendientes.
 
 ## Tecnologías Utilizadas

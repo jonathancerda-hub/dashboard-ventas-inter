@@ -20,6 +20,11 @@ Project-specific conventions and patterns
 - Include orders with zero invoicing: `orders_chart_data` construction in `app.py` intentionally merges sold (facturado) and pending (pendiente) per order — keep that behavior when editing order aggregation logic.
 - Currency sign: project displays USD with `$` (templates were updated); avoid introducing `S/` (PEN) labels.
 - JS debug statements: many console.* lines were silenced. Avoid reintroducing noisy client logs unless guarded by a debug flag.
+- **Year filtering behavior (CRITICAL)**: 
+  - Invoiced sales (`get_sales_lines`): MUST filter by year using `date_from` and `date_to` parameters.
+  - Pending orders (`get_pending_orders`): MUST NOT filter by date — returns ALL active pending orders regardless of creation year. This is intentional for international sales tracking where orders from previous years may invoice partially in future years.
+  - Cache keys: MUST include `año` parameter to differentiate cached data by year.
+  - Metas (goals): MUST load from the selected year in Google Sheets (e.g., `metas_clientes_año = metas_clientes.get(año_str, {})`).
 
 Run / debug / local development
 - Environment: uses `.env` variables (see top of `app.py` and `conectar_odoo.py`) for Odoo URL/user/pass, Google Sheets name, and `SECRET_KEY`.
@@ -77,6 +82,7 @@ What not to change
 - Avoid removing `partner_id`/`order_id` metadata when returning JSON to the templates — it's used for click-to-filter behavior.
 - Do NOT change product aggregation logic to use product names — use product codes (`default_code`/`codigo_odoo`) as unique identifiers.
 - Pagination constant `productosPorPagina = 15` in `dashboard_clean.html` — only change if explicitly requested.
+- **NEVER add date filtering to `get_pending_orders`** — pending orders must show ALL active orders regardless of year for proper international sales tracking (orders from 2025 that invoice in 2026 need to be visible).
 
 If you need more context
 - Ask for Odoo domain examples and a sample of `sales_data` JSON payload if you need to reproduce aggregation logic locally (I can instrument `odoo_manager.py` to dump limited mock data safely).

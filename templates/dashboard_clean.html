@@ -53,11 +53,10 @@
         <!-- Posición 1: Filtro de Clientes y Año (arriba izquierda) -->
         <div class="grid-item grid-1">
             <div class="filtro-container">
-                <h3>Filtros</h3>
                 <!-- Selector de Año -->
-                <div style="margin-bottom: 15px;">
-                    <label for="filtro-año" style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">Año:</label>
-                    <select id="filtro-año" class="select-filtro" onchange="cambiarAño(this.value)">
+                <div class="filtro-group">
+                    <label for="filtro-año" class="filtro-label-inline">Año:</label>
+                    <select id="filtro-año" class="select-filtro-inline" onchange="cambiarAño(this.value)">
                         {% if años_disponibles %}
                             {% for año in años_disponibles %}
                                 <option value="{{ año }}" {% if año_seleccionado and año == año_seleccionado %}selected{% endif %}>{{ año }}</option>
@@ -69,8 +68,8 @@
                     </select>
                 </div>
                 <!-- Selector de Cliente -->
-                <div>
-                    <label for="filtro-cliente" style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">Cliente:</label>
+                <div class="filtro-group">
+                    <label for="filtro-cliente" class="filtro-label">Cliente:</label>
                     <select id="filtro-cliente" class="select-filtro" onchange="cambiarCliente(this.value)">
                         <option value="">Todos los clientes</option>
                         {% if filter_options and filter_options.clientes %}
@@ -690,20 +689,68 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
 }
 
-.filtro-container h3 {
-    color: #333 !important;
-    font-size: 18px !important;
-    font-weight: 600 !important;
-    margin-bottom: 15px !important;
-    text-align: left !important;
+/* Grupo de filtros (año y cliente) */
+.filtro-group {
+    margin-bottom: 15px;
 }
 
-/* Estilos específicos para el filtro de cliente */
+.filtro-group:last-child {
+    margin-bottom: 0;
+}
+
+.filtro-group:first-child {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+/* Label en línea para año */
+.filtro-label-inline {
+    font-weight: 600;
+    color: #495057;
+    font-size: 16px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* Label normal para cliente */
+.filtro-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+/* Selector inline para año (más compacto) */
+.select-filtro-inline {
+    padding: 8px 12px;
+    font-size: 16px;
+    font-weight: 600;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    min-width: 100px;
+}
+
+.select-filtro-inline:hover {
+    border-color: #8b5a8e;
+    box-shadow: 0 3px 6px rgba(139, 90, 142, 0.2);
+}
+
+.select-filtro-inline:focus {
+    outline: none;
+    border-color: #8b5a8e;
+    box-shadow: 0 0 0 3px rgba(139, 90, 142, 0.1);
+}
+
+/* Estilos unificados para selector de cliente */
 .select-filtro {
-    width: 100%;
-}
-
-#filtro-cliente {
     width: 100%;
     padding: 12px 16px;
     font-size: 14px;
@@ -713,20 +760,22 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     cursor: pointer;
     transition: all 0.3s ease;
+    font-family: inherit;
 }
 
-#filtro-cliente:hover {
+.select-filtro:hover {
     border-color: #8b5a8e;
     box-shadow: 0 3px 6px rgba(139, 90, 142, 0.2);
 }
 
-#filtro-cliente:focus {
+.select-filtro:focus {
     outline: none;
     border-color: #8b5a8e;
     box-shadow: 0 0 0 3px rgba(139, 90, 142, 0.1);
 }
 
-#filtro-cliente option {
+.select-filtro option,
+.select-filtro-inline option {
     padding: 10px;
 }
 

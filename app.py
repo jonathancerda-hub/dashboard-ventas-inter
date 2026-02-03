@@ -1928,6 +1928,9 @@ def export_excel_sales():
         cliente_id = request.args.get('cliente_id')
         año = request.args.get('año')
         
+        # DEBUG: Log para ver qué año se está recibiendo
+        logging.info(f"DEBUG export_excel_sales - Año recibido: '{año}' (tipo: {type(año)})")
+        
         # Convertir a tipos apropiados
         partner_id = None
         if cliente_id:
@@ -1942,6 +1945,9 @@ def export_excel_sales():
             año_seleccionado = int(año_seleccionado)
         except (ValueError, TypeError):
             año_seleccionado = 2025
+        
+        # DEBUG: Log para ver qué año se está usando
+        logging.info(f"DEBUG export_excel_sales - Año final: {año_seleccionado}, date_from: {año_seleccionado}-01-01, date_to: {año_seleccionado}-12-31")
         
         # Obtener datos de ventas para el cliente y año seleccionado
         date_from = f"{año_seleccionado}-01-01"
@@ -2030,6 +2036,9 @@ def export_excel_pending():
         cliente_id = request.args.get('cliente_id')
         año = request.args.get('año')
         
+        # DEBUG: Log para ver qué año se está recibiendo
+        logging.info(f"DEBUG export_excel_pending - Año recibido: '{año}' (tipo: {type(año)})")
+        
         partner_id = None
         if cliente_id:
             try:
@@ -2043,6 +2052,9 @@ def export_excel_pending():
             año_seleccionado = int(año_seleccionado)
         except (ValueError, TypeError):
             año_seleccionado = 2025
+        
+        # DEBUG: Log para confirmar el año
+        logging.info(f"DEBUG export_excel_pending - Año final: {año_seleccionado}")
         
         # Obtener datos de pedidos pendientes para el cliente seleccionado
         # CORRECCIÓN: Desempaquetar la tupla y pedir todos los registros

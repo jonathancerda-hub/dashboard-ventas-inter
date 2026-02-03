@@ -64,8 +64,10 @@ La aplicación también provee interfaces para la visualización detallada de da
 2.  **Enrutamiento de Flask**: `app.py` recibe la petición en la función `dashboard()`.
 3.  **Autenticación**: La función verifica si el usuario ha iniciado sesión (revisando la `session` de Flask).
 4.  **Recolección de Datos**:
-    *   La función `dashboard()` llama a `OdooManager` para obtener los datos de ventas (`get_sales_lines`) y los pedidos pendientes (`get_pending_orders`) del año actual.
-    *   También puede llamar a `GoogleSheetsManager` para obtener datos de metas si fuera necesario en esa vista.
+    *   La función `dashboard()` llama a `OdooManager` para obtener:
+        -   **Ventas facturadas** (`get_sales_lines`): Filtradas por el año seleccionado (parámetro `año` del query string, por defecto 2025).
+        -   **Pedidos pendientes** (`get_pending_orders`): **SIN filtro de fecha** — muestra TODOS los pedidos activos pendientes de facturar, independientemente del año en que se crearon. Esto permite seguimiento continuo de pedidos de años anteriores (2024, 2025) que aún no se han facturado completamente.
+    *   También puede llamar a `GoogleSheetsManager` para obtener datos de metas del año seleccionado si fuera necesario en esa vista.
 5.  **Procesamiento de Datos**:
     *   Dentro de la función `dashboard()`, los datos crudos de Odoo se procesan y agregan usando bucles de Python y, en algunos casos, la librería Pandas.
     *   Se calculan KPIs (total de ventas, brecha comercial), se agrupan ventas por línea, por producto, etc.
@@ -80,6 +82,12 @@ La aplicación también provee interfaces para la visualización detallada de da
 *   **Autenticación**: Sistema de `login`/`logout` que valida las credenciales del usuario contra la base de datos de usuarios de Odoo.
 
 *   **Dashboard Internacional (`/dashboard`)**:
+    *   **Filtro de Año**: Selector desplegable que permite cambiar el año de análisis (por defecto 2025). Al cambiar el año:
+        -   **Ventas facturadas**: Se filtran mostrando solo facturas del año seleccionado.
+        -   **Pedidos pendientes**: Se mantienen SIN filtro de fecha, mostrando TODOS los pedidos activos sin importar su año de origen (esto permite seguimiento continuo de ventas internacionales, donde pedidos de años anteriores pueden facturarse parcialmente en años posteriores).
+        -   **Metas**: Se cargan las metas del año seleccionado desde Google Sheets.
+        -   **Caché**: El caché diferencia por año, garantizando datos correctos al cambiar de año.
+        -   **Exportaciones Excel**: Incluyen el parámetro de año para exportar datos consistentes con la vista actual.
     *   KPIs clave: Ventas totales, meta, brecha comercial.
     *   Filtro por cliente para visualizar los datos de un cliente específico, recalculando todos los KPIs y tablas en función de la selección.
     *   Tabla de ventas y proyecciones por Línea Comercial Internacional (campo `Facturado` muestra monto facturado).

@@ -779,11 +779,9 @@ class OdooManager:
                     ('product_id.name', '!=', 'VTA SERV GENERALES'), # Excluir el producto de servicios generales.
                 ]
                 
-                # Filtros de fecha en el pedido (si están disponibles)
-                if date_from:
-                    basic_domain.append(('order_id.date_order', '>=', date_from))
-                if date_to:
-                    basic_domain.append(('order_id.date_order', '<=', date_to))
+                # NO FILTRAR POR FECHA para pedidos pendientes
+                # Esto permite ver pedidos de años anteriores que aún no se han facturado completamente
+                # date_from y date_to se ignoran intencionalmente aquí
                 
                 # Incluir filtro de cliente si se proporciona
                 if partner_id:
