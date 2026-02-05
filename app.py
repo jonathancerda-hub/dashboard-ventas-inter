@@ -1183,6 +1183,170 @@ def dashboard():
             # Ordenar por total descendente (sin límite, el filtro lo hará en frontend)
             products_chart_data = sorted(products_chart_data, key=lambda x: x['total'], reverse=True)
         
+        # --- GRÁFICO: CANTIDAD DE PRODUCTOS VENDIDOS POR MES CON MÚLTIPLES FILTROS ---
+        ventas_detalladas_por_mes = []
+        filtros_disponibles = {
+            'lineas_comerciales': set(),
+            'clasificaciones': set(),
+            'formas_farmaceuticas': set(),
+            'vias_administracion': set(),
+            'lineas_produccion': set()
+        }
+        
+        # Diccionario de meses en español
+        meses_español = {
+            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+        }
+        
+        for sale in sales_data_international:
+            # Extraer mes de la fecha
+            fecha_str = sale.get('fecha', '')
+            if fecha_str:
+                try:
+                    fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d')
+                    mes_key = fecha_obj.strftime('%Y-%m')  # Formato: 2026-01
+                    mes_nombre = meses_español.get(fecha_obj.month, '')  # Nombre del mes en español
+                    
+                    # Obtener campos de filtro
+                    linea_comercial = sale.get('linea_comercial', 'No Definido')
+                    clasificacion = sale.get('clasificacion_farmacologica', 'No Definido')
+                    forma_farmaceutica = sale.get('formas_farmaceuticas', 'No Definido')
+                    via = sale.get('via_administracion', 'No Definido')
+                    linea_produccion = sale.get('linea_produccion', 'No Definido')
+                    cantidad = sale.get('cantidad_facturada', 0)
+                    
+                    # Agregar a conjuntos de filtros disponibles (excluir "No Definido")
+                    if linea_comercial and linea_comercial != 'No Definido':
+                        filtros_disponibles['lineas_comerciales'].add(linea_comercial)
+                    if clasificacion and clasificacion != 'No Definido':
+                        filtros_disponibles['clasificaciones'].add(clasificacion)
+                    if forma_farmaceutica and forma_farmaceutica != 'No Definido':
+                        filtros_disponibles['formas_farmaceuticas'].add(forma_farmaceutica)
+                    if via and via != 'No Definido':
+                        filtros_disponibles['vias_administracion'].add(via)
+                    if linea_produccion and linea_produccion != 'No Definido':
+                        filtros_disponibles['lineas_produccion'].add(linea_produccion)
+                    
+                    # Guardar registro detallado
+                    ventas_detalladas_por_mes.append({
+                        'mes_key': mes_key,
+                        'mes_nombre': mes_nombre,
+                        'linea_comercial': linea_comercial,
+                        'clasificacion': clasificacion,
+                        'forma_farmaceutica': forma_farmaceutica,
+                        'via': via,
+                        'linea_produccion': linea_produccion,
+                        'cantidad': cantidad
+                    })
+                except:
+                    pass
+        
+        # Convertir sets a listas ordenadas
+        datos_ventas_mes_filtros = {
+            'registros': ventas_detalladas_por_mes,
+            'filtros': {
+                'lineas_comerciales': sorted(list(filtros_disponibles['lineas_comerciales'])),
+                'clasificaciones': sorted(list(filtros_disponibles['clasificaciones'])),
+                'formas_farmaceuticas': sorted(list(filtros_disponibles['formas_farmaceuticas'])),
+                'vias_administracion': sorted(list(filtros_disponibles['vias_administracion'])),
+                'lineas_produccion': sorted(list(filtros_disponibles['lineas_produccion']))
+            }
+        }
+        
+        # --- MAPA MUNDIAL: VENTAS POR PAÍS Y REGIÓN ---
+        
+        # Mapeo de nombres de países de Odoo a nombres del mapa ECharts
+        mapeo_nombres_paises = {
+            'Emiratos Árabes Unidos': 'United Arab Emirates',
+            'Reino Unido': 'United Kingdom',
+            'Corea del Sur': 'Korea',
+            'República Dominicana': 'Dominican Rep.',
+            'Surinam': 'Suriname',
+            'Argelia': 'Algeria',
+            'Bahréin': 'Bahrain',
+            'Etiopía': 'Ethiopia',
+            'México': 'Mexico',
+            'Panamá': 'Panama',
+            'Yibuti': 'Djibouti'
+        }
+        
+        # Mapeo de países a regiones (usando nombres DESPUÉS del mapeo - inglés/ECharts)
+        regiones_paises = {
+            'Sudamérica': ['Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Ecuador', 'Guyana', 'Paraguay', 'Perú', 'Suriname', 'Uruguay', 'Venezuela'],
+            'Centroamérica': ['Belice', 'Costa Rica', 'El Salvador', 'Guatemala', 'Honduras', 'Nicaragua', 'Panama'],
+            'Norteamérica': ['Canadá', 'Estados Unidos', 'Mexico'],
+            'Caribe': ['Antigua y Barbuda', 'Bahamas', 'Barbados', 'Cuba', 'Dominica', 'Granada', 'Haití', 'Jamaica', 'Dominican Rep.', 'San Cristóbal y Nieves', 'Santa Lucía', 'San Vicente y las Granadinas', 'Trinidad y Tobago'],
+            'Europa': ['Alemania', 'España', 'Francia', 'Italia', 'Portugal', 'United Kingdom', 'Ucrania', 'Albania'],
+            'Asia': ['China', 'India', 'Japón', 'Korea', 'Vietnam', 'Indonesia', 'Sri Lanka', 'Bahrain', 'United Arab Emirates', 'Jordania', 'Kuwait', 'Qatar'],
+            'África': ['Algeria', 'Ethiopia', 'Djibouti'],
+            'Otros': []
+        }
+        
+        # Mapeo inverso: país -> región
+        pais_a_region = {}
+        for region, paises in regiones_paises.items():
+            for pais in paises:
+                pais_a_region[pais] = region
+        
+        # Agrupar ventas por país y cliente
+        ventas_por_pais = {}
+        for sale in sales_data_international:
+            pais_odoo = sale.get('pais', 'No Definido')
+            
+            # Convertir nombre de país de Odoo a nombre del mapa
+            pais = mapeo_nombres_paises.get(pais_odoo, pais_odoo)
+            
+            cliente = sale.get('cliente', 'No Definido')
+            partner_id = sale.get('partner_id', None)
+            monto = sale.get('amount_currency', 0)
+            
+            if pais and pais != 'No Definido':
+                # Asignar región
+                region = pais_a_region.get(pais, 'Otros')
+                
+                if pais not in ventas_por_pais:
+                    ventas_por_pais[pais] = {
+                        'pais': pais,
+                        'region': region,
+                        'total': 0,
+                        'clientes': {}
+                    }
+                
+                ventas_por_pais[pais]['total'] += monto
+                
+                # Agrupar por cliente
+                if cliente and cliente != 'No Definido':
+                    if cliente not in ventas_por_pais[pais]['clientes']:
+                        ventas_por_pais[pais]['clientes'][cliente] = {
+                            'nombre': cliente,
+                            'partner_id': partner_id,
+                            'total': 0
+                        }
+                    ventas_por_pais[pais]['clientes'][cliente]['total'] += monto
+        
+        # Convertir a lista y ordenar
+        datos_mapa_mundial = []
+        for pais, datos in ventas_por_pais.items():
+            # Convertir clientes a lista
+            clientes_lista = sorted(
+                [{'nombre': c['nombre'], 'partner_id': c['partner_id'], 'total': c['total']} 
+                 for c in datos['clientes'].values()],
+                key=lambda x: x['total'],
+                reverse=True
+            )
+            
+            datos_mapa_mundial.append({
+                'pais': pais,
+                'region': datos['region'],
+                'total': datos['total'],
+                'clientes': clientes_lista
+            })
+        
+        # Ordenar por total descendente
+        datos_mapa_mundial = sorted(datos_mapa_mundial, key=lambda x: x['total'], reverse=True)
+        
         response = render_template('dashboard_clean.html',
                              sales_data=sales_data,
                              kpis=kpis, # kpis ahora se basa en el total del año
@@ -1218,6 +1382,8 @@ def dashboard():
                              pie_chart_data_by_level=pie_chart_data_by_level,
                              all_stacked_chart_data=all_stacked_chart_data,
                              pending_data=pending_data,
+                             datos_ventas_mes_filtros=datos_ventas_mes_filtros,
+                             datos_mapa_mundial=datos_mapa_mundial,
                              # Avance agregado (suma de todos los clientes)
                              aggregated_advance={
                                  'facturado_total': total_sales_year,
