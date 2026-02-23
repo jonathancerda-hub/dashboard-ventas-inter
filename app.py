@@ -379,7 +379,8 @@ def dashboard():
         return redirect(url_for('login'))
     
     # Construir una clave de caché única basada en los filtros incluyendo el año
-    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('año', '2025')}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
+    año_actual = datetime.now().year
+    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('año', str(año_actual))}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
     
     # Intentar obtener datos de caché solo para GET requests
     if request.method == 'GET':
@@ -423,15 +424,15 @@ def dashboard():
     # Debug info removed
         
         # MODIFICACIÓN: Soporte para filtro de año
-        # Si no hay año seleccionado, usar 2025 por defecto (inicio del proyecto)
-        año_seleccionado = selected_filters.get('año') or '2025'
+        # Si no hay año seleccionado, usar el año actual por defecto
+        año_actual = datetime.now().year
+        año_seleccionado = selected_filters.get('año') or str(año_actual)
         try:
             año_seleccionado = int(año_seleccionado)
         except (ValueError, TypeError):
-            año_seleccionado = 2025
+            año_seleccionado = año_actual
         
         # Generar lista de años disponibles (desde 2025 hasta el año actual + 1)
-        año_actual = datetime.now().year
         años_disponibles = list(range(2025, año_actual + 2))
         
         # Establecer date_from y date_to según el año seleccionado
@@ -2105,12 +2106,13 @@ def export_excel_sales():
             except (ValueError, TypeError):
                 partner_id = None
         
-        # Establecer año (por defecto 2025 si no se especifica)
-        año_seleccionado = año or '2025'
+        # Establecer año (por defecto año actual si no se especifica)
+        año_actual = datetime.now().year
+        año_seleccionado = año or str(año_actual)
         try:
             año_seleccionado = int(año_seleccionado)
         except (ValueError, TypeError):
-            año_seleccionado = 2025
+            año_seleccionado = año_actual
         
         # DEBUG: Log para ver qué año se está usando
         logging.info(f"DEBUG export_excel_sales - Año final: {año_seleccionado}, date_from: {año_seleccionado}-01-01, date_to: {año_seleccionado}-12-31")
@@ -2212,12 +2214,13 @@ def export_excel_pending():
             except (ValueError, TypeError):
                 partner_id = None
         
-        # Establecer año (por defecto 2025 si no se especifica)
-        año_seleccionado = año or '2025'
+        # Establecer año (por defecto año actual si no se especifica)
+        año_actual = datetime.now().year
+        año_seleccionado = año or str(año_actual)
         try:
             año_seleccionado = int(año_seleccionado)
         except (ValueError, TypeError):
-            año_seleccionado = 2025
+            año_seleccionado = año_actual
         
         # DEBUG: Log para confirmar el año
         logging.info(f"DEBUG export_excel_pending - Año final: {año_seleccionado}")
