@@ -1052,6 +1052,7 @@ def dashboard():
             pendiente_by_product = {}
             qty_facturada_by_product = {}
             qty_pendiente_by_product = {}
+            fecha_pedido_by_product = {}  # Fecha más antigua del pedido pendiente por producto
             
             # Procesar datos de ventas
             for s in sales_data_raw:
@@ -1112,6 +1113,20 @@ def dashboard():
                 pendiente_by_product[codigo] = pendiente_by_product.get(codigo, 0) + (p.get('total_pendiente', 0) or 0)
                 qty_pendiente_by_product[codigo] = qty_pendiente_by_product.get(codigo, 0) + (p.get('cantidad_pendiente', 0) or 0)
                 
+                # Guardar la fecha más antigua del pedido pendiente para el producto
+                fecha_pedido_str = p.get('fecha', '')  # Formato: 'YYYY-MM-DD'
+                if fecha_pedido_str:
+                    try:
+                        fecha_pedido = datetime.strptime(fecha_pedido_str, '%Y-%m-%d')
+                        # Guardar la fecha más antigua
+                        if codigo not in fecha_pedido_by_product:
+                            fecha_pedido_by_product[codigo] = fecha_pedido
+                        else:
+                            if fecha_pedido < fecha_pedido_by_product[codigo]:
+                                fecha_pedido_by_product[codigo] = fecha_pedido
+                    except ValueError:
+                        pass
+                
                 # Guardar info solo si no existe
                 if codigo not in product_info:
                     # Usar descripcion si existe y tiene contenido, sino usar producto_nombre
@@ -1154,6 +1169,22 @@ def dashboard():
                     # Crear display name sin duplicar el código
                     producto_display = nombre_limpio if nombre_limpio else codigo
                     
+                    # Calcular días transcurridos y restantes desde la fecha del pedido
+                    fecha_pedido = fecha_pedido_by_product.get(codigo)
+                    dias_transcurridos = None
+                    dias_restantes = None
+                    fecha_pedido_str = None
+                    
+                    if fecha_pedido:
+                        try:
+                            fecha_actual = datetime.now()
+                            delta = fecha_actual - fecha_pedido
+                            dias_transcurridos = delta.days
+                            dias_restantes = 150 - dias_transcurridos
+                            fecha_pedido_str = fecha_pedido.strftime('%Y-%m-%d')
+                        except Exception as e:
+                            logging.warning(f"Error calculando días para producto {codigo}: {e}")
+                    
                     products_chart_data.append({
                         'codigo': codigo,  # Código separado para facilitar copia
                         'producto': producto_display,
@@ -1165,7 +1196,10 @@ def dashboard():
                         'qty_pendiente': qty_pendiente,
                         'qty_total': qty_total,
                         'linea_comercial': info.get('linea_comercial', 'Sin Línea'),
-                        'categoria': info.get('categoria', 'Sin Categoría')
+                        'categoria': info.get('categoria', 'Sin Categoría'),
+                        'fecha_pedido': fecha_pedido_str,  # Fecha más antigua del pedido pendiente
+                        'dias_transcurridos': dias_transcurridos,  # Días desde la fecha del pedido
+                        'dias_restantes': dias_restantes  # Días restantes para cumplir 150 días
                     })
             
             # Debug: verificar duplicados

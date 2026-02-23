@@ -386,12 +386,41 @@
                 <label style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Estado:</label>
                 <select id="filtro-estado-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 180px;">
                     <option value="todos">Todos los estados</option>
-                    <option value="critico" style="color: #e74c3c;">🔴 Crítico (< 40%)</option>
-                    <option value="en_progreso" style="color: #f1c40f;">🟡 En Progreso (40-80%)</option>
-                    <option value="exitoso" style="color: #2ecc71;">🟢 Exitoso (> 80%)</option>
+                    <option value="critico" style="color: #e74c3c;">🔴 Crítico (tiempo+avance)</option>
+                    <option value="en_progreso" style="color: #f1c40f;">🟡 En Progreso</option>
+                    <option value="exitoso" style="color: #2ecc71;">🟢 Exitoso</option>
                 </select>
                 
                 <span id="productos-contador" style="margin-left: 20px; font-weight: 600; color: #666;"></span>
+            </div>
+            
+            <!-- Leyenda de Estados y Tiempo de Despacho -->
+            <div style="background: #f8f9fa; border-left: 4px solid #875A7B; padding: 15px; margin: 20px auto; max-width: 95%; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-around; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+                    <div style="text-align: center;">
+                        <strong style="color: #875A7B;">📊 Estados del Producto</strong><br/>
+                        <small style="color: #666; font-size: 11px;">
+                            🔴 Crítico: (días<30 Y %<80) O (días<60 Y %<40)<br/>
+                            🟡 En Progreso: No crítico Y (días<90 O %<80)<br/>
+                            🟢 Exitoso: Resto de casos
+                        </small>
+                    </div>
+                    <div style="text-align: center;">
+                        <strong style="color: #875A7B;">⏱️ Indicadores de Tiempo</strong><br/>
+                        <small style="color: #666; font-size: 11px;">
+                            🚨 Vencido (>150 días transcurridos)<br/>
+                            ⚠️ Crítico (<30 días restantes)<br/>
+                            ⏳ Alerta (<60 días restantes)
+                        </small>
+                    </div>
+                    <div style="text-align: center;">
+                        <strong style="color: #875A7B;">📋 Política de Despacho</strong><br/>
+                        <small style="color: #666; font-size: 11px;">
+                            Plazo: <strong>150 días</strong> desde confirmación<br/>
+                            Estados: credit, sale, done
+                        </small>
+                    </div>
+                </div>
             </div>
             
             <!-- Controles de Paginación -->
@@ -2237,6 +2266,30 @@ function cambiarPaginaProductos(direccion) {
     renderizarGraficoProductos();
 }
 
+// Nueva función para calcular el estado basado en tiempo + avance
+function calcularEstadoProducto(producto) {
+    const pct = producto.porcentaje || 0;
+    const diasRestantes = producto.dias_restantes;
+    
+    // Si no hay fecha o ya está 100% facturado, es exitoso
+    if (diasRestantes === null || diasRestantes === undefined || pct >= 100) {
+        return 'exitoso';
+    }
+    
+    // Crítico si: (días<30 Y %<80) O (días<60 Y %<40)
+    if ((diasRestantes < 30 && pct < 80) || (diasRestantes < 60 && pct < 40)) {
+        return 'critico';
+    }
+    
+    // En progreso: No es crítico Y (días<90 O %<80)
+    if (diasRestantes < 90 || pct < 80) {
+        return 'en_progreso';
+    }
+    
+    // Exitoso: El resto
+    return 'exitoso';
+}
+
 function filtrarProductosPorLinea() {
     const selectLinea = document.getElementById('filtro-linea-productos');
     const selectCategoria = document.getElementById('filtro-categoria-productos');
@@ -2250,17 +2303,11 @@ function filtrarProductosPorLinea() {
         const cumpleLinea = lineaSeleccionada === 'todas' || p.linea_comercial === lineaSeleccionada;
         const cumpleCategoria = categoriaSeleccionada === 'todas' || p.categoria === categoriaSeleccionada;
         
-        // Filtrar por estado según porcentaje
+        // Filtrar por estado según tiempo + avance
         let cumpleEstado = true;
         if (estadoSeleccionado !== 'todos') {
-            const pct = p.porcentaje || 0;
-            if (estadoSeleccionado === 'critico') {
-                cumpleEstado = pct < 40;
-            } else if (estadoSeleccionado === 'en_progreso') {
-                cumpleEstado = pct >= 40 && pct < 80;
-            } else if (estadoSeleccionado === 'exitoso') {
-                cumpleEstado = pct >= 80;
-            }
+            const estadoProducto = calcularEstadoProducto(p);
+            cumpleEstado = estadoProducto === estadoSeleccionado;
         }
         
         return cumpleLinea && cumpleCategoria && cumpleEstado;
@@ -2309,6 +2356,9 @@ function renderizarGraficoProductos() {
     const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
     const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
     const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
+    const diasRestantes = datosPagina.map(d => d.dias_restantes !== null ? d.dias_restantes : null);
+    const diasTranscurridos = datosPagina.map(d => d.dias_transcurridos !== null ? d.dias_transcurridos : null);
+    const fechasPedido = datosPagina.map(d => d.fecha_pedido || null);
     
     // Debug: verificar duplicados en la página actual
     const productosUnicos = new Set(productos);
@@ -2316,12 +2366,12 @@ function renderizarGraficoProductos() {
         console.warn('⚠️ Duplicados detectados en la página:', productos.length - productosUnicos.size);
     }
 
-    // Colores según porcentaje
+    // Colores según estado calculado (tiempo + avance)
     const facturadoSeriesData = facturados.map((valor, i) => {
-        const pct = porcentajes[i];
+        const estado = calcularEstadoProducto(datosPagina[i]);
         let color = '#3498db';
-        if (pct < 40) color = '#e74c3c';
-        else if (pct < 80) color = '#f1c40f';
+        if (estado === 'critico') color = '#e74c3c';
+        else if (estado === 'en_progreso') color = '#f1c40f';
         else color = '#2ecc71';
 
         return {
@@ -2331,7 +2381,25 @@ function renderizarGraficoProductos() {
                 show: true,
                 position: 'right',
                 color: '#333',
-                formatter: function(params) { return porcentajes[params.dataIndex].toFixed(1) + '%'; }
+                formatter: function(params) {
+                    const idx = params.dataIndex;
+                    const pct = porcentajes[idx].toFixed(1);
+                    const diasRest = diasRestantes[idx];
+                    
+                    // Agregar indicador visual de tiempo
+                    let tiempoIcon = '';
+                    if (diasRest !== null) {
+                        if (diasRest < 0) {
+                            tiempoIcon = ' 🚨'; // Vencido
+                        } else if (diasRest < 30) {
+                            tiempoIcon = ' ⚠️'; // Crítico
+                        } else if (diasRest < 60) {
+                            tiempoIcon = ' ⏳'; // Alerta
+                        }
+                    }
+                    
+                    return pct + '%' + tiempoIcon;
+                }
             }
         };
     });
@@ -2353,29 +2421,59 @@ function renderizarGraficoProductos() {
                 const qtyPend = qtyPendientes[idx] || 0;
                 const qtyTotal = qtyTotales[idx] || 0;
                 
-                // Determinar estado y emoji según porcentaje
-                let estado = '';
+                const diasRest = diasRestantes[idx];
+                const diasTrans = diasTranscurridos[idx];
+                const fechaPedido = fechasPedido[idx];
+                
+                // Determinar estado usando la función con tiempo + avance
+                const estado = calcularEstadoProducto(datosPagina[idx]);
+                let estadoLabel = '';
                 let emoji = '';
                 let colorIndicador = '';
-                if (pct < 40) {
-                    estado = 'Crítico';
+                
+                if (estado === 'critico') {
+                    estadoLabel = 'Crítico';
                     emoji = '🔴';
                     colorIndicador = '#e74c3c';
-                } else if (pct < 80) {
-                    estado = 'En Progreso';
+                } else if (estado === 'en_progreso') {
+                    estadoLabel = 'En Progreso';
                     emoji = '🟡';
                     colorIndicador = '#f1c40f';
                 } else {
-                    estado = 'Exitoso';
+                    estadoLabel = 'Exitoso';
                     emoji = '🟢';
                     colorIndicador = '#2ecc71';
+                }
+                
+                // Información de tiempo
+                let tiempoInfo = '';
+                if (diasRest !== null && diasTrans !== null) {
+                    const diasRestMostrar = Math.max(0, diasRest);
+                    let alertaColor = '#666';
+                    let alertaEmoji = '⏱️';
+                    
+                    if (diasRest < 30) {
+                        alertaColor = '#e74c3c';
+                        alertaEmoji = '🚨';
+                    } else if (diasRest < 60) {
+                        alertaColor = '#f39c12';
+                        alertaEmoji = '⚠️';
+                    }
+                    
+                    tiempoInfo = `<div style="margin-top: 8px; padding: 6px; background-color: ${alertaColor}15; border-left: 3px solid ${alertaColor}; border-radius: 4px;">
+                        <strong style="color: ${alertaColor};">${alertaEmoji} Tiempo de Despacho (150 días)</strong><br/>
+                        <span style="color: #666;">Fecha pedido:</span> <strong>${fechaPedido || 'N/A'}</strong><br/>
+                        <span style="color: #666;">Días transcurridos:</span> <strong>${diasTrans}</strong> días<br/>
+                        <span style="color: ${alertaColor};">Días restantes:</span> <strong>${diasRestMostrar}</strong> días ${diasRest < 0 ? '(VENCIDO)' : ''}
+                    </div>`;
                 }
                 
                 return `<div style="padding: 8px;">
                     <strong style="font-size: 13px;">[${codigo}] ${producto}</strong><br/>
                     <div style="margin-top: 8px; padding: 6px; background-color: ${colorIndicador}22; border-left: 3px solid ${colorIndicador}; border-radius: 4px;">
-                        <strong>${emoji} ${estado}</strong> - Avance: <strong>${pct.toFixed(1)}%</strong>
+                        <strong>${emoji} ${estadoLabel}</strong> - Avance: <strong>${pct.toFixed(1)}%</strong>
                     </div>
+                    ${tiempoInfo}
                     <div style="margin-top: 8px;">
                         <span style="color: #2ecc71;">● Facturado:</span> <strong>$ ${fact.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyFact.toLocaleString('en-US')}</strong><br/>
                         <span style="color: #f39c12;">● Pendiente:</span> <strong>$ ${pend.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyPend.toLocaleString('en-US')}</strong><br/>
