@@ -1184,78 +1184,6 @@ def dashboard():
             # Ordenar por total descendente (sin límite, el filtro lo hará en frontend)
             products_chart_data = sorted(products_chart_data, key=lambda x: x['total'], reverse=True)
         
-        # --- GRÁFICO: CANTIDAD DE PRODUCTOS VENDIDOS POR MES CON MÚLTIPLES FILTROS ---
-        ventas_detalladas_por_mes = []
-        filtros_disponibles = {
-            'lineas_comerciales': set(),
-            'clasificaciones': set(),
-            'formas_farmaceuticas': set(),
-            'vias_administracion': set(),
-            'lineas_produccion': set()
-        }
-        
-        # Diccionario de meses en español
-        meses_español = {
-            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
-            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
-            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
-        }
-        
-        for sale in sales_data_international:
-            # Extraer mes de la fecha
-            fecha_str = sale.get('fecha', '')
-            if fecha_str:
-                try:
-                    fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d')
-                    mes_key = fecha_obj.strftime('%Y-%m')  # Formato: 2026-01
-                    mes_nombre = meses_español.get(fecha_obj.month, '')  # Nombre del mes en español
-                    
-                    # Obtener campos de filtro
-                    linea_comercial = sale.get('linea_comercial', 'No Definido')
-                    clasificacion = sale.get('clasificacion_farmacologica', 'No Definido')
-                    forma_farmaceutica = sale.get('formas_farmaceuticas', 'No Definido')
-                    via = sale.get('via_administracion', 'No Definido')
-                    linea_produccion = sale.get('linea_produccion', 'No Definido')
-                    cantidad = sale.get('cantidad_facturada', 0)
-                    
-                    # Agregar a conjuntos de filtros disponibles (excluir "No Definido")
-                    if linea_comercial and linea_comercial != 'No Definido':
-                        filtros_disponibles['lineas_comerciales'].add(linea_comercial)
-                    if clasificacion and clasificacion != 'No Definido':
-                        filtros_disponibles['clasificaciones'].add(clasificacion)
-                    if forma_farmaceutica and forma_farmaceutica != 'No Definido':
-                        filtros_disponibles['formas_farmaceuticas'].add(forma_farmaceutica)
-                    if via and via != 'No Definido':
-                        filtros_disponibles['vias_administracion'].add(via)
-                    if linea_produccion and linea_produccion != 'No Definido':
-                        filtros_disponibles['lineas_produccion'].add(linea_produccion)
-                    
-                    # Guardar registro detallado
-                    ventas_detalladas_por_mes.append({
-                        'mes_key': mes_key,
-                        'mes_nombre': mes_nombre,
-                        'linea_comercial': linea_comercial,
-                        'clasificacion': clasificacion,
-                        'forma_farmaceutica': forma_farmaceutica,
-                        'via': via,
-                        'linea_produccion': linea_produccion,
-                        'cantidad': cantidad
-                    })
-                except:
-                    pass
-        
-        # Convertir sets a listas ordenadas
-        datos_ventas_mes_filtros = {
-            'registros': ventas_detalladas_por_mes,
-            'filtros': {
-                'lineas_comerciales': sorted(list(filtros_disponibles['lineas_comerciales'])),
-                'clasificaciones': sorted(list(filtros_disponibles['clasificaciones'])),
-                'formas_farmaceuticas': sorted(list(filtros_disponibles['formas_farmaceuticas'])),
-                'vias_administracion': sorted(list(filtros_disponibles['vias_administracion'])),
-                'lineas_produccion': sorted(list(filtros_disponibles['lineas_produccion']))
-            }
-        }
-        
         # --- MAPA MUNDIAL: VENTAS POR PAÍS Y REGIÓN ---
         
         # Mapeo de nombres de países de Odoo a nombres del mapa ECharts
@@ -1383,7 +1311,6 @@ def dashboard():
                              pie_chart_data_by_level=pie_chart_data_by_level,
                              all_stacked_chart_data=all_stacked_chart_data,
                              pending_data=pending_data,
-                             datos_ventas_mes_filtros=datos_ventas_mes_filtros,
                              datos_mapa_mundial=datos_mapa_mundial,
                              # Avance agregado (suma de todos los clientes)
                              aggregated_advance={
