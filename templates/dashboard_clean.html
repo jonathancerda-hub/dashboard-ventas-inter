@@ -417,19 +417,35 @@
         <i class="bi bi-globe-americas"></i> Ventas Internacionales por País
     </h3>
     
-    <!-- Filtro de Región -->
-    <div style="text-align: center; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-        <label style="font-weight: 600; margin: 0;">Región:</label>
-        <select id="filtro-region-mapa" onchange="actualizarMapaMundial()" class="filtro-select-mes" style="min-width: 250px;">
-            <option value="todas">🌎 Todas las regiones</option>
-            <option value="Sudamérica">🗺️ Sudamérica</option>
-            <option value="Centroamérica">🗺️ Centroamérica</option>
-            <option value="Norteamérica">🗺️ Norteamérica</option>
-            <option value="Caribe">🏝️ Caribe</option>
-            <option value="Europa">🇪🇺 Europa</option>
-            <option value="Asia">🌏 Asia</option>
-            <option value="África">🌍 África</option>
-        </select>
+    <!-- Filtros de Región y Tipo de Venta -->
+    <div style="text-align: center; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 25px; flex-wrap: wrap;">
+        <!-- Filtro de Región -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="font-weight: 600; margin: 0;">Región:</label>
+            <select id="filtro-region-mapa" onchange="actualizarMapaMundial()" class="filtro-select-mes" style="min-width: 250px;">
+                <option value="todas">🌎 Todas las regiones</option>
+                <option value="Sudamérica">🗺️ Sudamérica</option>
+                <option value="Centroamérica">🗺️ Centroamérica</option>
+                <option value="Norteamérica">🗺️ Norteamérica</option>
+                <option value="Caribe">🏝️ Caribe</option>
+                <option value="Europa">🇪🇺 Europa</option>
+                <option value="Asia">🌏 Asia</option>
+                <option value="África">🌍 África</option>
+            </select>
+        </div>
+        
+        <!-- Checkboxes para Tipo de Venta -->
+        <div style="display: flex; align-items: center; gap: 15px; padding: 8px 15px; background: #f8f9fa; border-radius: 8px;">
+            <label style="font-weight: 600; margin: 0; color: #495057;">Mostrar:</label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="check-facturado" onchange="actualizarMapaMundial()" checked style="cursor: pointer; width: 16px; height: 16px;">
+                <span style="color: #27ae60; font-weight: 600;">💰 Facturado</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="check-pendiente" onchange="actualizarMapaMundial()" checked style="cursor: pointer; width: 16px; height: 16px;">
+                <span style="color: #f39c12; font-weight: 600;">📋 Por Facturar</span>
+            </label>
+        </div>
     </div>
     
     <!-- Contenedor del mapa y tabla -->
@@ -3041,6 +3057,8 @@ function actualizarMapaMundial() {
     if (!chartMapaMundial) return;
     
     const regionSeleccionada = document.getElementById('filtro-region-mapa').value;
+    const mostrarFacturado = document.getElementById('check-facturado').checked;
+    const mostrarPendiente = document.getElementById('check-pendiente').checked;
     
     // Filtrar datos por región
     let datosFiltrados = datosMapa;
@@ -3048,13 +3066,24 @@ function actualizarMapaMundial() {
         datosFiltrados = datosMapa.filter(d => d.region === regionSeleccionada);
     }
     
+    // Calcular valores según checkboxes seleccionados
+    datosFiltrados = datosFiltrados.map(d => {
+        let valor = 0;
+        if (mostrarFacturado) valor += d.facturado || 0;
+        if (mostrarPendiente) valor += d.pendiente || 0;
+        return {
+            ...d,
+            valor_mostrar: valor
+        };
+    });
+    
     // Mostrar países de la región en el panel lateral
-    mostrarPaisesPorRegion(datosFiltrados, regionSeleccionada);
+    mostrarPaisesPorRegion(datosFiltrados, regionSeleccionada, mostrarFacturado, mostrarPendiente);
     
     // Preparar datos para el mapa
     const datosParaMapa = datosFiltrados.map(d => ({
         name: d.pais,
-        value: d.total
+        value: d.valor_mostrar
     }));
     
     // Encontrar máximo para escala de colores
@@ -3070,8 +3099,16 @@ function actualizarMapaMundial() {
                 if (params.value) {
                     const paisData = datosFiltrados.find(d => d.pais === params.name);
                     let html = `<strong>${params.name}</strong><br/>`;
-                    html += `Ventas: <strong>$${params.value.toLocaleString('en-US')}</strong><br/>`;
                     if (paisData) {
+                        if (mostrarFacturado && mostrarPendiente) {
+                            html += `Facturado: <strong style="color: #27ae60;">$${paisData.facturado.toLocaleString('en-US')}</strong><br/>`;
+                            html += `Por Facturar: <strong style="color: #f39c12;">$${paisData.pendiente.toLocaleString('en-US')}</strong><br/>`;
+                            html += `Total: <strong>$${paisData.total.toLocaleString('en-US')}</strong><br/>`;
+                        } else if (mostrarFacturado) {
+                            html += `Facturado: <strong style="color: #27ae60;">$${paisData.facturado.toLocaleString('en-US')}</strong><br/>`;
+                        } else if (mostrarPendiente) {
+                            html += `Por Facturar: <strong style="color: #f39c12;">$${paisData.pendiente.toLocaleString('en-US')}</strong><br/>`;
+                        }
                         html += `Región: ${paisData.region}<br/>`;
                         html += `Clientes: ${paisData.clientes.length}<br/>`;
                         html += `<span style="color: #875A7B; font-size: 11px;">Haz clic para ver clientes</span>`;
@@ -3155,7 +3192,7 @@ function obtenerZoomPorRegion(region) {
     return zoomConfigs[region] || { zoom: 1, center: [0, 20] };
 }
 
-function mostrarPaisesPorRegion(datos, region) {
+function mostrarPaisesPorRegion(datos, region, mostrarFacturado, mostrarPendiente) {
     const listDiv = document.getElementById('lista-clientes-pais');
     
     if (!region || region === 'todas') {
@@ -3166,7 +3203,7 @@ function mostrarPaisesPorRegion(datos, region) {
                 resumenRegiones[pais.region] = { paises: 0, total: 0 };
             }
             resumenRegiones[pais.region].paises++;
-            resumenRegiones[pais.region].total += pais.total;
+            resumenRegiones[pais.region].total += pais.valor_mostrar;
         });
         
         let html = '<h5 style="margin-bottom: 15px; color: #666;">📊 Resumen por Región</h5>';
@@ -3185,7 +3222,7 @@ function mostrarPaisesPorRegion(datos, region) {
     }
     
     // Filtrar países por región
-    const paisesFiltrados = datos.filter(p => p.region === region).sort((a, b) => b.total - a.total);
+    const paisesFiltrados = datos.filter(p => p.region === region).sort((a, b) => b.valor_mostrar - a.valor_mostrar);
     
     if (paisesFiltrados.length === 0) {
         listDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay países con ventas en esta región</p>';
@@ -3195,11 +3232,12 @@ function mostrarPaisesPorRegion(datos, region) {
     let html = `<h5 style="margin-bottom: 15px; color: #666;">🌍 Países en ${region}</h5>`;
     
     paisesFiltrados.forEach((pais, index) => {
+        const valorMostrar = pais.valor_mostrar || 0;
         html += `
             <div style="padding: 12px; margin-bottom: 8px; background: white; border-left: 4px solid #875A7B; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s;" onclick="mostrarClientesPais('${pais.pais}')">
                 <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${index + 1}. ${pais.pais}</div>
                 <div style="font-size: 13px; color: #666;">
-                    $${pais.total.toLocaleString('en-US')} • ${pais.clientes.length} cliente(s)
+                    $${valorMostrar.toLocaleString('en-US')} • ${pais.clientes.length} cliente(s)
                 </div>
             </div>
         `;
@@ -3216,26 +3254,62 @@ function mostrarClientesPais(nombrePais) {
         return;
     }
     
+    const mostrarFacturado = document.getElementById('check-facturado').checked;
+    const mostrarPendiente = document.getElementById('check-pendiente').checked;
+    
     let html = `
         <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
             <h5 style="margin: 0 0 10px 0; color: #875A7B;">📍 ${nombrePais}</h5>
-            <p style="margin: 5px 0; font-size: 14px;"><strong>Región:</strong> ${paisData.region}</p>
-            <p style="margin: 5px 0; font-size: 14px;"><strong>Total Ventas:</strong> $${paisData.total.toLocaleString('en-US')}</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Región:</strong> ${paisData.region}</p>`;
+    
+    if (mostrarFacturado && mostrarPendiente) {
+        html += `
+            <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #27ae60;">💰 Facturado:</strong> $${paisData.facturado.toLocaleString('en-US')}</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #f39c12;">📋 Por Facturar:</strong> $${paisData.pendiente.toLocaleString('en-US')}</p>
+            <p style="margin: 5px 0; font-size: 14px;"><strong>Total:</strong> $${paisData.total.toLocaleString('en-US')}</p>`;
+    } else if (mostrarFacturado) {
+        html += `<p style="margin: 5px 0; font-size: 14px;"><strong style="color: #27ae60;">💰 Facturado:</strong> $${paisData.facturado.toLocaleString('en-US')}</p>`;
+    } else if (mostrarPendiente) {
+        html += `<p style="margin: 5px 0; font-size: 14px;"><strong style="color: #f39c12;">📋 Por Facturar:</strong> $${paisData.pendiente.toLocaleString('en-US')}</p>`;
+    }
+    
+    html += `
             <p style="margin: 5px 0; font-size: 14px;"><strong>Clientes:</strong> ${paisData.clientes.length}</p>
         </div>
         <h5 style="margin-bottom: 10px; color: #666;">Lista de Clientes:</h5>
     `;
     
+    // Calcular valor total mostrado del país para percentajes
+    let totalMostrado = 0;
+    if (mostrarFacturado) totalMostrado += paisData.facturado;
+    if (mostrarPendiente) totalMostrado += paisData.pendiente;
+    
     paisData.clientes.forEach((cliente, index) => {
-        const porcentaje = ((cliente.total / paisData.total) * 100).toFixed(1);
-        html += `
-            <div style="padding: 12px; margin-bottom: 8px; background: white; border-left: 4px solid #875A7B; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s;" onclick="filtrarPorCliente(${cliente.partner_id})">
-                <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${index + 1}. ${cliente.nombre}</div>
-                <div style="font-size: 13px; color: #666;">
-                    $${cliente.total.toLocaleString('en-US')} <span style="color: #875A7B;">(${porcentaje}%)</span>
+        let valorCliente = 0;
+        if (mostrarFacturado) valorCliente += cliente.facturado;
+        if (mostrarPendiente) valorCliente += cliente.pendiente;
+        
+        if (valorCliente > 0) {
+            const porcentaje = totalMostrado > 0 ? ((valorCliente / totalMostrado) * 100).toFixed(1) : 0;
+            html += `
+                <div style="padding: 12px; margin-bottom: 8px; background: white; border-left: 4px solid #875A7B; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s;" onclick="filtrarPorCliente(${cliente.partner_id})">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${index + 1}. ${cliente.nombre}</div>
+                    <div style="font-size: 13px; color: #666;">`;
+            
+            if (mostrarFacturado && mostrarPendiente) {
+                html += `
+                        <span style="color: #27ae60;">Facturado: $${cliente.facturado.toLocaleString('en-US')}</span> • 
+                        <span style="color: #f39c12;">Por Facturar: $${cliente.pendiente.toLocaleString('en-US')}</span><br/>
+                        <strong>Total: $${valorCliente.toLocaleString('en-US')}</strong> <span style="color: #875A7B;">(${porcentaje}%)</span>`;
+            } else {
+                html += `$${valorCliente.toLocaleString('en-US')} <span style="color: #875A7B;">(${porcentaje}%)</span>`;
+            }
+            
+            html += `
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     });
     
     document.getElementById('lista-clientes-pais').innerHTML = html;

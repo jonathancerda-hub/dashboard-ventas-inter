@@ -1219,7 +1219,7 @@ def dashboard():
             for pais in paises:
                 pais_a_region[pais] = region
         
-        # Agrupar ventas por país y cliente
+        # Agrupar ventas facturadas por país y cliente
         ventas_por_pais = {}
         for sale in sales_data_international:
             pais_odoo = sale.get('pais', 'No Definido')
@@ -1239,11 +1239,12 @@ def dashboard():
                     ventas_por_pais[pais] = {
                         'pais': pais,
                         'region': region,
-                        'total': 0,
+                        'facturado': 0,
+                        'pendiente': 0,
                         'clientes': {}
                     }
                 
-                ventas_por_pais[pais]['total'] += monto
+                ventas_por_pais[pais]['facturado'] += monto
                 
                 # Agrupar por cliente
                 if cliente and cliente != 'No Definido':
@@ -1251,16 +1252,56 @@ def dashboard():
                         ventas_por_pais[pais]['clientes'][cliente] = {
                             'nombre': cliente,
                             'partner_id': partner_id,
-                            'total': 0
+                            'facturado': 0,
+                            'pendiente': 0
                         }
-                    ventas_por_pais[pais]['clientes'][cliente]['total'] += monto
+                    ventas_por_pais[pais]['clientes'][cliente]['facturado'] += monto
+        
+        # Agregar datos de pedidos pendientes por país
+        for order in pending_data:
+            pais_odoo = order.get('pais', 'No Definido')
+            
+            # Convertir nombre de país de Odoo a nombre del mapa
+            pais = mapeo_nombres_paises.get(pais_odoo, pais_odoo)
+            
+            cliente = order.get('cliente', 'No Definido')
+            partner_id = order.get('partner_id', None)
+            monto = order.get('total_pendiente', 0)
+            
+            if pais and pais != 'No Definido':
+                # Asignar región
+                region = pais_a_region.get(pais, 'Otros')
+                
+                if pais not in ventas_por_pais:
+                    ventas_por_pais[pais] = {
+                        'pais': pais,
+                        'region': region,
+                        'facturado': 0,
+                        'pendiente': 0,
+                        'clientes': {}
+                    }
+                
+                ventas_por_pais[pais]['pendiente'] += monto
+                
+                # Agrupar por cliente
+                if cliente and cliente != 'No Definido':
+                    if cliente not in ventas_por_pais[pais]['clientes']:
+                        ventas_por_pais[pais]['clientes'][cliente] = {
+                            'nombre': cliente,
+                            'partner_id': partner_id,
+                            'facturado': 0,
+                            'pendiente': 0
+                        }
+                    ventas_por_pais[pais]['clientes'][cliente]['pendiente'] += monto
         
         # Convertir a lista y ordenar
         datos_mapa_mundial = []
         for pais, datos in ventas_por_pais.items():
             # Convertir clientes a lista
             clientes_lista = sorted(
-                [{'nombre': c['nombre'], 'partner_id': c['partner_id'], 'total': c['total']} 
+                [{'nombre': c['nombre'], 'partner_id': c['partner_id'], 
+                  'facturado': c['facturado'], 'pendiente': c['pendiente'],
+                  'total': c['facturado'] + c['pendiente']} 
                  for c in datos['clientes'].values()],
                 key=lambda x: x['total'],
                 reverse=True
@@ -1269,7 +1310,9 @@ def dashboard():
             datos_mapa_mundial.append({
                 'pais': pais,
                 'region': datos['region'],
-                'total': datos['total'],
+                'facturado': datos['facturado'],
+                'pendiente': datos['pendiente'],
+                'total': datos['facturado'] + datos['pendiente'],
                 'clientes': clientes_lista
             })
         
