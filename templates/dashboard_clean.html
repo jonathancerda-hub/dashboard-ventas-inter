@@ -435,6 +435,27 @@
             </div>
             
             <div id="grafico-bullet-productos" style="width: 100%; min-height: 700px;"></div>
+            
+            <!-- Modal: Detalle de Pedidos Pendientes por Producto -->
+            <div id="modal-pedidos-producto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; overflow-y: auto;">
+                <div style="max-width: 1400px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative;">
+                    <!-- Header del Modal -->
+                    <div style="background: linear-gradient(135deg, #875A7B 0%, #6B4563 100%); color: white; padding: 25px 40px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.6rem;" id="modal-producto-titulo">📦 Pedidos Pendientes del Producto</h3>
+                            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.95rem;" id="modal-producto-subtitulo">Detalle de pedidos por cliente</p>
+                        </div>
+                        <button onclick="cerrarModalPedidosProducto()" style="background: rgba(255,255,255,0.2); border: 2px solid white; color: white; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: all 0.2s;">
+                            ✕
+                        </button>
+                    </div>
+                    
+                    <!-- Contenido del Modal -->
+                    <div style="padding: 30px 40px; max-height: calc(100vh - 250px); overflow-y: auto;">
+                        <div id="modal-pedidos-tabla-container"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -2528,8 +2549,248 @@ function renderizarGraficoProductos() {
     };
 
     productosGraficoChartInstance.setOption(option, true);
+    
+    // Event handler: Click en producto para mostrar detalle de pedidos
+    productosGraficoChartInstance.off('click'); // Remover handlers previos
+    productosGraficoChartInstance.on('click', function(params) {
+        if (params.componentType === 'series' && params.seriesName === 'Facturado') {
+            const idx = params.dataIndex;
+            const productoData = datosPagina[idx];
+            if (productoData) {
+                mostrarPedidosDelProducto(productoData);
+            }
+        }
+    });
+    
     window.addEventListener('resize', () => productosGraficoChartInstance.resize());
 }
+
+// Función para mostrar modal con pedidos pendientes del producto seleccionado
+function mostrarPedidosDelProducto(productoData) {
+    const modal = document.getElementById('modal-pedidos-producto');
+    const titulo = document.getElementById('modal-producto-titulo');
+    const subtitulo = document.getElementById('modal-producto-subtitulo');
+    const container = document.getElementById('modal-pedidos-tabla-container');
+    
+    if (!modal || !container) return;
+    
+    const codigo = productoData.codigo || '';
+    const nombreProducto = productoData.producto || '';
+    
+    // Actualizar título
+    titulo.textContent = `📦 [${codigo}] ${nombreProducto}`;
+    subtitulo.textContent = `Pedidos pendientes de facturación • Avance total: ${(productoData.porcentaje || 0).toFixed(1)}%`;
+    
+    // Filtrar pedidos pendientes por código de producto
+    const pendingData = {{ pending_data|tojson|safe }} || [];
+    const pedidosDelProducto = pendingData.filter(p => p.codigo_odoo === codigo);
+    
+    if (pedidosDelProducto.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px; color: #666;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">📭</div>
+                <h3 style="color: #875A7B; margin-bottom: 10px;">No hay pedidos pendientes</h3>
+                <p>Este producto no tiene pedidos pendientes de facturación en este momento.</p>
+            </div>
+        `;
+        modal.style.display = 'block';
+        return;
+    }
+    
+    // Agrupar por pedido (un pedido puede tener múltiples líneas del mismo producto)
+    const pedidosAgrupados = {};
+    pedidosDelProducto.forEach(p => {
+        const pedidoId = p.pedido || 'Sin pedido';
+        if (!pedidosAgrupados[pedidoId]) {
+            pedidosAgrupados[pedidoId] = {
+                pedido: p.pedido,
+                cliente: p.cliente,
+                cliente_id: p.cliente_id,
+                pais: p.pais,
+                fecha: p.fecha,
+                linea_comercial: p.linea_comercial,
+                cantidadPendiente: 0,
+                totalPendiente: 0
+            };
+        }
+        pedidosAgrupados[pedidoId].cantidadPendiente += (p.cantidad_pendiente || 0);
+        pedidosAgrupados[pedidoId].totalPendiente += (p.total_pendiente || 0);
+    });
+    
+    // Convertir a array y calcular días
+    const pedidosArray = Object.values(pedidosAgrupados).map(p => {
+        let diasTranscurridos = null;
+        let diasRestantes = null;
+        
+        if (p.fecha) {
+            try {
+                const fechaPedido = new Date(p.fecha);
+                const fechaActual = new Date();
+                const diffTime = fechaActual - fechaPedido;
+                diasTranscurridos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                diasRestantes = 150 - diasTranscurridos;
+            } catch (e) {
+                console.warn('Error calculando días para pedido:', p.pedido, e);
+            }
+        }
+        
+        return {
+            ...p,
+            diasTranscurridos,
+            diasRestantes
+        };
+    });
+    
+    // Ordenar por días restantes (más críticos primero)
+    pedidosArray.sort((a, b) => {
+        if (a.diasRestantes === null) return 1;
+        if (b.diasRestantes === null) return -1;
+        return a.diasRestantes - b.diasRestantes;
+    });
+    
+    // Generar HTML de la tabla
+    let tablaHTML = `
+        <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-left: 4px solid #875A7B; border-radius: 6px;">
+            <strong style="color: #875A7B; font-size: 1.1rem;">📊 Resumen:</strong>
+            <span style="margin-left: 15px; color: #666;">
+                ${pedidosArray.length} pedido${pedidosArray.length !== 1 ? 's' : ''} • 
+                Cantidad total pendiente: <strong>${Math.round(pedidosArray.reduce((sum, p) => sum + p.cantidadPendiente, 0)).toLocaleString('en-US')}</strong> • 
+                Monto total: <strong>$ ${Math.round(pedidosArray.reduce((sum, p) => sum + p.totalPendiente, 0)).toLocaleString('en-US')}</strong>
+            </span>
+        </div>
+        
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+                <thead>
+                    <tr style="background: #875A7B; color: white;">
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 600;">Estado</th>
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 600;">Pedido</th>
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 600;">Cliente</th>
+                        <th style="padding: 14px 12px; text-align: left; font-weight: 600;">País</th>
+                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Fecha Pedido</th>
+                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Días Trans.</th>
+                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Días Rest.</th>
+                        <th style="padding: 14px 12px; text-align: right; font-weight: 600;">Cantidad</th>
+                        <th style="padding: 14px 12px; text-align: right; font-weight: 600;">Monto Pendiente</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    pedidosArray.forEach((pedido, index) => {
+        // Calcular estado del pedido basado en días y porcentaje (si aplica)
+        let estado = 'exitoso';
+        let estadoLabel = 'Exitoso';
+        let estadoEmoji = '🟢';
+        let estadoColor = '#d1fae5';
+        let estadoBorder = '#10b981';
+        
+        if (pedido.diasRestantes !== null) {
+            if (pedido.diasRestantes < 0) {
+                estado = 'vencido';
+                estadoLabel = 'VENCIDO';
+                estadoEmoji = '🚨';
+                estadoColor = '#fee2e2';
+                estadoBorder = '#dc2626';
+            } else if (pedido.diasRestantes < 30) {
+                estado = 'critico';
+                estadoLabel = 'Crítico';
+                estadoEmoji = '🔴';
+                estadoColor = '#fee2e2';
+                estadoBorder = '#ef4444';
+            } else if (pedido.diasRestantes < 60) {
+                estado = 'alerta';
+                estadoLabel = 'Alerta';
+                estadoEmoji = '⚠️';
+                estadoColor = '#fef3c7';
+                estadoBorder = '#f59e0b';
+            } else if (pedido.diasRestantes < 90) {
+                estado = 'progreso';
+                estadoLabel = 'En Progreso';
+                estadoEmoji = '🟡';
+                estadoColor = '#fef3c7';
+                estadoBorder = '#f59e0b';
+            }
+        }
+        
+        const rowColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+        const diasRestMostrar = pedido.diasRestantes !== null ? 
+            (pedido.diasRestantes < 0 ? `<span style="color: #dc2626; font-weight: bold;">${pedido.diasRestantes} ⚠️</span>` : pedido.diasRestantes) 
+            : 'N/A';
+        
+        tablaHTML += `
+            <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${rowColor}'">
+                <td style="padding: 12px;">
+                    <div style="display: inline-block; padding: 6px 12px; background: ${estadoColor}; border-left: 3px solid ${estadoBorder}; border-radius: 6px; font-size: 0.85rem; font-weight: 600;">
+                        ${estadoEmoji} ${estadoLabel}
+                    </div>
+                </td>
+                <td style="padding: 12px;">
+                    <strong style="color: #333;">${pedido.pedido || 'N/A'}</strong>
+                </td>
+                <td style="padding: 12px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <strong style="color: #875A7B;">${pedido.cliente || 'N/A'}</strong>
+                        ${pedido.linea_comercial ? `<small style="color: #666; margin-top: 2px;">📋 ${pedido.linea_comercial}</small>` : ''}
+                    </div>
+                </td>
+                <td style="padding: 12px;">
+                    <span style="color: #666;">${pedido.pais || 'N/A'}</span>
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="color: #333; font-family: monospace;">${pedido.fecha || 'N/A'}</span>
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="color: #666; font-weight: 600;">${pedido.diasTranscurridos !== null ? pedido.diasTranscurridos : 'N/A'}</span>
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="font-weight: 600;">${diasRestMostrar}</span>
+                </td>
+                <td style="padding: 12px; text-align: right;">
+                    <span style="color: #333; font-weight: 600;">${Math.round(pedido.cantidadPendiente).toLocaleString('en-US')}</span>
+                </td>
+                <td style="padding: 12px; text-align: right;">
+                    <span style="color: #875A7B; font-weight: 700; font-size: 1.05rem;">$ ${Math.round(pedido.totalPendiente).toLocaleString('en-US')}</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tablaHTML += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = tablaHTML;
+    modal.style.display = 'block';
+    
+    // Scroll al inicio del modal
+    modal.scrollTop = 0;
+}
+
+// Función para cerrar el modal
+function cerrarModalPedidosProducto() {
+    const modal = document.getElementById('modal-pedidos-producto');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Cerrar modal al hacer clic fuera de él
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('modal-pedidos-producto');
+    if (event.target === modal) {
+        cerrarModalPedidosProducto();
+    }
+});
+
+// Cerrar modal con tecla ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        cerrarModalPedidosProducto();
+    }
+});
 
 // Gráfico Ejecutivo: Facturado vs Meta vs Pendiente por Cliente
 function crearGraficoEjecutivo(targetElementId = 'grafico-ejecutivo-clientes') {
