@@ -363,97 +363,179 @@
         </div>
     </div>
     
-    <!-- NUEVO: Gráfico de Avance por Producto (solo visible cuando NO hay cliente seleccionado) -->
-    {% if not nombre_cliente_seleccionado and products_chart_data %}
+    <!-- NUEVO: Comparación Dual de Avance por Producto (solo visible cuando NO hay cliente seleccionado) -->
+    {% if not nombre_cliente_seleccionado and (products_chart_data_confirmacion or products_chart_data_entrega) %}
     <div class="grafico-extra-container" style="margin-top: 30px;">
-        <div class="grafico-echarts">
-            <h3 style="text-align: center; color: var(--odoo-primary); font-size: 1.5rem; margin-bottom: 15px;">
-                <i class="bi bi-box-seam-fill"></i> Avance de Facturación por Producto
-            </h3>
+        <h2 style="text-align: center; color: var(--odoo-primary); font-size: 1.8rem; margin-bottom: 25px; font-weight: 700;">
+            <i class="bi bi-box-seam-fill"></i> Comparación: Avance de Facturación por Producto
+        </h2>
+        <p style="text-align: center; color: #666; font-size: 1rem; margin-bottom: 30px; max-width: 1200px; margin-left: auto; margin-right: auto;">
+            Se muestran <strong>dos versiones</strong> con diferentes criterios de tiempo para evaluar cuál es más útil operativamente. 
+            Ambas contienen los mismos datos de facturación, solo cambia el cálculo temporal.
+        </p>
+        
+        <!-- Contenedor de dos gráficos lado a lado -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
             
-            <!-- Filtros por Línea Comercial, Categoría y Estado -->
-            <div style="text-align: center; margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-right: 10px;">Línea Comercial:</label>
-                <select id="filtro-linea-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 200px;">
-                    <option value="todas">Todas las líneas</option>
-                </select>
+            <!-- ==================== VERSIÓN A: FECHA DE CONFIRMACIÓN (150 DÍAS) ==================== -->
+            <div class="grafico-echarts" style="border: 3px solid #3498db; border-radius: 12px; padding: 20px; background: #f8fbff;">
+                <h3 style="text-align: center; color: #3498db; font-size: 1.35rem; margin-bottom: 10px; font-weight: 700;">
+                    📅 VERSIÓN A: Fecha de Confirmación
+                </h3>
+                <p style="text-align: center; color: #555; font-size: 0.85rem; margin-bottom: 20px;">
+                    Días desde <strong>date_order</strong> (confirmación del pedido) + política de 150 días
+                </p>
                 
-                <label style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Categoría:</label>
-                <select id="filtro-categoria-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 200px;">
-                    <option value="todas">Todas las categorías</option>
-                </select>
+                <!-- Filtros Versión A -->
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-right: 5px; font-size: 12px;">Línea:</label>
+                    <select id="filtro-linea-productos-conf" onchange="filtrarProductosConf()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 150px;">
+                        <option value="todas">Todas</option>
+                    </select>
+                    
+                    <label style="font-weight: 600; margin-left: 10px; margin-right: 5px; font-size: 12px;">Categoría:</label>
+                    <select id="filtro-categoria-productos-conf" onchange="filtrarProductosConf()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 140px;">
+                        <option value="todas">Todas</option>
+                    </select>
+                    
+                    <label style="font-weight: 600; margin-left: 10px; margin-right: 5px; font-size: 12px;">Estado:</label>
+                    <select id="filtro-estado-productos-conf" onchange="filtrarProductosConf()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 130px;">
+                        <option value="todos">Todos</option>
+                        <option value="vencido">🚨 Vencido</option>
+                        <option value="critico">🔴 Crítico</option>
+                        <option value="alerta">⚠️ Alerta</option>
+                        <option value="en_progreso">🟡 Progreso</option>
+                        <option value="exitoso">🟢 Exitoso</option>
+                    </select>
+                    
+                    <span id="productos-contador-conf" style="margin-left: 10px; font-weight: 600; color: #666; font-size: 12px;"></span>
+                </div>
                 
-                <label style="font-weight: 600; margin-left: 20px; margin-right: 10px;">Estado:</label>
-                <select id="filtro-estado-productos" onchange="filtrarProductosPorLinea()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px; min-width: 180px;">
-                    <option value="todos">Todos los estados</option>
-                    <option value="critico" style="color: #e74c3c;">🔴 Crítico (tiempo+avance)</option>
-                    <option value="en_progreso" style="color: #f1c40f;">🟡 En Progreso</option>
-                    <option value="exitoso" style="color: #2ecc71;">🟢 Exitoso</option>
-                </select>
-                
-                <span id="productos-contador" style="margin-left: 20px; font-weight: 600; color: #666;"></span>
-            </div>
-            
-            <!-- Leyenda de Estados y Tiempo de Despacho -->
-            <div style="background: #f8f9fa; border-left: 4px solid #875A7B; padding: 15px; margin: 20px auto; max-width: 95%; border-radius: 6px;">
-                <div style="display: flex; justify-content: space-around; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
-                    <div style="text-align: center;">
-                        <strong style="color: #875A7B;">📊 Estados del Producto</strong><br/>
-                        <small style="color: #666; font-size: 11px;">
-                            🔴 Crítico: (días<30 Y %<80) O (días<60 Y %<40)<br/>
-                            🟡 En Progreso: No crítico Y (días<90 O %<80)<br/>
-                            🟢 Exitoso: Resto de casos
-                        </small>
-                    </div>
-                    <div style="text-align: center;">
-                        <strong style="color: #875A7B;">⏱️ Indicadores de Tiempo</strong><br/>
-                        <small style="color: #666; font-size: 11px;">
-                            🚨 Vencido (>150 días transcurridos)<br/>
-                            ⚠️ Crítico (<30 días restantes)<br/>
-                            ⏳ Alerta (<60 días restantes)
-                        </small>
-                    </div>
-                    <div style="text-align: center;">
-                        <strong style="color: #875A7B;">📋 Política de Despacho</strong><br/>
-                        <small style="color: #666; font-size: 11px;">
-                            Plazo: <strong>150 días</strong> desde confirmación<br/>
-                            Estados: credit, sale, done
-                        </small>
+                <!-- Leyenda Versión A (150 días) -->
+                <div style="background: #e3f2fd; border-left: 4px solid #3498db; padding: 12px; margin: 15px 0; border-radius: 6px;">
+                    <div style="text-align: center; font-size: 10px; color: #555; line-height: 1.6;">
+                        <strong style="color: #3498db; font-size: 11px;">Estados (150 días)</strong><br/>
+                        🚨 <strong>Vencido</strong>: >150 días transcurridos<br/>
+                        🔴 <strong>Crítico</strong>: <30 días restantes<br/>
+                        ⚠️ <strong>Alerta</strong>: 30-60 días restantes<br/>
+                        🟡 <strong>Progreso</strong>: 60-90 días restantes<br/>
+                        🟢 <strong>Exitoso</strong>: >90 días restantes
                     </div>
                 </div>
+                
+                <!-- Paginación Versión A -->
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <button id="btn-productos-prev-conf" onclick="cambiarPaginaProductosConf(-1)" style="padding: 6px 12px; margin-right: 8px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        ← Anterior
+                    </button>
+                    <span id="productos-paginacion-info-conf" style="font-weight: 600; color: #333; margin: 0 10px; font-size: 12px;"></span>
+                    <button id="btn-productos-next-conf" onclick="cambiarPaginaProductosConf(1)" style="padding: 6px 12px; margin-left: 8px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        Siguiente →
+                    </button>
+                </div>
+                
+                <div id="grafico-bullet-productos-conf" style="width: 100%; min-height: 650px;"></div>
             </div>
             
-            <!-- Controles de Paginación -->
-            <div style="text-align: center; margin-bottom: 15px;">
-                <button id="btn-productos-prev" onclick="cambiarPaginaProductos(-1)" style="padding: 8px 16px; margin-right: 10px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
-                    ← Anterior
-                </button>
-                <span id="productos-paginacion-info" style="font-weight: 600; color: #333; margin: 0 15px;"></span>
-                <button id="btn-productos-next" onclick="cambiarPaginaProductos(1)" style="padding: 8px 16px; margin-left: 10px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
-                    Siguiente →
-                </button>
-            </div>
-            
-            <div id="grafico-bullet-productos" style="width: 100%; min-height: 700px;"></div>
-            
-            <!-- Modal: Detalle de Pedidos Pendientes por Producto -->
-            <div id="modal-pedidos-producto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; overflow-y: auto;">
-                <div style="max-width: 1400px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative;">
-                    <!-- Header del Modal -->
-                    <div style="background: linear-gradient(135deg, #875A7B 0%, #6B4563 100%); color: white; padding: 25px 40px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.6rem;" id="modal-producto-titulo">📦 Pedidos Pendientes del Producto</h3>
-                            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.95rem;" id="modal-producto-subtitulo">Detalle de pedidos por cliente</p>
-                        </div>
-                        <button onclick="cerrarModalPedidosProducto()" style="background: rgba(255,255,255,0.2); border: 2px solid white; color: white; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: all 0.2s;">
-                            ✕
-                        </button>
-                    </div>
+            <!-- ==================== VERSIÓN B: FECHA DE ENTREGA (DÍAS HASTA ENTREGA) ==================== -->
+            <div class="grafico-echarts" style="border: 3px solid #e74c3c; border-radius: 12px; padding: 20px; background: #fff8f8;">
+                <h3 style="text-align: center; color: #e74c3c; font-size: 1.35rem; margin-bottom: 10px; font-weight: 700;">
+                    🚚 VERSIÓN B: Fecha de Entrega
+                </h3>
+                <p style="text-align: center; color: #555; font-size: 0.85rem; margin-bottom: 20px;">
+                    Días hasta <strong>commitment_date</strong> (fecha de entrega comprometida)
+                </p>
+                
+                <!-- Filtros Versión B -->
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-right: 5px; font-size: 12px;">Línea:</label>
+                    <select id="filtro-linea-productos-ent" onchange="filtrarProductosEnt()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 150px;">
+                        <option value="todas">Todas</option>
+                    </select>
                     
-                    <!-- Contenido del Modal -->
-                    <div style="padding: 30px 40px; max-height: calc(100vh - 250px); overflow-y: auto;">
-                        <div id="modal-pedidos-tabla-container"></div>
+                    <label style="font-weight: 600; margin-left: 10px; margin-right: 5px; font-size: 12px;">Categoría:</label>
+                    <select id="filtro-categoria-productos-ent" onchange="filtrarProductosEnt()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 140px;">
+                        <option value="todas">Todas</option>
+                    </select>
+                    
+                    <label style="font-weight: 600; margin-left: 10px; margin-right: 5px; font-size: 12px;">Estado:</label>
+                    <select id="filtro-estado-productos-ent" onchange="filtrarProductosEnt()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 12px; min-width: 130px;">
+                        <option value="todos">Todos</option>
+                        <option value="vencido">🚨 Vencido</option>
+                        <option value="critico">🔴 Crítico</option>
+                        <option value="alerta">⚠️ Alerta</option>
+                        <option value="en_progreso">🟡 Progreso</option>
+                        <option value="exitoso">🟢 Exitoso</option>
+                    </select>
+                    
+                    <span id="productos-contador-ent" style="margin-left: 10px; font-weight: 600; color: #666; font-size: 12px;"></span>
+                </div>
+                
+                <!-- Leyenda Versión B (días hasta entrega) -->
+                <div style="background: #ffe8e8; border-left: 4px solid #e74c3c; padding: 12px; margin: 15px 0; border-radius: 6px;">
+                    <div style="text-align: center; font-size: 10px; color: #555; line-height: 1.6;">
+                        <strong style="color: #e74c3c; font-size: 11px;">Estados (fecha entrega)</strong><br/>
+                        🚨 <strong>Vencido</strong>: Fecha pasada (días negativos)<br/>
+                        🔴 <strong>Crítico</strong>: <30 días para entrega<br/>
+                        ⚠️ <strong>Alerta</strong>: 30-60 días para entrega<br/>
+                        🟡 <strong>Progreso</strong>: 60-90 días para entrega<br/>
+                        🟢 <strong>Exitoso</strong>: >90 días para entrega
                     </div>
+                </div>
+                
+                <!-- Paginación Versión B -->
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <button id="btn-productos-prev-ent" onclick="cambiarPaginaProductosEnt(-1)" style="padding: 6px 12px; margin-right: 8px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        ← Anterior
+                    </button>
+                    <span id="productos-paginacion-info-ent" style="font-weight: 600; color: #333; margin: 0 10px; font-size: 12px;"></span>
+                    <button id="btn-productos-next-ent" onclick="cambiarPaginaProductosEnt(1)" style="padding: 6px 12px; margin-left: 8px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        Siguiente →
+                    </button>
+                </div>
+                
+                <div id="grafico-bullet-productos-ent" style="width: 100%; min-height: 650px;"></div>
+            </div>
+        </div>
+        
+        <!-- Modal para VERSIÓN A - Confirmación -->
+        <div id="modal-pedidos-producto-conf" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; overflow-y: auto;">
+            <div style="max-width: 1400px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative;">
+                <!-- Header del Modal -->
+                <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 25px 40px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.6rem;" id="modal-producto-titulo-conf">📅 Pedidos Pendientes - Versión A (Confirmación)</h3>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.95rem;" id="modal-producto-subtitulo-conf">Detalle de pedidos por cliente</p>
+                    </div>
+                    <button onclick="cerrarModalPedidosProductoConf()" style="background: rgba(255,255,255,0.2); border: 2px solid white; color: white; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: all 0.2s;">
+                        ✕
+                    </button>
+                </div>
+                
+                <!-- Contenido del Modal -->
+                <div style="padding: 30px 40px; max-height: calc(100vh - 250px); overflow-y: auto;">
+                    <div id="modal-pedidos-tabla-container-conf"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal para VERSIÓN B - Entrega -->
+        <div id="modal-pedidos-producto-ent" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; overflow-y: auto;">
+            <div style="max-width: 1400px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative;">
+                <!-- Header del Modal -->
+                <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 25px 40px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.6rem;" id="modal-producto-titulo-ent">🚚 Pedidos Pendientes - Versión B (Entrega)</h3>
+                        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 0.95rem;" id="modal-producto-subtitulo-ent">Detalle de pedidos por cliente</p>
+                    </div>
+                    <button onclick="cerrarModalPedidosProductoEnt()" style="background: rgba(255,255,255,0.2); border: 2px solid white; color: white; font-size: 1.5rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: all 0.2s;">
+                        ✕
+                    </button>
+                </div>
+                
+                <!-- Contenido del Modal -->
+                <div style="padding: 30px 40px; max-height: calc(100vh - 250px); overflow-y: auto;">
+                    <div id="modal-pedidos-tabla-container-ent"></div>
                 </div>
             </div>
         </div>
@@ -1122,6 +1204,21 @@ body {
 /* Estilos para el nuevo gráfico ECharts */
 .grafico-extra-container {
     margin-top: 25px;
+}
+.graficos-comparacion-vertical {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 30px !important;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    grid-template-columns: none !important;
+}
+.graficos-comparacion-vertical > .grafico-echarts {
+    width: 100% !important;
+    flex: 0 0 auto;
+    float: none !important;
+    display: block !important;
 }
 .grafico-echarts {
     background: white;
@@ -2218,39 +2315,34 @@ function crearGraficoBullet() {
     window.addEventListener('resize', () => myChart.resize());
 }
 
-// NUEVO: Gráfico Bullet Chart para Productos
-let productosGraficoDataGlobal = [];
-let productosGraficoChartInstance = null;
-let productosGraficoFiltrados = [];
-let paginaActualGraficoProductos = 1;
-const productosGraficoPorPagina = 20;
+// ==================== VERSIÓN A: Gráfico Bullet con Fecha de Confirmación (150 días) ====================
+let productosGraficoDataGlobalConf = [];
+let productosGraficoChartInstanceConf = null;
+let productosGraficoFiltradosConf = [];
+let paginaActualGraficoProductosConf = 1;
+const productosGraficoPorPaginaConf = 20;
 
-function crearGraficoBulletProductos() {
-    const chartDom = document.getElementById('grafico-bullet-productos');
+function crearGraficoBulletProductosConf() {
+    const chartDom = document.getElementById('grafico-bullet-productos-conf');
     if (!chartDom) return;
     
     // Prevenir inicialización múltiple
-    if (productosGraficoDataGlobal.length > 0) return;
+    if (productosGraficoDataGlobalConf.length > 0) return;
     
-    productosGraficoDataGlobal = {{ products_chart_data|default([])|tojson|safe }};
-    if (!productosGraficoDataGlobal || productosGraficoDataGlobal.length === 0) return;
+    productosGraficoDataGlobalConf = {{ products_chart_data_confirmacion|default([])|tojson|safe }};
+    if (!productosGraficoDataGlobalConf || productosGraficoDataGlobalConf.length === 0) return;
     
-    // Poblar el select de líneas comerciales
+    // Poblar el select de líneas comerciales (versión confirmación)
     const lineasSet = new Set();
     const categoriasSet = new Set();
-    productosGraficoDataGlobal.forEach(p => {
-        if (p.linea_comercial) {
-            lineasSet.add(p.linea_comercial);
-        }
-        if (p.categoria) {
-            categoriasSet.add(p.categoria);
-        }
+    productosGraficoDataGlobalConf.forEach(p => {
+        if (p.linea_comercial) lineasSet.add(p.linea_comercial);
+        if (p.categoria) categoriasSet.add(p.categoria);
     });
     
-    const selectLinea = document.getElementById('filtro-linea-productos');
-    if (selectLinea && selectLinea.options.length === 1) { // Solo agregar si aún no tiene opciones
-        const lineasOrdenadas = Array.from(lineasSet).sort();
-        lineasOrdenadas.forEach(linea => {
+    const selectLinea = document.getElementById('filtro-linea-productos-conf');
+    if (selectLinea && selectLinea.options.length === 1) {
+        Array.from(lineasSet).sort().forEach(linea => {
             const option = document.createElement('option');
             option.value = linea;
             option.textContent = linea;
@@ -2258,10 +2350,9 @@ function crearGraficoBulletProductos() {
         });
     }
     
-    const selectCategoria = document.getElementById('filtro-categoria-productos');
-    if (selectCategoria && selectCategoria.options.length === 1) { // Solo agregar si aún no tiene opciones
-        const categoriasOrdenadas = Array.from(categoriasSet).sort();
-        categoriasOrdenadas.forEach(categoria => {
+    const selectCategoria = document.getElementById('filtro-categoria-productos-conf');
+    if (selectCategoria && selectCategoria.options.length === 1) {
+        Array.from(categoriasSet).sort().forEach(categoria => {
             const option = document.createElement('option');
             option.value = categoria;
             option.textContent = categoria;
@@ -2269,65 +2360,191 @@ function crearGraficoBulletProductos() {
         });
     }
     
-    // Inicializar el gráfico con todos los productos
-    if (!productosGraficoChartInstance) {
-        productosGraficoChartInstance = echarts.init(chartDom);
+    // Inicializar el gráfico
+    if (!productosGraficoChartInstanceConf) {
+        productosGraficoChartInstanceConf = echarts.init(chartDom);
     }
     
-    filtrarProductosPorLinea();
+    filtrarProductosConf();
 }
 
-function cambiarPaginaProductos(direccion) {
-    const totalPaginas = Math.ceil(productosGraficoFiltrados.length / productosGraficoPorPagina);
-    paginaActualGraficoProductos += direccion;
+// ==================== VERSIÓN B: Gráfico Bullet con Fecha de Entrega (días hasta entrega) ====================
+let productosGraficoDataGlobalEnt = [];
+let productosGraficoChartInstanceEnt = null;
+let productosGraficoFiltradosEnt = [];
+let paginaActualGraficoProductosEnt = 1;
+const productosGraficoPorPaginaEnt = 20;
+
+function crearGraficoBulletProductosEnt() {
+    const chartDom = document.getElementById('grafico-bullet-productos-ent');
+    if (!chartDom) return;
     
-    if (paginaActualGraficoProductos < 1) paginaActualGraficoProductos = 1;
-    if (paginaActualGraficoProductos > totalPaginas) paginaActualGraficoProductos = totalPaginas;
+    // Prevenir inicialización múltiple
+    if (productosGraficoDataGlobalEnt.length > 0) return;
     
-    renderizarGraficoProductos();
+    productosGraficoDataGlobalEnt = {{ products_chart_data_entrega|default([])|tojson|safe }};
+    if (!productosGraficoDataGlobalEnt || productosGraficoDataGlobalEnt.length === 0) return;
+    
+    // Poblar el select de líneas comerciales (versión entrega)
+    const lineasSet = new Set();
+    const categoriasSet = new Set();
+    productosGraficoDataGlobalEnt.forEach(p => {
+        if (p.linea_comercial) lineasSet.add(p.linea_comercial);
+        if (p.categoria) categoriasSet.add(p.categoria);
+    });
+    
+    const selectLinea = document.getElementById('filtro-linea-productos-ent');
+    if (selectLinea && selectLinea.options.length === 1) {
+        Array.from(lineasSet).sort().forEach(linea => {
+            const option = document.createElement('option');
+            option.value = linea;
+            option.textContent = linea;
+            selectLinea.appendChild(option);
+        });
+    }
+    
+    const selectCategoria = document.getElementById('filtro-categoria-productos-ent');
+    if (selectCategoria && selectCategoria.options.length === 1) {
+        Array.from(categoriasSet).sort().forEach(categoria => {
+            const option = document.createElement('option');
+            option.value = categoria;
+            option.textContent = categoria;
+            selectCategoria.appendChild(option);
+        });
+    }
+    
+    // Inicializar el gráfico
+    if (!productosGraficoChartInstanceEnt) {
+        productosGraficoChartInstanceEnt = echarts.init(chartDom);
+    }
+    
+    filtrarProductosEnt();
+}
+// ==================== VERSIÓN A: Funciones de Paginación y Estado (Confirmación 150 días) ====================
+
+function cambiarPaginaProductosConf(direccion) {
+    const totalPaginas = Math.ceil(productosGraficoFiltradosConf.length / productosGraficoPorPaginaConf);
+    paginaActualGraficoProductosConf += direccion;
+    
+    if (paginaActualGraficoProductosConf < 1) paginaActualGraficoProductosConf = 1;
+    if (paginaActualGraficoProductosConf > totalPaginas) paginaActualGraficoProductosConf = totalPaginas;
+    
+    renderizarGraficoProductosConf();
 }
 
-// Nueva función para calcular el estado basado en tiempo + avance
-function calcularEstadoProducto(producto) {
+// Estado basado en días restantes (política de 150 días desde confirmación)
+function calcularEstadoProductoConf(producto) {
     const pct = producto.porcentaje || 0;
     const diasRestantes = producto.dias_restantes;
     
-    // Si no hay fecha o ya está 100% facturado, es exitoso
-    if (diasRestantes === null || diasRestantes === undefined || pct >= 100) {
+    // Si ya está 100% facturado, es exitoso
+    if (pct >= 100) {
         return 'exitoso';
     }
     
-    // Crítico si: (días<30 Y %<80) O (días<60 Y %<40)
-    if ((diasRestantes < 30 && pct < 80) || (diasRestantes < 60 && pct < 40)) {
+    // Si no hay fecha, basarse solo en avance
+    if (diasRestantes === null || diasRestantes === undefined) {
+        if (pct < 40) return 'critico';
+        if (pct < 80) return 'en_progreso';
+        return 'exitoso';
+    }
+    
+    // VENCIDO: >150 días transcurridos (días restantes negativos)
+    if (diasRestantes < 0) {
+        return 'vencido';
+    }
+    
+    // CRÍTICO: <30 días restantes
+    if (diasRestantes < 30) {
         return 'critico';
     }
     
-    // En progreso: No es crítico Y (días<90 O %<80)
-    if (diasRestantes < 90 || pct < 80) {
+    // ALERTA: 30-60 días restantes
+    if (diasRestantes < 60) {
+        return 'alerta';
+    }
+    
+    // EN PROGRESO: 60-90 días restantes
+    if (diasRestantes < 90) {
         return 'en_progreso';
     }
     
-    // Exitoso: El resto
+    // EXITOSO: >90 días restantes
     return 'exitoso';
 }
 
-function filtrarProductosPorLinea() {
-    const selectLinea = document.getElementById('filtro-linea-productos');
-    const selectCategoria = document.getElementById('filtro-categoria-productos');
-    const selectEstado = document.getElementById('filtro-estado-productos');
+// ==================== VERSIÓN B: Funciones de Paginación y Estado (Entrega - días hasta entrega) ====================
+
+function cambiarPaginaProductosEnt(direccion) {
+    const totalPaginas = Math.ceil(productosGraficoFiltradosEnt.length / productosGraficoPorPaginaEnt);
+    paginaActualGraficoProductosEnt += direccion;
+    
+    if (paginaActualGraficoProductosEnt < 1) paginaActualGraficoProductosEnt = 1;
+    if (paginaActualGraficoProductosEnt > totalPaginas) paginaActualGraficoProductosEnt = totalPaginas;
+    
+    renderizarGraficoProductosEnt();
+}
+
+// Estado basado en días hasta entrega (commitment_date)
+function calcularEstadoProductoEnt(producto) {
+    const pct = producto.porcentaje || 0;
+    const diasParaEntrega = producto.dias_para_entrega;
+    
+    // Si ya está 100% facturado, es exitoso
+    if (pct >= 100) {
+        return 'exitoso';
+    }
+    
+    // Si no hay fecha de entrega, basarse solo en avance
+    if (diasParaEntrega === null || diasParaEntrega === undefined) {
+        if (pct < 40) return 'critico';
+        if (pct < 80) return 'en_progreso';
+        return 'exitoso';
+    }
+    
+    // VENCIDO: Fecha de entrega pasó (días negativos)
+    if (diasParaEntrega < 0) {
+        return 'vencido';
+    }
+    
+    // CRÍTICO: <30 días para entrega
+    if (diasParaEntrega < 30) {
+        return 'critico';
+    }
+    
+    // ALERTA: 30-60 días para entrega
+    if (diasParaEntrega < 60) {
+        return 'alerta';
+    }
+    
+    // EN PROGRESO: 60-90 días para entrega
+    if (diasParaEntrega < 90) {
+        return 'en_progreso';
+    }
+    
+    // EXITOSO: >90 días para entrega
+    return 'exitoso';
+}
+
+// ==================== VERSIÓN A: Filtrado por Línea/Categoría/Estado (Confirmación) ====================
+
+function filtrarProductosConf() {
+    const selectLinea = document.getElementById('filtro-linea-productos-conf');
+    const selectCategoria = document.getElementById('filtro-categoria-productos-conf');
+    const selectEstado = document.getElementById('filtro-estado-productos-conf');
     const lineaSeleccionada = selectLinea ? selectLinea.value : 'todas';
     const categoriaSeleccionada = selectCategoria ? selectCategoria.value : 'todas';
     const estadoSeleccionado = selectEstado ? selectEstado.value : 'todos';
     
     // Filtrar datos por línea comercial, categoría y estado
-    productosGraficoFiltrados = productosGraficoDataGlobal.filter(p => {
+    productosGraficoFiltradosConf = productosGraficoDataGlobalConf.filter(p => {
         const cumpleLinea = lineaSeleccionada === 'todas' || p.linea_comercial === lineaSeleccionada;
         const cumpleCategoria = categoriaSeleccionada === 'todas' || p.categoria === categoriaSeleccionada;
         
-        // Filtrar por estado según tiempo + avance
+        // Filtrar por estado según días restantes (150 días)
         let cumpleEstado = true;
         if (estadoSeleccionado !== 'todos') {
-            const estadoProducto = calcularEstadoProducto(p);
+            const estadoProducto = calcularEstadoProductoConf(p);
             cumpleEstado = estadoProducto === estadoSeleccionado;
         }
         
@@ -2335,39 +2552,69 @@ function filtrarProductosPorLinea() {
     });
     
     // Resetear a página 1 cuando cambia el filtro
-    paginaActualGraficoProductos = 1;
+    paginaActualGraficoProductosConf = 1;
     
-    renderizarGraficoProductos();
+    renderizarGraficoProductosConf();
 }
 
-function renderizarGraficoProductos() {
-    if (!productosGraficoChartInstance || productosGraficoFiltrados.length === 0) return;
-    // Calcular paginación
-    const totalPaginas = Math.ceil(productosGraficoFiltrados.length / productosGraficoPorPagina);
-    const inicio = (paginaActualGraficoProductos - 1) * productosGraficoPorPagina;
-    const fin = Math.min(inicio + productosGraficoPorPagina, productosGraficoFiltrados.length);
-    const datosPagina = productosGraficoFiltrados.slice(inicio, fin);
-    
-    // Actualizar controles de paginación
-    const btnPrev = document.getElementById('btn-productos-prev');
-    const btnNext = document.getElementById('btn-productos-next');
-    const paginacionInfo = document.getElementById('productos-paginacion-info');
-    const contador = document.getElementById('productos-contador');
-    
-    if (btnPrev) btnPrev.disabled = paginaActualGraficoProductos === 1;
-    if (btnNext) btnNext.disabled = paginaActualGraficoProductos === totalPaginas || totalPaginas === 0;
-    if (paginacionInfo) paginacionInfo.textContent = `Página ${paginaActualGraficoProductos} de ${totalPaginas || 1}`;
-    if (contador) contador.textContent = `Total: ${productosGraficoFiltrados.length} productos`;
-    
-    const chartDom = document.getElementById('grafico-bullet-productos');
-    
-    // Ajustar altura del gráfico dinámicamente
-    const barHeight = 30;
-    const chartHeight = Math.max(700, datosPagina.length * barHeight + 100);
-    chartDom.style.height = chartHeight + 'px';
-    productosGraficoChartInstance.resize();
+// ==================== VERSIÓN B: Filtrado por Línea/Categoría/Estado (Entrega) ====================
 
-    // Preparar datos
+function filtrarProductosEnt() {
+    const selectLinea = document.getElementById('filtro-linea-productos-ent');
+    const selectCategoria = document.getElementById('filtro-categoria-productos-ent');
+    const selectEstado = document.getElementById('filtro-estado-productos-ent');
+    const lineaSeleccionada = selectLinea ? selectLinea.value : 'todas';
+    const categoriaSeleccionada = selectCategoria ? selectCategoria.value : 'todas';
+    const estadoSeleccionado = selectEstado ? selectEstado.value : 'todos';
+    
+    // Filtrar datos por línea comercial, categoría y estado
+    productosGraficoFiltradosEnt = productosGraficoDataGlobalEnt.filter(p => {
+        const cumpleLinea = lineaSeleccionada === 'todas' || p.linea_comercial === lineaSeleccionada;
+        const cumpleCategoria = categoriaSeleccionada === 'todas' || p.categoria === categoriaSeleccionada;
+        
+        // Filtrar por estado según días para entrega
+        let cumpleEstado = true;
+        if (estadoSeleccionado !== 'todos') {
+            const estadoProducto = calcularEstadoProductoEnt(p);
+            cumpleEstado = estadoProducto === estadoSeleccionado;
+        }
+        
+        return cumpleLinea && cumpleCategoria && cumpleEstado;
+    });
+    
+    // Resetear a página 1 cuando cambia el filtro
+    paginaActualGraficoProductosEnt = 1;
+    
+    renderizarGraficoProductosEnt();
+}
+
+// ==================== VERSIÓN A: Renderizar Gráfico con Fecha de Confirmación (150 días) ====================
+
+function renderizarGraficoProductosConf() {
+    if (!productosGraficoChartInstanceConf || productosGraficoFiltradosConf.length === 0) return;
+    
+    const totalPaginas = Math.ceil(productosGraficoFiltradosConf.length / productosGraficoPorPaginaConf);
+    const inicio = (paginaActualGraficoProductosConf - 1) * productosGraficoPorPaginaConf;
+    const fin = Math.min(inicio + productosGraficoPorPaginaConf, productosGraficoFiltradosConf.length);
+    const datosPagina = productosGraficoFiltradosConf.slice(inicio, fin);
+    
+    const btnPrevConf = document.getElementById('btn-productos-prev-conf');
+    const btnNextConf = document.getElementById('btn-productos-next-conf');
+    const paginacionInfoConf = document.getElementById('productos-paginacion-info-conf');
+    const contadorConf = document.getElementById('productos-contador-conf');
+    
+    if (btnPrevConf) btnPrevConf.disabled = paginaActualGraficoProductosConf === 1;
+    if (btnNextConf) btnNextConf.disabled = paginaActualGraficoProductosConf === totalPaginas || totalPaginas === 0;
+    if (paginacionInfoConf) paginacionInfoConf.textContent = `Página ${paginaActualGraficoProductosConf} de ${totalPaginas || 1}`;
+    if (contadorConf) contadorConf.textContent = `${productosGraficoFiltradosConf.length} productos`;
+    
+    const chartDom = document.getElementById('grafico-bullet-productos-conf');
+    const barHeight = 30;
+    const chartHeight = Math.max(650, datosPagina.length * barHeight + 100);
+    chartDom.style.height = chartHeight + 'px';
+    productosGraficoChartInstanceConf.resize();
+
+    // Preparar TODOS los datos necesarios
     const codigos = datosPagina.map(d => d.codigo || '');
     const productos = datosPagina.map(d => d.producto);
     const productosDisplay = datosPagina.map((d, i) => `[${codigos[i]}] ${d.producto}`);
@@ -2377,21 +2624,16 @@ function renderizarGraficoProductos() {
     const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
     const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
     const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
-    const diasRestantes = datosPagina.map(d => d.dias_restantes !== null ? d.dias_restantes : null);
     const diasTranscurridos = datosPagina.map(d => d.dias_transcurridos !== null ? d.dias_transcurridos : null);
+    const diasRestantes = datosPagina.map(d => d.dias_restantes !== null ? d.dias_restantes : null);
     const fechasPedido = datosPagina.map(d => d.fecha_pedido || null);
     
-    // Debug: verificar duplicados en la página actual
-    const productosUnicos = new Set(productos);
-    if (productosUnicos.size !== productos.length) {
-        console.warn('⚠️ Duplicados detectados en la página:', productos.length - productosUnicos.size);
-    }
-
-    // Colores según estado calculado (tiempo + avance)
     const facturadoSeriesData = facturados.map((valor, i) => {
-        const estado = calcularEstadoProducto(datosPagina[i]);
+        const estado = calcularEstadoProductoConf(datosPagina[i]);
         let color = '#3498db';
-        if (estado === 'critico') color = '#e74c3c';
+        if (estado === 'vencido') color = '#dc2626';
+        else if (estado === 'critico') color = '#ef4444';
+        else if (estado === 'alerta') color = '#f59e0b';
         else if (estado === 'en_progreso') color = '#f1c40f';
         else color = '#2ecc71';
 
@@ -2403,23 +2645,15 @@ function renderizarGraficoProductos() {
                 position: 'right',
                 color: '#333',
                 formatter: function(params) {
-                    const idx = params.dataIndex;
-                    const pct = porcentajes[idx].toFixed(1);
-                    const diasRest = diasRestantes[idx];
-                    
-                    // Agregar indicador visual de tiempo
-                    let tiempoIcon = '';
+                    const pct = porcentajes[params.dataIndex].toFixed(1);
+                    const diasRest = diasRestantes[params.dataIndex];
+                    let icon = '';
                     if (diasRest !== null) {
-                        if (diasRest < 0) {
-                            tiempoIcon = ' 🚨'; // Vencido
-                        } else if (diasRest < 30) {
-                            tiempoIcon = ' ⚠️'; // Crítico
-                        } else if (diasRest < 60) {
-                            tiempoIcon = ' ⏳'; // Alerta
-                        }
+                        if (diasRest < 0) icon = ' 🚨';
+                        else if (diasRest < 30) icon = ' 🔴';
+                        else if (diasRest < 60) icon = ' ⚠️';
                     }
-                    
-                    return pct + '%' + tiempoIcon;
+                    return pct + '%' + icon;
                 }
             }
         };
@@ -2427,6 +2661,8 @@ function renderizarGraficoProductos() {
 
     const option = {
         tooltip: {
+            show: true,
+            confine: true,
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
             formatter: function (params) {
@@ -2442,20 +2678,28 @@ function renderizarGraficoProductos() {
                 const qtyPend = qtyPendientes[idx] || 0;
                 const qtyTotal = qtyTotales[idx] || 0;
                 
-                const diasRest = diasRestantes[idx];
                 const diasTrans = diasTranscurridos[idx];
-                const fechaPedido = fechasPedido[idx];
+                const diasRest = diasRestantes[idx];
+                const fechaPed = fechasPedido[idx];
                 
-                // Determinar estado usando la función con tiempo + avance
-                const estado = calcularEstadoProducto(datosPagina[idx]);
+                // Determinar estado (Versión A - 150 días)
+                const estado = calcularEstadoProductoConf(datosPagina[idx]);
                 let estadoLabel = '';
                 let emoji = '';
                 let colorIndicador = '';
                 
-                if (estado === 'critico') {
+                if (estado === 'vencido') {
+                    estadoLabel = 'VENCIDO';
+                    emoji = '🚨';
+                    colorIndicador = '#dc2626';
+                } else if (estado === 'critico') {
                     estadoLabel = 'Crítico';
                     emoji = '🔴';
-                    colorIndicador = '#e74c3c';
+                    colorIndicador = '#ef4444';
+                } else if (estado === 'alerta') {
+                    estadoLabel = 'Alerta';
+                    emoji = '⚠️';
+                    colorIndicador = '#f59e0b';
                 } else if (estado === 'en_progreso') {
                     estadoLabel = 'En Progreso';
                     emoji = '🟡';
@@ -2466,26 +2710,38 @@ function renderizarGraficoProductos() {
                     colorIndicador = '#2ecc71';
                 }
                 
-                // Información de tiempo
+                // Información de tiempo (Versión A: 150 días desde confirmación)
                 let tiempoInfo = '';
-                if (diasRest !== null && diasTrans !== null) {
-                    const diasRestMostrar = Math.max(0, diasRest);
+                if (diasTrans !== null && diasRest !== null) {
                     let alertaColor = '#666';
-                    let alertaEmoji = '⏱️';
+                    let alertaEmoji = '📅';
+                    let estadoTiempo = '';
                     
-                    if (diasRest < 30) {
-                        alertaColor = '#e74c3c';
+                    if (diasRest < 0) {
+                        alertaColor = '#dc2626';
                         alertaEmoji = '🚨';
+                        estadoTiempo = 'VENCIDO (>150 días transcurridos)';
+                    } else if (diasRest < 30) {
+                        alertaColor = '#ef4444';
+                        alertaEmoji = '🔴';
+                        estadoTiempo = 'CRÍTICO - Menos de 30 días restantes';
                     } else if (diasRest < 60) {
-                        alertaColor = '#f39c12';
+                        alertaColor = '#f59e0b';
                         alertaEmoji = '⚠️';
+                        estadoTiempo = 'ALERTA - Menos de 60 días restantes';
+                    } else if (diasRest < 90) {
+                        alertaColor = '#f1c40f';
+                        alertaEmoji = '⏳';
+                        estadoTiempo = 'Menos de 90 días restantes';
+                    } else {
+                        estadoTiempo = 'Tiempo suficiente (>90 días)';
                     }
                     
                     tiempoInfo = `<div style="margin-top: 8px; padding: 6px; background-color: ${alertaColor}15; border-left: 3px solid ${alertaColor}; border-radius: 4px;">
-                        <strong style="color: ${alertaColor};">${alertaEmoji} Tiempo de Despacho (150 días)</strong><br/>
-                        <span style="color: #666;">Fecha pedido:</span> <strong>${fechaPedido || 'N/A'}</strong><br/>
-                        <span style="color: #666;">Días transcurridos:</span> <strong>${diasTrans}</strong> días<br/>
-                        <span style="color: ${alertaColor};">Días restantes:</span> <strong>${diasRestMostrar}</strong> días ${diasRest < 0 ? '(VENCIDO)' : ''}
+                        <strong style="color: ${alertaColor};">${alertaEmoji} ${estadoTiempo}</strong><br/>
+                        <span style="color: #666;">Fecha confirmación pedido:</span> <strong>${fechaPed || 'N/A'}</strong><br/>
+                        <span style="color: #666;">Días transcurridos:</span> <strong>${diasTrans}</strong><br/>
+                        <span style="color: ${alertaColor};">Días restantes (política 150):</span> <strong>${diasRest}</strong>
                     </div>`;
                 }
                 
@@ -2500,6 +2756,9 @@ function renderizarGraficoProductos() {
                         <span style="color: #f39c12;">● Pendiente:</span> <strong>$ ${pend.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyPend.toLocaleString('en-US')}</strong><br/>
                         <span style="color: #666;">● Total:</span> <strong>$ ${total.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyTotal.toLocaleString('en-US')}</strong>
                     </div>
+                    <div style="margin-top: 8px; padding: 6px; background: #e3f2fd; border-radius: 4px; text-align: center;">
+                        <small style="color: #1976d2;">💡 <strong>Click en la barra</strong> para ver detalle de pedidos pendientes</small>
+                    </div>
                 </div>`;
             }
         },
@@ -2507,16 +2766,16 @@ function renderizarGraficoProductos() {
         xAxis: {
             type: 'value',
             min: 0,
-            axisLabel: { formatter: value => '$ ' + Math.round(value).toLocaleString('en-US') },
+            axisLabel: { formatter: v => '$ ' + Math.round(v).toLocaleString('en-US') },
             splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
         },
         yAxis: {
             type: 'category',
             data: productosDisplay,
-            axisLabel: {
-                interval: 0,
-                formatter: value => value.length > 80 ? value.substring(0, 80) + '...' : value,
-                fontSize: 11
+            axisLabel: { 
+                interval: 0, 
+                fontSize: 10,
+                formatter: value => value.length > 70 ? value.substring(0, 70) + '...' : value 
             }
         },
         dataZoom: [{
@@ -2527,50 +2786,263 @@ function renderizarGraficoProductos() {
             end: 100
         }],
         series: [
-            {
-                name: 'Total',
-                type: 'bar',
-                barGap: '-100%',
-                barWidth: '24px',
-                itemStyle: { color: '#e9ecef' },
-                data: totales,
-                animation: false
-            },
-            {
-                name: 'Facturado',
-                type: 'bar',
-                barWidth: '24px',
-                z: 10,
-                data: facturadoSeriesData,
-                itemStyle: { barBorderRadius: 6 }
-            }
+            { name: 'Total', type: 'bar', barGap: '-100%', barWidth: '22px', itemStyle: { color: '#e9ecef' }, data: totales, animation: false },
+            { name: 'Facturado', type: 'bar', barWidth: '22px', z: 10, data: facturadoSeriesData, itemStyle: { barBorderRadius: 6 } }
         ],
         animationDuration: 600
     };
 
-    productosGraficoChartInstance.setOption(option, true);
+    productosGraficoChartInstanceConf.setOption(option, true);
     
-    // Event handler: Click en producto para mostrar detalle de pedidos
-    productosGraficoChartInstance.off('click'); // Remover handlers previos
-    productosGraficoChartInstance.on('click', function(params) {
+    // Event handler: Click para drill-down
+    productosGraficoChartInstanceConf.off('click');
+    productosGraficoChartInstanceConf.on('click', function(params) {
+        console.log('🔵 CLICK en GRÁFICO A (CONFIRMACIÓN)', params);
         if (params.componentType === 'series' && params.seriesName === 'Facturado') {
-            const idx = params.dataIndex;
-            const productoData = datosPagina[idx];
+            const productoData = datosPagina[params.dataIndex];
+            console.log('📆 Producto data:', productoData);
             if (productoData) {
-                mostrarPedidosDelProducto(productoData);
+                console.log('➡️ Llamando modal con versión: confirmacion');
+                mostrarPedidosDelProducto(productoData, 'confirmacion');
             }
         }
     });
-    
-    window.addEventListener('resize', () => productosGraficoChartInstance.resize());
 }
 
+// ==================== VERSIÓN B: Renderizar Gráfico con Fecha de Entrega (días hasta entrega) ====================
+
+function renderizarGraficoProductosEnt() {
+    if (!productosGraficoChartInstanceEnt || productosGraficoFiltradosEnt.length === 0) return;
+    
+    const totalPaginas = Math.ceil(productosGraficoFiltradosEnt.length / productosGraficoPorPaginaEnt);
+    const inicio = (paginaActualGraficoProductosEnt - 1) * productosGraficoPorPaginaEnt;
+    const fin = Math.min(inicio + productosGraficoPorPaginaEnt, productosGraficoFiltradosEnt.length);
+    const datosPagina = productosGraficoFiltradosEnt.slice(inicio, fin);
+    
+    const btnPrevEnt = document.getElementById('btn-productos-prev-ent');
+    const btnNextEnt = document.getElementById('btn-productos-next-ent');
+    const paginacionInfoEnt = document.getElementById('productos-paginacion-info-ent');
+    const contadorEnt = document.getElementById('productos-contador-ent');
+    
+    if (btnPrevEnt) btnPrevEnt.disabled = paginaActualGraficoProductosEnt === 1;
+    if (btnNextEnt) btnNextEnt.disabled = paginaActualGraficoProductosEnt === totalPaginas || totalPaginas === 0;
+    if (paginacionInfoEnt) paginacionInfoEnt.textContent = `Página ${paginaActualGraficoProductosEnt} de ${totalPaginas || 1}`;
+    if (contadorEnt) contadorEnt.textContent = `${productosGraficoFiltradosEnt.length} productos`;
+    
+    const chartDom = document.getElementById('grafico-bullet-productos-ent');
+    const barHeight = 30;
+    const chartHeight = Math.max(650, datosPagina.length * barHeight + 100);
+    chartDom.style.height = chartHeight + 'px';
+    productosGraficoChartInstanceEnt.resize();
+
+    // Preparar TODOS los datos necesarios
+    const codigos = datosPagina.map(d => d.codigo || '');
+    const productos = datosPagina.map(d => d.producto);
+    const productosDisplay = datosPagina.map((d, i) => `[${codigos[i]}] ${d.producto}`);
+    const totales = datosPagina.map(d => Math.max(0, Number(d.total || 0)));
+    const facturados = datosPagina.map(d => Math.max(0, Number(d.facturado || 0)));
+    const porcentajes = datosPagina.map(d => Number(d.porcentaje || 0));
+    const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
+    const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
+    const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
+    const diasParaEntrega = datosPagina.map(d => d.dias_para_entrega !== null ? d.dias_para_entrega : null);
+    const fechasEntrega = datosPagina.map(d => d.fecha_entrega || null);
+    
+    const facturadoSeriesData = facturados.map((valor, i) => {
+        const estado = calcularEstadoProductoEnt(datosPagina[i]);
+        let color = '#e74c3c';
+        if (estado === 'vencido') color = '#dc2626';
+        else if (estado === 'critico') color = '#ef4444';
+        else if (estado === 'alerta') color = '#f59e0b';
+        else if (estado === 'en_progreso') color = '#f1c40f';
+        else color = '#2ecc71';
+
+        return {
+            value: valor,
+            itemStyle: { color: color },
+            label: {
+                show: true,
+                position: 'right',
+                color: '#333',
+                formatter: function(params) {
+                    const pct = porcentajes[params.dataIndex].toFixed(1);
+                    const diasPara = diasParaEntrega[params.dataIndex];
+                    let icon = '';
+                    if (diasPara !== null) {
+                        if (diasPara < 0) icon = ' 🚨';
+                        else if (diasPara < 30) icon = ' 🔴';
+                        else if (diasPara < 60) icon = ' ⚠️';
+                    }
+                    return pct + '%' + icon;
+                }
+            }
+        };
+    });
+
+    const option = {
+        tooltip: {
+            show: true,
+            confine: true,
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: function (params) {
+                const idx = params[0].dataIndex;
+                const codigo = codigos[idx];
+                const producto = productos[idx];
+                const fact = Math.round(facturados[idx] || 0);
+                const total = Math.round(totales[idx] || 0);
+                const pend = total - fact;
+                const pct = porcentajes[idx] || 0;
+                
+                const qtyFact = qtyFacturadas[idx] || 0;
+                const qtyPend = qtyPendientes[idx] || 0;
+                const qtyTotal = qtyTotales[idx] || 0;
+                
+                const diasPara = diasParaEntrega[idx];
+                const fechaEnt = fechasEntrega[idx];
+                
+                // Determinar estado (Versión B - días hasta entrega)
+                const estado = calcularEstadoProductoEnt(datosPagina[idx]);
+                let estadoLabel = '';
+                let emoji = '';
+                let colorIndicador = '';
+                
+                if (estado === 'vencido') {
+                    estadoLabel = 'VENCIDO';
+                    emoji = '🚨';
+                    colorIndicador = '#dc2626';
+                } else if (estado === 'critico') {
+                    estadoLabel = 'Crítico';
+                    emoji = '🔴';
+                    colorIndicador = '#ef4444';
+                } else if (estado === 'alerta') {
+                    estadoLabel = 'Alerta';
+                    emoji = '⚠️';
+                    colorIndicador = '#f59e0b';
+                } else if (estado === 'en_progreso') {
+                    estadoLabel = 'En Progreso';
+                    emoji = '🟡';
+                    colorIndicador = '#f1c40f';
+                } else {
+                    estadoLabel = 'Exitoso';
+                    emoji = '🟢';
+                    colorIndicador = '#2ecc71';
+                }
+                
+                // Información de tiempo (Versión B: días hasta fecha de entrega)
+                let tiempoInfo = '';
+                if (diasPara !== null) {
+                    let alertaColor = '#666';
+                    let alertaEmoji = '📅';
+                    let estadoTiempo = '';
+                    
+                    if (diasPara < 0) {
+                        alertaColor = '#dc2626';
+                        alertaEmoji = '🚨';
+                        estadoTiempo = 'FECHA DE ENTREGA VENCIDA';
+                    } else if (diasPara < 30) {
+                        alertaColor = '#ef4444';
+                        alertaEmoji = '🔴';
+                        estadoTiempo = 'URGENTE - Menos de 30 días';
+                    } else if (diasPara < 60) {
+                        alertaColor = '#f59e0b';
+                        alertaEmoji = '⚠️';
+                        estadoTiempo = 'ALERTA - Menos de 60 días';
+                    } else if (diasPara < 90) {
+                        alertaColor = '#f1c40f';
+                        alertaEmoji = '⏳';
+                        estadoTiempo = 'Menos de 90 días';
+                    } else {
+                        estadoTiempo = 'Tiempo suficiente (>90 días)';
+                    }
+                    
+                    const diasMostrar = Math.abs(diasPara);
+                    const textoTiempo = diasPara >= 0 ? `${diasMostrar} días restantes` : `${diasMostrar} días de retraso`;
+                    
+                    tiempoInfo = `<div style="margin-top: 8px; padding: 6px; background-color: ${alertaColor}15; border-left: 3px solid ${alertaColor}; border-radius: 4px;">
+                        <strong style="color: ${alertaColor};">${alertaEmoji} ${estadoTiempo}</strong><br/>
+                        <span style="color: #666;">Fecha entrega comprometida:</span> <strong>${fechaEnt || 'N/A'}</strong><br/>
+                        <span style="color: ${alertaColor};">${textoTiempo}</span>
+                    </div>`;
+                }
+                
+                return `<div style="padding: 8px;">
+                    <strong style="font-size: 13px;">[${codigo}] ${producto}</strong><br/>
+                    <div style="margin-top: 8px; padding: 6px; background-color: ${colorIndicador}22; border-left: 3px solid ${colorIndicador}; border-radius: 4px;">
+                        <strong>${emoji} ${estadoLabel}</strong> - Avance: <strong>${pct.toFixed(1)}%</strong>
+                    </div>
+                    ${tiempoInfo}
+                    <div style="margin-top: 8px;">
+                        <span style="color: #2ecc71;">● Facturado:</span> <strong>$ ${fact.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyFact.toLocaleString('en-US')}</strong><br/>
+                        <span style="color: #f39c12;">● Pendiente:</span> <strong>$ ${pend.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyPend.toLocaleString('en-US')}</strong><br/>
+                        <span style="color: #666;">● Total:</span> <strong>$ ${total.toLocaleString('en-US')}</strong> → Cantidad: <strong>${qtyTotal.toLocaleString('en-US')}</strong>
+                    </div>
+                    <div style="margin-top: 8px; padding: 6px; background: #ffe8e8; border-radius: 4px; text-align: center;">
+                        <small style="color: #c62828;">💡 <strong>Click en la barra</strong> para ver detalle de pedidos pendientes</small>
+                    </div>
+                </div>`;
+            }
+        },
+        grid: { left: '3%', right: '4%', bottom: '3%', top: '20px', containLabel: true },
+        xAxis: {
+            type: 'value',
+            min: 0,
+            axisLabel: { formatter: v => '$ ' + Math.round(v).toLocaleString('en-US') },
+            splitLine: { show: true, lineStyle: { type: 'dashed', color: '#eee' } }
+        },
+        yAxis: {
+            type: 'category',
+            data: productosDisplay,
+            axisLabel: { 
+                interval: 0, 
+                fontSize: 10,
+                formatter: value => value.length > 70 ? value.substring(0, 70) + '...' : value 
+            }
+        },
+        dataZoom: [{
+            type: 'inside',
+            yAxisIndex: 0,
+            filterMode: 'empty',
+            start: 0,
+            end: 100
+        }],
+        series: [
+            { name: 'Total', type: 'bar', barGap: '-100%', barWidth: '22px', itemStyle: { color: '#e9ecef' }, data: totales, animation: false },
+            { name: 'Facturado', type: 'bar', barWidth: '22px', z: 10, data: facturadoSeriesData, itemStyle: { barBorderRadius: 6 } }
+        ],
+        animationDuration: 600
+    };
+
+    productosGraficoChartInstanceEnt.setOption(option, true);
+    
+    // Event handler: Click para drill-down
+    productosGraficoChartInstanceEnt.off('click');
+    productosGraficoChartInstanceEnt.on('click', function(params) {
+        console.log('🔴 CLICK en GRÁFICO B (ENTREGA)', params);
+        if (params.componentType === 'series' && params.seriesName === 'Facturado') {
+            const productoData = datosPagina[params.dataIndex];
+            console.log('📦 Producto data:', productoData);
+            if (productoData) {
+                console.log('➡️ Llamando modal con versión: entrega');
+                mostrarPedidosDelProducto(productoData, 'entrega');
+            }
+        }
+    });
+}
+
+
 // Función para mostrar modal con pedidos pendientes del producto seleccionado
-function mostrarPedidosDelProducto(productoData) {
-    const modal = document.getElementById('modal-pedidos-producto');
-    const titulo = document.getElementById('modal-producto-titulo');
-    const subtitulo = document.getElementById('modal-producto-subtitulo');
-    const container = document.getElementById('modal-pedidos-tabla-container');
+function mostrarPedidosDelProducto(productoData, version = 'entrega') {
+    console.log('🔍 Modal abierto con versión:', version);
+    // Seleccionar el modal correcto según la versión
+    const modalSuffix = version === 'confirmacion' ? '-conf' : '-ent';
+    console.log('📋 Modal suffix:', modalSuffix);
+    const modal = document.getElementById('modal-pedidos-producto' + modalSuffix);
+    const titulo = document.getElementById('modal-producto-titulo' + modalSuffix);
+    const subtitulo = document.getElementById('modal-producto-subtitulo' + modalSuffix);
+    const container = document.getElementById('modal-pedidos-tabla-container' + modalSuffix);
+    
+    console.log('✅ Modal encontrado:', modal ? 'SÍ' : 'NO', '| Container:', container ? 'SÍ' : 'NO');
     
     if (!modal || !container) return;
     
@@ -2608,6 +3080,7 @@ function mostrarPedidosDelProducto(productoData) {
                 cliente_id: p.cliente_id,
                 pais: p.pais,
                 fecha: p.fecha,
+                fecha_confirmacion: p.fecha_confirmacion,
                 linea_comercial: p.linea_comercial,
                 cantidadPendiente: 0,
                 totalPendiente: 0
@@ -2617,35 +3090,57 @@ function mostrarPedidosDelProducto(productoData) {
         pedidosAgrupados[pedidoId].totalPendiente += (p.total_pendiente || 0);
     });
     
-    // Convertir a array y calcular días
+    // Convertir a array y calcular días según versión
     const pedidosArray = Object.values(pedidosAgrupados).map(p => {
-        let diasTranscurridos = null;
-        let diasRestantes = null;
+        let diasCalculado = null;
+        let diasSecundario = null;
+        let fechaUsada = null;
         
-        if (p.fecha) {
-            try {
-                const fechaPedido = new Date(p.fecha);
-                const fechaActual = new Date();
-                const diffTime = fechaActual - fechaPedido;
-                diasTranscurridos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                diasRestantes = 150 - diasTranscurridos;
-            } catch (e) {
-                console.warn('Error calculando días para pedido:', p.pedido, e);
+        if (version === 'confirmacion') {
+            // Versión A: usar fecha_confirmacion (date_order) + política 150 días
+            const fechaConf = p.fecha_confirmacion || p.fecha; // fallback
+            if (fechaConf) {
+                try {
+                    const fechaConfirmacion = new Date(fechaConf);
+                    const fechaActual = new Date();
+                    const diffTime = fechaActual - fechaConfirmacion;
+                    const diasTranscurridos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    const diasRestantes = 150 - diasTranscurridos;
+                    diasCalculado = diasRestantes; // Para ordenamiento usar días restantes
+                    diasSecundario = diasTranscurridos; // Guardar también transcurridos
+                    fechaUsada = fechaConf;
+                } catch (e) {
+                    console.warn('Error calculando días confirmación para pedido:', p.pedido, e);
+                }
+            }
+        } else {
+            // Versión B: usar fecha (commitment_date)
+            if (p.fecha) {
+                try {
+                    const fechaEntrega = new Date(p.fecha);
+                    const fechaActual = new Date();
+                    const diffTime = fechaEntrega - fechaActual;
+                    diasCalculado = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    fechaUsada = p.fecha;
+                } catch (e) {
+                    console.warn('Error calculando días para pedido:', p.pedido, e);
+                }
             }
         }
         
         return {
             ...p,
-            diasTranscurridos,
-            diasRestantes
+            diasCalculado,
+            diasSecundario,
+            fechaUsada
         };
     });
     
-    // Ordenar por días restantes (más críticos primero)
+    // Ordenar por días calculados (más críticos primero: vencidos y próximos a vencer)
     pedidosArray.sort((a, b) => {
-        if (a.diasRestantes === null) return 1;
-        if (b.diasRestantes === null) return -1;
-        return a.diasRestantes - b.diasRestantes;
+        if (a.diasCalculado === null) return 1;
+        if (b.diasCalculado === null) return -1;
+        return a.diasCalculado - b.diasCalculado;
     });
     
     // Generar HTML de la tabla
@@ -2667,9 +3162,9 @@ function mostrarPedidosDelProducto(productoData) {
                         <th style="padding: 14px 12px; text-align: left; font-weight: 600;">Pedido</th>
                         <th style="padding: 14px 12px; text-align: left; font-weight: 600;">Cliente</th>
                         <th style="padding: 14px 12px; text-align: left; font-weight: 600;">País</th>
-                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Fecha Pedido</th>
-                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Días Trans.</th>
-                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">Días Rest.</th>
+                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">${version === 'confirmacion' ? 'Fecha Confirmación' : 'Fecha Entrega'}</th>
+                        <th style="padding: 14px 12px; text-align: center; font-weight: 600;">${version === 'confirmacion' ? 'Días Restantes (150)' : 'Días para Entrega'}</th>
+                        ${version === 'confirmacion' ? '<th style="padding: 14px 12px; text-align: center; font-weight: 600;">Días Transcurridos</th>' : ''}
                         <th style="padding: 14px 12px; text-align: right; font-weight: 600;">Cantidad</th>
                         <th style="padding: 14px 12px; text-align: right; font-weight: 600;">Monto Pendiente</th>
                     </tr>
@@ -2678,45 +3173,106 @@ function mostrarPedidosDelProducto(productoData) {
     `;
     
     pedidosArray.forEach((pedido, index) => {
-        // Calcular estado del pedido basado en días y porcentaje (si aplica)
+        // Calcular estado del pedido basado en días calculados según versión
         let estado = 'exitoso';
         let estadoLabel = 'Exitoso';
         let estadoEmoji = '🟢';
         let estadoColor = '#d1fae5';
         let estadoBorder = '#10b981';
         
-        if (pedido.diasRestantes !== null) {
-            if (pedido.diasRestantes < 0) {
-                estado = 'vencido';
-                estadoLabel = 'VENCIDO';
-                estadoEmoji = '🚨';
-                estadoColor = '#fee2e2';
-                estadoBorder = '#dc2626';
-            } else if (pedido.diasRestantes < 30) {
-                estado = 'critico';
-                estadoLabel = 'Crítico';
-                estadoEmoji = '🔴';
-                estadoColor = '#fee2e2';
-                estadoBorder = '#ef4444';
-            } else if (pedido.diasRestantes < 60) {
-                estado = 'alerta';
-                estadoLabel = 'Alerta';
-                estadoEmoji = '⚠️';
-                estadoColor = '#fef3c7';
-                estadoBorder = '#f59e0b';
-            } else if (pedido.diasRestantes < 90) {
-                estado = 'progreso';
-                estadoLabel = 'En Progreso';
-                estadoEmoji = '🟡';
-                estadoColor = '#fef3c7';
-                estadoBorder = '#f59e0b';
+        if (pedido.diasCalculado !== null) {
+            const dias = pedido.diasCalculado;
+            if (version === 'confirmacion') {
+                // Versión A: días restantes (150 - transcurridos)
+                if (dias < 0) {
+                    estado = 'vencido';
+                    estadoLabel = 'VENCIDO';
+                    estadoEmoji = '🚨';
+                    estadoColor = '#fee2e2';
+                    estadoBorder = '#dc2626';
+                } else if (dias < 30) {
+                    estado = 'critico';
+                    estadoLabel = 'Crítico';
+                    estadoEmoji = '🔴';
+                    estadoColor = '#fee2e2';
+                    estadoBorder = '#ef4444';
+                } else if (dias < 60) {
+                    estado = 'alerta';
+                    estadoLabel = 'Alerta';
+                    estadoEmoji = '⚠️';
+                    estadoColor = '#fef3c7';
+                    estadoBorder = '#f59e0b';
+                } else if (dias < 90) {
+                    estado = 'progreso';
+                    estadoLabel = 'En Progreso';
+                    estadoEmoji = '🟡';
+                    estadoColor = '#fef3c7';
+                    estadoBorder = '#f59e0b';
+                }
+            } else {
+                // Versión B: días para entrega
+                if (dias < 0) {
+                    estado = 'vencido';
+                    estadoLabel = 'VENCIDO';
+                    estadoEmoji = '🚨';
+                    estadoColor = '#fee2e2';
+                    estadoBorder = '#dc2626';
+                } else if (dias < 30) {
+                    estado = 'critico';
+                    estadoLabel = 'Crítico';
+                    estadoEmoji = '🔴';
+                    estadoColor = '#fee2e2';
+                    estadoBorder = '#ef4444';
+                } else if (dias < 60) {
+                    estado = 'alerta';
+                    estadoLabel = 'Alerta';
+                    estadoEmoji = '⚠️';
+                    estadoColor = '#fef3c7';
+                    estadoBorder = '#f59e0b';
+                } else if (dias < 90) {
+                    estado = 'progreso';
+                    estadoLabel = 'En Progreso';
+                    estadoEmoji = '🟡';
+                    estadoColor = '#fef3c7';
+                    estadoBorder = '#f59e0b';
+                }
             }
         }
         
         const rowColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
-        const diasRestMostrar = pedido.diasRestantes !== null ? 
-            (pedido.diasRestantes < 0 ? `<span style="color: #dc2626; font-weight: bold;">${pedido.diasRestantes} ⚠️</span>` : pedido.diasRestantes) 
-            : 'N/A';
+        
+        // Formatear días según versión
+        let diasMostrar = 'N/A';
+        let diasTranscurridosMostrar = '';
+        
+        if (pedido.diasCalculado !== null) {
+            const dias = pedido.diasCalculado;
+            if (version === 'confirmacion') {
+                // Días restantes (política 150)
+                if (dias < 0) {
+                    diasMostrar = `<span style="color: #dc2626; font-weight: bold;">${Math.abs(dias)} días VENCIDO 🚨</span>`;
+                } else if (dias === 0) {
+                    diasMostrar = `<span style="color: #ef4444; font-weight: bold;">HOY ⚠️</span>`;
+                } else {
+                    diasMostrar = `<span style="font-weight: 600;">${dias} días</span>`;
+                }
+                // Días transcurridos
+                if (pedido.diasSecundario !== null) {
+                    diasTranscurridosMostrar = `<td style="padding: 12px; text-align: center;">
+                        <span style="color: #666; font-weight: 500;">${pedido.diasSecundario} días</span>
+                    </td>`;
+                }
+            } else {
+                // Días para entrega
+                if (dias < 0) {
+                    diasMostrar = `<span style="color: #dc2626; font-weight: bold;">${Math.abs(dias)} días VENCIDO 🚨</span>`;
+                } else if (dias === 0) {
+                    diasMostrar = `<span style="color: #ef4444; font-weight: bold;">HOY ⚠️</span>`;
+                } else {
+                    diasMostrar = `<span style="font-weight: 600;">${dias} días</span>`;
+                }
+            }
+        }
         
         tablaHTML += `
             <tr style="background: ${rowColor}; border-bottom: 1px solid #e5e7eb; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${rowColor}'">
@@ -2738,14 +3294,12 @@ function mostrarPedidosDelProducto(productoData) {
                     <span style="color: #666;">${pedido.pais || 'N/A'}</span>
                 </td>
                 <td style="padding: 12px; text-align: center;">
-                    <span style="color: #333; font-family: monospace;">${pedido.fecha || 'N/A'}</span>
+                    <span style="color: #333; font-family: monospace;">${pedido.fechaUsada || pedido.fecha || 'N/A'}</span>
                 </td>
                 <td style="padding: 12px; text-align: center;">
-                    <span style="color: #666; font-weight: 600;">${pedido.diasTranscurridos !== null ? pedido.diasTranscurridos : 'N/A'}</span>
+                    ${diasMostrar}
                 </td>
-                <td style="padding: 12px; text-align: center;">
-                    <span style="font-weight: 600;">${diasRestMostrar}</span>
-                </td>
+                ${diasTranscurridosMostrar}
                 <td style="padding: 12px; text-align: right;">
                     <span style="color: #333; font-weight: 600;">${Math.round(pedido.cantidadPendiente).toLocaleString('en-US')}</span>
                 </td>
@@ -2769,19 +3323,32 @@ function mostrarPedidosDelProducto(productoData) {
     modal.scrollTop = 0;
 }
 
-// Función para cerrar el modal
-function cerrarModalPedidosProducto() {
-    const modal = document.getElementById('modal-pedidos-producto');
+// Función para cerrar el modal de Versión A (Confirmación)
+function cerrarModalPedidosProductoConf() {
+    const modal = document.getElementById('modal-pedidos-producto-conf');
     if (modal) {
         modal.style.display = 'none';
     }
 }
 
-// Cerrar modal al hacer clic fuera de él
+// Función para cerrar el modal de Versión B (Entrega)
+function cerrarModalPedidosProductoEnt() {
+    const modal = document.getElementById('modal-pedidos-producto-ent');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Cerrar modales al hacer clic fuera de ellos
 document.addEventListener('click', function(event) {
-    const modal = document.getElementById('modal-pedidos-producto');
-    if (event.target === modal) {
-        cerrarModalPedidosProducto();
+    const modalConf = document.getElementById('modal-pedidos-producto-conf');
+    const modalEnt = document.getElementById('modal-pedidos-producto-ent');
+    
+    if (event.target === modalConf) {
+        cerrarModalPedidosProductoConf();
+    }
+    if (event.target === modalEnt) {
+        cerrarModalPedidosProductoEnt();
     }
 });
 
@@ -3344,8 +3911,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (bulletClientesCard) bulletClientesCard.style.display = 'block';
         crearGraficoBullet();
         
-        // 6. NUEVO: Crear gráfico de productos si existe
-        crearGraficoBulletProductos();
+        // 6. NUEVO: Crear ambos gráficos de productos (confirmación y entrega)
+        crearGraficoBulletProductosConf();
+        crearGraficoBulletProductosEnt();
     }
     
     // Crear mapa mundial - cargar desde archivo local

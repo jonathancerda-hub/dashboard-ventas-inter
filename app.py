@@ -1043,8 +1043,9 @@ def dashboard():
                     'porcentaje': (data.get('facturado', 0) / total_cliente_meta_val * 100) if total_cliente_meta_val > 0 else 0
                 }
         
-        # --- NUEVO: GRÁFICO DE AVANCE POR PRODUCTO ---
-        products_chart_data = []
+        # --- NUEVO: GRÁFICO DE AVANCE POR PRODUCTO (DOS VERSIONES) ---
+        products_chart_data_confirmacion = []  # Con fecha de confirmación (date_order) + 150 días
+        products_chart_data_entrega = []  # Con fecha de entrega (commitment_date) + días hasta entrega
         if not partner_id:  # Solo mostrar cuando NO hay cliente seleccionado
             # Primero, recopilar toda la información de productos
             product_info = {}
@@ -1052,7 +1053,8 @@ def dashboard():
             pendiente_by_product = {}
             qty_facturada_by_product = {}
             qty_pendiente_by_product = {}
-            fecha_pedido_by_product = {}  # Fecha más antigua del pedido pendiente por producto
+            fecha_entrega_by_product = {}  # commitment_date (fecha de entrega)
+            fecha_confirmacion_by_product = {}  # date_order (fecha de confirmación)
             
             # Procesar datos de ventas
             for s in sales_data_raw:
@@ -1113,17 +1115,30 @@ def dashboard():
                 pendiente_by_product[codigo] = pendiente_by_product.get(codigo, 0) + (p.get('total_pendiente', 0) or 0)
                 qty_pendiente_by_product[codigo] = qty_pendiente_by_product.get(codigo, 0) + (p.get('cantidad_pendiente', 0) or 0)
                 
-                # Guardar la fecha más antigua del pedido pendiente para el producto
-                fecha_pedido_str = p.get('fecha', '')  # Formato: 'YYYY-MM-DD'
-                if fecha_pedido_str:
+                # Guardar AMBAS fechas: entrega (commitment_date) y confirmación (date_order)
+                # Fecha de ENTREGA (commitment_date) - más antigua
+                fecha_entrega_str = p.get('fecha', '')  # commitment_date
+                if fecha_entrega_str:
                     try:
-                        fecha_pedido = datetime.strptime(fecha_pedido_str, '%Y-%m-%d')
-                        # Guardar la fecha más antigua
-                        if codigo not in fecha_pedido_by_product:
-                            fecha_pedido_by_product[codigo] = fecha_pedido
+                        fecha_entrega = datetime.strptime(fecha_entrega_str, '%Y-%m-%d')
+                        if codigo not in fecha_entrega_by_product:
+                            fecha_entrega_by_product[codigo] = fecha_entrega
                         else:
-                            if fecha_pedido < fecha_pedido_by_product[codigo]:
-                                fecha_pedido_by_product[codigo] = fecha_pedido
+                            if fecha_entrega < fecha_entrega_by_product[codigo]:
+                                fecha_entrega_by_product[codigo] = fecha_entrega
+                    except ValueError:
+                        pass
+                
+                # Fecha de CONFIRMACIÓN (date_order) - más antigua
+                fecha_confirmacion_str = p.get('fecha_confirmacion', '')  # date_order
+                if fecha_confirmacion_str:
+                    try:
+                        fecha_confirmacion = datetime.strptime(fecha_confirmacion_str, '%Y-%m-%d')
+                        if codigo not in fecha_confirmacion_by_product:
+                            fecha_confirmacion_by_product[codigo] = fecha_confirmacion
+                        else:
+                            if fecha_confirmacion < fecha_confirmacion_by_product[codigo]:
+                                fecha_confirmacion_by_product[codigo] = fecha_confirmacion
                     except ValueError:
                         pass
                 
@@ -1169,24 +1184,28 @@ def dashboard():
                     # Crear display name sin duplicar el código
                     producto_display = nombre_limpio if nombre_limpio else codigo
                     
-                    # Calcular días transcurridos y restantes desde la fecha del pedido
-                    fecha_pedido = fecha_pedido_by_product.get(codigo)
-                    dias_transcurridos = None
-                    dias_restantes = None
-                    fecha_pedido_str = None
+                    # ==== VERSIÓN 1: Fecha de CONFIRMACIÓN (date_order) + 150 días ====
+                    fecha_conf = fecha_confirmacion_by_product.get(codigo)
+                    dias_transcurridos_conf = None
+                    dias_restantes_conf = None
+                    fecha_conf_str = None
                     
-                    if fecha_pedido:
+                    if fecha_conf:
                         try:
                             fecha_actual = datetime.now()
-                            delta = fecha_actual - fecha_pedido
-                            dias_transcurridos = delta.days
-                            dias_restantes = 150 - dias_transcurridos
-                            fecha_pedido_str = fecha_pedido.strftime('%Y-%m-%d')
+                            if fecha_conf > fecha_actual:
+                                dias_transcurridos_conf = 0
+                                dias_restantes_conf = 150
+                            else:
+                                delta = fecha_actual - fecha_conf
+                                dias_transcurridos_conf = delta.days
+                                dias_restantes_conf = 150 - dias_transcurridos_conf
+                            fecha_conf_str = fecha_conf.strftime('%Y-%m-%d')
                         except Exception as e:
-                            logging.warning(f"Error calculando días para producto {codigo}: {e}")
+                            logging.warning(f"Error calculando días (confirmación) para producto {codigo}: {e}")
                     
-                    products_chart_data.append({
-                        'codigo': codigo,  # Código separado para facilitar copia
+                    products_chart_data_confirmacion.append({
+                        'codigo': codigo,
                         'producto': producto_display,
                         'facturado': facturado,
                         'pendiente': pendiente,
@@ -1197,26 +1216,58 @@ def dashboard():
                         'qty_total': qty_total,
                         'linea_comercial': info.get('linea_comercial', 'Sin Línea'),
                         'categoria': info.get('categoria', 'Sin Categoría'),
-                        'fecha_pedido': fecha_pedido_str,  # Fecha más antigua del pedido pendiente
-                        'dias_transcurridos': dias_transcurridos,  # Días desde la fecha del pedido
-                        'dias_restantes': dias_restantes  # Días restantes para cumplir 150 días
+                        'fecha_pedido': fecha_conf_str,
+                        'dias_transcurridos': dias_transcurridos_conf,
+                        'dias_restantes': dias_restantes_conf
+                    })
+                    
+                    # ==== VERSIÓN 2: Fecha de ENTREGA (commitment_date) + días hasta entrega ====
+                    fecha_ent = fecha_entrega_by_product.get(codigo)
+                    dias_para_entrega = None
+                    fecha_ent_str = None
+                    
+                    if fecha_ent:
+                        try:
+                            fecha_actual = datetime.now()
+                            delta = fecha_ent - fecha_actual
+                            dias_para_entrega = delta.days
+                            fecha_ent_str = fecha_ent.strftime('%Y-%m-%d')
+                        except Exception as e:
+                            logging.warning(f"Error calculando días (entrega) para producto {codigo}: {e}")
+                    
+                    products_chart_data_entrega.append({
+                        'codigo': codigo,
+                        'producto': producto_display,
+                        'facturado': facturado,
+                        'pendiente': pendiente,
+                        'total': total,
+                        'porcentaje': (facturado / total * 100) if total > 0 else 0,
+                        'qty_facturada': qty_facturada,
+                        'qty_pendiente': qty_pendiente,
+                        'qty_total': qty_total,
+                        'linea_comercial': info.get('linea_comercial', 'Sin Línea'),
+                        'categoria': info.get('categoria', 'Sin Categoría'),
+                        'fecha_entrega': fecha_ent_str,
+                        'dias_para_entrega': dias_para_entrega
                     })
             
-            # Debug: verificar duplicados
-            codigos_vistos = set()
-            duplicados = []
-            for item in products_chart_data:
-                if item['producto'] in codigos_vistos:
-                    duplicados.append(item['producto'])
-                codigos_vistos.add(item['producto'])
+            # Debug: verificar duplicados en ambas versiones
+            for nombre_version, dataset in [('Confirmación', products_chart_data_confirmacion), ('Entrega', products_chart_data_entrega)]:
+                codigos_vistos = set()
+                duplicados = []
+                for item in dataset:
+                    if item['codigo'] in codigos_vistos:
+                        duplicados.append(item['codigo'])
+                    codigos_vistos.add(item['codigo'])
+                
+                if duplicados:
+                    logging.warning(f"DEBUG [{nombre_version}]: Productos duplicados encontrados: {duplicados[:5]}")
+                
+                logging.info(f"DEBUG [{nombre_version}]: Total productos únicos: {len(dataset)}")
             
-            if duplicados:
-                logging.warning(f"DEBUG: Productos duplicados encontrados: {duplicados[:5]}")
-            
-            logging.info(f"DEBUG: Total productos únicos: {len(products_chart_data)}")
-            
-            # Ordenar por total descendente (sin límite, el filtro lo hará en frontend)
-            products_chart_data = sorted(products_chart_data, key=lambda x: x['total'], reverse=True)
+            # Ordenar ambos arrays por total descendente
+            products_chart_data_confirmacion = sorted(products_chart_data_confirmacion, key=lambda x: x['total'], reverse=True)
+            products_chart_data_entrega = sorted(products_chart_data_entrega, key=lambda x: x['total'], reverse=True)
         
         # --- MAPA MUNDIAL: VENTAS POR PAÍS Y REGIÓN ---
         
@@ -1380,7 +1431,8 @@ def dashboard():
                              meta_total_kpi=meta_total_general,
                              brecha_comercial=brecha_comercial,
                              bullet_chart_data=bullet_chart_data,
-                             products_chart_data=products_chart_data,  # NUEVO
+                             products_chart_data_confirmacion=products_chart_data_confirmacion,  # Versión con fecha confirmación + 150 días
+                             products_chart_data_entrega=products_chart_data_entrega,  # Versión con fecha entrega + días hasta entrega
                              orders_chart_data=orders_chart_data,
                              avance_cliente_seleccionado=avance_cliente_seleccionado,
                              drilldown_titles=drilldown_titles,
@@ -1461,7 +1513,22 @@ def dashboard():
                              avance_lineal_pct=0,
                              faltante_meta=0,
                              avance_lineal_ipn_pct=0,
-                             faltante_meta_ipn=0)
+                             faltante_meta_ipn=0,
+                             pending_data=[],
+                             products_chart_data_confirmacion=[],
+                             products_chart_data_entrega=[],
+                             orders_chart_data=[],
+                             datos_mapa_mundial=[],
+                             aggregated_advance={
+                                 'facturado_total': 0,
+                                 'pendiente_total': 0,
+                                 'meta_total': 0,
+                                 'porcentaje_facturado_sobre_meta': 0,
+                                 'porcentaje_proyectado_sobre_meta': 0
+                             },
+                             productos_por_linea={},
+                             años_disponibles=list(range(2025, datetime.now().year + 2)),
+                             año_seleccionado=datetime.now().year)
 
 @app.route('/dashboard_linea')
 def dashboard_linea():

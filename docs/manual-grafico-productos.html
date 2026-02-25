@@ -602,8 +602,8 @@
                     <h3>📋 Definición de la Política</h3>
                     <p style="font-size: 1.1rem; line-height: 1.8; margin-bottom: 20px;">
                         La empresa tiene establecida una política de despacho que estipula que todos los pedidos deben ser 
-                        completamente facturados y despachados en un plazo máximo de <strong>150 días</strong> desde la fecha 
-                        de confirmación del pedido en los estados: <strong>credit</strong>, <strong>sale</strong> o <strong>done</strong>.
+                        completamente facturados y despachados en un plazo máximo de <strong>150 días</strong> desde la <strong>fecha 
+                        de entrega comprometida</strong> (commitment_date) del pedido en los estados: <strong>credit</strong>, <strong>sale</strong> o <strong>done</strong>.
                     </p>
                 </div>
                 
@@ -611,8 +611,8 @@
                 <div class="timeline">
                     <div class="timeline-item left">
                         <div class="timeline-badge">📝</div>
-                        <h4>Día 0: Confirmación del Pedido</h4>
-                        <p>El pedido entra en estado <strong>credit</strong>, <strong>sale</strong> o <strong>done</strong>. Se registra la fecha de confirmación (campo <code>date_order</code> en Odoo).</p>
+                        <h4>Día 0: Fecha de Entrega Comprometida</h4>
+                        <p>El pedido entra en estado <strong>credit</strong>, <strong>sale</strong> o <strong>done</strong>. Se registra la <strong>fecha de entrega comprometida al cliente</strong> (campo <code>commitment_date</code> en Odoo). A partir de esta fecha comienzan a contar los 150 días.</p>
                     </div>
                     
                     <div class="timeline-item right">
@@ -642,14 +642,25 @@
                 
                 <h3>🔢 Cálculo de Días</h3>
                 <div class="formula">
-                    <strong>Días Transcurridos</strong> = Fecha Actual - Fecha de Confirmación del Pedido<br/>
-                    <strong>Días Restantes</strong> = 150 - Días Transcurridos<br/><br/>
+                    <strong>SI</strong> Fecha de Entrega > Fecha Actual <span class="comment">(entrega en el futuro)</span>:<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<strong>Días Transcurridos</strong> = 0<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<strong>Días Restantes</strong> = 150<br/><br/>
                     
-                    <span class="comment">// Ejemplo:</span><br/>
-                    <span class="keyword">Fecha Pedido:</span> <span class="string">2026-01-01</span><br/>
-                    <span class="keyword">Fecha Actual:</span> <span class="string">2026-02-23</span><br/>
-                    <span class="keyword">Días Transcurridos:</span> <span class="number">53</span> días<br/>
-                    <span class="keyword">Días Restantes:</span> <span class="number">97</span> días
+                    <strong>SI</strong> Fecha de Entrega ≤ Fecha Actual <span class="comment">(entrega en el pasado o hoy)</span>:<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<strong>Días Transcurridos</strong> = Fecha Actual - Fecha de Entrega<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<strong>Días Restantes</strong> = 150 - Días Transcurridos<br/><br/>
+                    
+                    <span class="comment">// Ejemplo 1: Fecha de entrega futura</span><br/>
+                    <span class="keyword">Fecha Entrega:</span> <span class="string">2026-03-31</span><br/>
+                    <span class="keyword">Fecha Actual:</span> <span class="string">2026-02-24</span><br/>
+                    <span class="keyword">Días Transcurridos:</span> <span class="number">0</span> días <span class="comment">(plazo aún no comienza)</span><br/>
+                    <span class="keyword">Días Restantes:</span> <span class="number">150</span> días<br/><br/>
+                    
+                    <span class="comment">// Ejemplo 2: Fecha de entrega pasada</span><br/>
+                    <span class="keyword">Fecha Entrega:</span> <span class="string">2026-01-01</span><br/>
+                    <span class="keyword">Fecha Actual:</span> <span class="string">2026-02-24</span><br/>
+                    <span class="keyword">Días Transcurridos:</span> <span class="number">54</span> días<br/>
+                    <span class="keyword">Días Restantes:</span> <span class="number">96</span> días
                 </div>
             </div>
             
@@ -1094,7 +1105,7 @@
                         <p>
                             <strong>Facturado:</strong> Suma de <code>amount_currency</code> de <code>account.move.line</code> (facturas confirmadas)<br/>
                             <strong>Pendiente:</strong> Suma de <code>qty_to_invoice * price_unit</code> de <code>sale.order.line</code> (estados: credit, sale, done)<br/>
-                            <strong>Fecha:</strong> Campo <code>date_order</code> del <code>sale.order</code> asociado<br/>
+                            <strong>Fecha:</strong> Campo <code>commitment_date</code> del <code>sale.order</code> asociado (fecha de entrega comprometida)<br/>
                             <strong>Código Producto:</strong> Campo <code>default_code</code> del <code>product.product</code> (usado como key única)
                         </p>
                     </div>
