@@ -14,14 +14,74 @@ from datetime import datetime, timedelta
 from openpyxl.worksheet.table import Table, TableStyleInfo
 import logging
 
+# Google OAuth2
+from google_auth_oauthlib.flow import Flow
+from google.auth.transport import requests as google_requests
+import pathlib
+import google.auth.transport.requests
+import google.oauth2.id_token
+from pip._vendor import cachecontrol
+
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
+
+# Detección automática de entorno
+def is_production():
+    """Detecta si la aplicación está ejecutándose en producción"""
+    # Método 1: Variable de entorno FLASK_ENV
+    flask_env = os.getenv('FLASK_ENV', 'development').lower()
+    if flask_env == 'production':
+        return True
+    
+    # Método 2: Detectar si está en Render.com o similar
+    if os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('HEROKU'):
+        return True
+    
+    # Método 3: Por defecto, si no se especifica, es desarrollo
+    return False
+
+# Configurar entorno
+IS_PRODUCTION = is_production()
+PRODUCTION_URL = os.getenv('PRODUCTION_URL', 'https://dashboard-ventas-inter.onrender.com')
+
+# Configuración OAuth2 de Google
+if not IS_PRODUCTION:
+    # Solo en desarrollo local, permitir HTTP
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    BASE_URL = 'http://localhost:5000'
+    app.logger.info("🔧 Entorno: DESARROLLO (local)")
+else:
+    BASE_URL = PRODUCTION_URL
+    app.logger.info(f"🚀 Entorno: PRODUCCIÓN ({BASE_URL})")
+
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+
+client_secrets = {
+    "web": {
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "redirect_uris": [
+            f"{BASE_URL}/login/callback",  # Configuración dinámica
+        ]
+    }
+}
 
 # Configuración de sesión
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
+# Configuración de seguridad adicional para producción
+if IS_PRODUCTION:
+    app.config['SESSION_COOKIE_SECURE'] = True  # Solo HTTPS en producción
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+else:
+    app.config['SESSION_COOKIE_SECURE'] = False  # Permitir HTTP en local
 
 # --- Configuración de Caché ---
 cache_config = {
@@ -154,46 +214,94 @@ def get_meses_del_año(año):
         meses_disponibles.append({'key': mes_key, 'nombre': mes_nombre})
     return meses_disponibles
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login')
 def login():
-    if request.method == 'POST':
-        try:
-            # Cargar la lista de usuarios permitidos desde el archivo JSON
-            with open('allowed_users.json', 'r') as f:
-                allowed_emails = json.load(f).get('allowed_emails', [])
-
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
-            user_data = data_manager.authenticate_user(username, password)
-
-            if user_data:
-                # Verificar si el email del usuario está en la lista de permitidos
-                user_login = user_data.get('login')
-                
-                if user_login in allowed_emails:
-                    session['username'] = user_data.get('login', username)
-                    session['user_name'] = user_data.get('name', username)
-                    session.permanent = True  # Hacer la sesión permanente
-                    app.logger.info(f"Login exitoso: {session['username']}")
-                    # flash('¡Inicio de sesión exitoso!', 'success')  # Mensaje deshabilitado
-                    return redirect(url_for('dashboard'))
-                else:
-                    app.logger.warning(f"Usuario {user_login} no autorizado")
-                    flash('No tienes permiso para acceder a esta aplicación.', 'danger')
-                    return render_template('login.html')
-            else:
-                app.logger.warning(f"Autenticación fallida para: {username}")
-                flash('Usuario o contraseña incorrectos.', 'danger')
-                return render_template('login.html')
-        except FileNotFoundError:
-            app.logger.error("Archivo allowed_users.json no encontrado")
-            flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
-        except Exception as e:
-            app.logger.error(f"Error en login: {e}", exc_info=True)
-            flash(f'Ocurrió un error inesperado: {e}', 'danger')
-    
+    """Página de login que redirige a Google OAuth2"""
     return render_template('login.html')
+
+@app.route('/login/google')
+def login_google():
+    """Inicia el flujo de autenticación OAuth2 con Google"""
+    try:
+        flow = Flow.from_client_config(
+            client_secrets,
+            scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
+            redirect_uri=url_for('callback', _external=True)
+        )
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='select_account'
+        )
+        
+        session['state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        app.logger.error(f"Error iniciando OAuth2: {e}", exc_info=True)
+        flash(f'Error al intentar iniciar sesión con Google: {e}', 'danger')
+        return redirect(url_for('login'))
+
+@app.route('/login/callback')
+def callback():
+    """Maneja la respuesta de Google OAuth2"""
+    try:
+        # Verificar state para prevenir CSRF
+        if 'state' not in session or request.args.get('state') != session['state']:
+            flash('Error de validación. Por favor, intenta de nuevo.', 'danger')
+            return redirect(url_for('login'))
+        
+        flow = Flow.from_client_config(
+            client_secrets,
+            scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
+            state=session['state'],
+            redirect_uri=url_for('callback', _external=True)
+        )
+        
+        # Obtener token con el código de autorización
+        flow.fetch_token(authorization_response=request.url)
+        
+        # Obtener credenciales
+        credentials = flow.credentials
+        
+        # Verificar el token ID
+        request_adapter = google_requests.Request()
+        id_info = google.oauth2.id_token.verify_oauth2_token(
+            credentials.id_token,
+            request_adapter,
+            GOOGLE_CLIENT_ID
+        )
+        
+        # Extraer información del usuario
+        user_email = id_info.get('email')
+        user_name = id_info.get('name')
+        user_picture = id_info.get('picture')
+        
+        # Cargar lista de usuarios permitidos
+        with open('allowed_users.json', 'r') as f:
+            allowed_emails = json.load(f).get('allowed_emails', [])
+        
+        # Verificar si el usuario está autorizado
+        if user_email in allowed_emails:
+            session['username'] = user_email
+            session['user_name'] = user_name
+            session['user_picture'] = user_picture
+            session.permanent = True
+            app.logger.info(f"Login OAuth2 exitoso: {user_email}")
+            return redirect(url_for('dashboard'))
+        else:
+            app.logger.warning(f"Usuario {user_email} no autorizado")
+            flash(f'El usuario {user_email} no tiene permiso para acceder a esta aplicación.', 'danger')
+            return redirect(url_for('login'))
+            
+    except FileNotFoundError:
+        app.logger.error("Archivo allowed_users.json no encontrado")
+        flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
+        return redirect(url_for('login'))
+    except Exception as e:
+        app.logger.error(f"Error en callback OAuth2: {e}", exc_info=True)
+        flash(f'Error al completar inicio de sesión: {str(e)}', 'danger')
+        return redirect(url_for('login'))
 
 @app.route('/logout')
 def logout():
@@ -2563,7 +2671,21 @@ def export_dashboard_details():
 
 if __name__ == '__main__':
     # Startup info via logger instead of print
-    app.logger.info("Iniciando Dashboard de Ventas Farmacéuticas...")
-    app.logger.info("Disponible en: http://127.0.0.1:5000")
-    app.logger.info("Usuario: configurado en .env")
-    app.run(debug=True)
+    app.logger.info("=" * 60)
+    app.logger.info("🏥 Dashboard de Ventas Farmacéuticas - Agrovet Market")
+    app.logger.info("=" * 60)
+    
+    if IS_PRODUCTION:
+        app.logger.info(f"🚀 Entorno: PRODUCCIÓN")
+        app.logger.info(f"🌐 URL: {BASE_URL}")
+        app.logger.info(f"🔒 HTTPS: Habilitado")
+        app.logger.info(f"🔐 OAuth2: {BASE_URL}/login/callback")
+        app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False)
+    else:
+        app.logger.info(f"🔧 Entorno: DESARROLLO (local)")
+        app.logger.info(f"🌐 URL: http://127.0.0.1:5000")
+        app.logger.info(f"🔓 HTTP: Permitido (solo desarrollo)")
+        app.logger.info(f"🔐 OAuth2: http://localhost:5000/login/callback")
+        app.logger.info(f"👤 Usuarios: Ver allowed_users.json")
+        app.logger.info("=" * 60)
+        app.run(debug=True)
