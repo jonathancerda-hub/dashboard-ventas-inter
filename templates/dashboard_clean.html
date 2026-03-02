@@ -331,7 +331,22 @@
         <div class="chart-container">
             <canvas id="grafico-productos"></canvas>
         </div>
-    </div>        <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
+    </div>
+    
+    <!-- Gráfico de Productos PENDIENTES (Barras Horizontales) -->
+    <div class="grafico-productos">
+        <h3 id="titulo-productos-pendientes">
+            Top Pendientes por Entregar
+            <button id="btn-reset-productos-pendientes" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductosPendientes()">
+                ✕ Ver Todos
+            </button>
+        </h3>
+        <div class="chart-container">
+            <canvas id="grafico-productos-pendientes"></canvas>
+        </div>
+    </div>
+    
+        <!-- Gráfico de Líneas Comerciales (Barras Verticales) -->
         <div class="grafico-lineas">
             <h3>Venta Internacional del Año por Línea Comercial</h3>
             <div class="chart-container">
@@ -1328,6 +1343,8 @@ body {
 const datosLineas = {{ datos_lineas|default([])|tojson|safe }};
 const datosProductos = {{ datos_productos|default([])|tojson|safe }};
 const productosPorLinea = {{ productos_por_linea|default({})|tojson|safe }};
+const datosProductosPendientes = {{ datos_productos_pendientes|default([])|tojson|safe }};
+const productosPendientesPorLinea = {{ productos_pendientes_por_linea|default({})|tojson|safe }};
 const datosFormaFarmaceutica = {{ datos_forma_farmaceutica|default([])|tojson|safe }};
 const drilldownData = {{ drilldown_data|default({})|tojson|safe }};
 const drilldownTitles = {{ drilldown_titles|default({})|tojson|safe }};
@@ -1501,6 +1518,8 @@ function crearGraficoPedidos(clienteId) {
 
 // Gráfico de Productos (Barras Horizontales)
 let productosChart = null; // Variable global para la instancia del gráfico
+let productosPendientesChart = null; // Variable global para gráfico de pendientes
+
 function crearGraficoProductos(productosData) {
     const ctx = document.getElementById('grafico-productos').getContext('2d');
     
@@ -1579,6 +1598,91 @@ function resetearProductos() {
     const btnReset = document.getElementById('btn-reset-productos');
     if (btnReset) {
         btnReset.style.display = 'none';
+    }
+}
+
+// Gráfico de Productos PENDIENTES (Barras Horizontales)
+function crearGraficoProductosPendientes(productosData) {
+    const ctx = document.getElementById('grafico-productos-pendientes');
+    if (!ctx) return; // Si no existe el elemento, salir
+    
+    const context2d = ctx.getContext('2d');
+    
+    // Si no se pasan datos, usar los datos iniciales
+    if (!productosData) {
+        productosData = datosProductosPendientes.map(p => ({nombre: p.nombre, total_pendiente: p.total_pendiente}));
+    }
+
+    const labels = productosData.map(item => (item.nombre || item[0]).length > 20 ? (item.nombre || item[0]).substring(0, 20) + '...' : (item.nombre || item[0]));
+    const data = productosData.map(item => item.total_pendiente || item[1] || 0);
+    
+    // Si el gráfico ya existe, lo destruimos para crearlo de nuevo
+    if (productosPendientesChart) {
+        productosPendientesChart.destroy();
+    }
+
+    productosPendientesChart = new Chart(context2d, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Pendiente',
+                data: data,
+                backgroundColor: '#f39c12',
+                borderColor: '#e67e22',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y', // Barras horizontales
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => 'Pendiente: $ ' + Math.round(context.parsed.x || 0).toLocaleString('en-US')
+                    }
+                },
+                datalabels: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$ ' + Math.round(value).toLocaleString('en-US');
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Función para resetear el filtro de productos pendientes y mostrar todos
+function resetearProductosPendientes() {
+    // Restaurar datos originales
+    crearGraficoProductosPendientes();
+    
+    // Restaurar título
+    const tituloProductosPendientes = document.getElementById('titulo-productos-pendientes');
+    if (tituloProductosPendientes) {
+        tituloProductosPendientes.innerHTML = `Top Pendientes por Entregar
+            <button id="btn-reset-productos-pendientes" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductosPendientes()">
+                ✕ Ver Todos
+            </button>`;
+        tituloProductosPendientes.style.color = '';
+    }
+    
+    // Ocultar botón de reset
+    const btnResetPendientes = document.getElementById('btn-reset-productos-pendientes');
+    if (btnResetPendientes) {
+        btnResetPendientes.style.display = 'none';
     }
 }
 
@@ -3920,6 +4024,7 @@ function cambiarAño(año) {
 // Inicializar gráficos cuando la página carga
 document.addEventListener('DOMContentLoaded', function() {
     crearGraficoProductos();
+    crearGraficoProductosPendientes();
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica();
     crearGraficoDrilldown();

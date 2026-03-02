@@ -825,6 +825,53 @@ def dashboard():
                 {'nombre': nombre, 'venta': venta} for nombre, venta in top_productos if venta > 0
             ]
         
+        # Generar datos para el gráfico de productos PENDIENTES (Top 7)
+        pendientes_por_producto = {}
+        producto_pendiente_a_linea = {}
+        for pending in pending_data:
+            nombre_producto = pending.get('producto', 'Producto Sin Nombre')
+            total_pendiente = pending.get('total_pendiente', 0)
+            linea_comercial = pending.get('linea_comercial', 'Sin Línea')
+            
+            if nombre_producto not in pendientes_por_producto:
+                pendientes_por_producto[nombre_producto] = 0
+                producto_pendiente_a_linea[nombre_producto] = linea_comercial
+            
+            pendientes_por_producto[nombre_producto] += total_pendiente
+        
+        # Ordenar y tomar top 7 productos pendientes
+        productos_pendientes_ordenados = sorted(pendientes_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
+        datos_productos_pendientes = []
+        for nombre_producto, total_pendiente in productos_pendientes_ordenados:
+            if total_pendiente > 0:
+                datos_productos_pendientes.append({
+                    'nombre': nombre_producto,
+                    'total_pendiente': total_pendiente,
+                    'linea_comercial': producto_pendiente_a_linea.get(nombre_producto, 'Sin Línea')
+                })
+        
+        # Crear diccionario completo de productos pendientes por línea comercial
+        productos_pendientes_por_linea = {}
+        for pending in pending_data:
+            linea = pending.get('linea_comercial', 'Sin Línea')
+            producto = pending.get('producto', 'Producto Sin Nombre')
+            total_pendiente = pending.get('total_pendiente', 0)
+            
+            if linea not in productos_pendientes_por_linea:
+                productos_pendientes_por_linea[linea] = {}
+            
+            if producto not in productos_pendientes_por_linea[linea]:
+                productos_pendientes_por_linea[linea][producto] = 0
+            productos_pendientes_por_linea[linea][producto] += total_pendiente
+        
+        # Convertir a formato para JavaScript (Top 7 por cada línea)
+        productos_pendientes_por_linea_top = {}
+        for linea, productos in productos_pendientes_por_linea.items():
+            top_productos_pendientes = sorted(productos.items(), key=lambda x: x[1], reverse=True)[:7]
+            productos_pendientes_por_linea_top[linea] = [
+                {'nombre': nombre, 'total_pendiente': total} for nombre, total in top_productos_pendientes if total > 0
+            ]
+        
         # Calcular KPIs adicionales
         unique_clients = len(set(sale['cliente'] for sale in sales_data_international if sale.get('cliente')))
         total_products = len(set(sale['producto'] for sale in sales_data_international if sale.get('producto')))
@@ -1530,6 +1577,8 @@ def dashboard():
                              datos_lineas_tabla=datos_lineas_tabla,
                              datos_productos=datos_productos,
                              productos_por_linea=productos_por_linea_top,
+                             datos_productos_pendientes=datos_productos_pendientes,
+                             productos_pendientes_por_linea=productos_pendientes_por_linea_top,
                              datos_forma_farmaceutica=datos_forma_farmaceutica,
                              drilldown_data=drilldown_data,                             
                              total_sales=total_sales_year + total_por_facturar, # Suma de facturado + por facturar
@@ -1604,6 +1653,8 @@ def dashboard():
                              datos_lineas=[],
                              datos_lineas_tabla=[],
                              datos_productos=[],
+                             datos_productos_pendientes=[],
+                             productos_pendientes_por_linea={},
                              datos_forma_farmaceutica=[],
                              total_sales=0,
                              unique_clients=0,
