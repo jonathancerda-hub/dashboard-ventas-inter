@@ -281,8 +281,9 @@ def callback():
         with open('allowed_users.json', 'r') as f:
             allowed_emails = json.load(f).get('allowed_emails', [])
         
-        # Verificar si el usuario está autorizado
-        if user_email in allowed_emails:
+        # Verificar si el usuario está autorizado (case-insensitive)
+        allowed_emails_lower = [email.lower() for email in allowed_emails]
+        if user_email.lower() in allowed_emails_lower:
             session['username'] = user_email
             session['user_name'] = user_name
             session['user_picture'] = user_picture
