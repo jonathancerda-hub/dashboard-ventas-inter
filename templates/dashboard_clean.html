@@ -1616,13 +1616,15 @@ function crearGraficoProductosPendientes(productosData) {
         productosData = datosProductosPendientes.map(p => ({
             nombre: p.nombre, 
             total_pendiente: p.total_pendiente,
-            cantidad_pendiente: p.cantidad_pendiente
+            cantidad_pendiente: p.cantidad_pendiente,
+            linea_comercial: p.linea_comercial
         }));
     }
 
     const labels = productosData.map(item => (item.nombre || item[0]).length > 20 ? (item.nombre || item[0]).substring(0, 20) + '...' : (item.nombre || item[0]));
     const data = productosData.map(item => item.total_pendiente || item[1] || 0);
     const cantidades = productosData.map(item => item.cantidad_pendiente || 0);
+    const lineasComerciales = productosData.map(item => item.linea_comercial || 'Sin Línea');
     
     // Si el gráfico ya existe, lo destruimos para crearlo de nuevo
     if (productosPendientesChart) {
@@ -1639,7 +1641,8 @@ function crearGraficoProductosPendientes(productosData) {
                 backgroundColor: '#f39c12',
                 borderColor: '#e67e22',
                 borderWidth: 1,
-                cantidades: cantidades  // Almacenar cantidades para el tooltip
+                cantidades: cantidades,  // Almacenar cantidades para el tooltip
+                lineasComerciales: lineasComerciales  // Almacenar líneas comerciales para el tooltip
             }]
         },
         options: {
@@ -1655,9 +1658,12 @@ function crearGraficoProductosPendientes(productosData) {
                         label: function(context) {
                             const monto = Math.round(context.parsed.x || 0).toLocaleString('en-US');
                             const cantidad = context.dataset.cantidades[context.dataIndex];
+                            const lineaComercial = context.dataset.lineasComerciales[context.dataIndex];
                             return [
-                                'Monto: $ ' + monto,
-                                'Unidades: ' + Math.round(cantidad).toLocaleString('en-US')
+                                '💰 Monto: $ ' + monto,
+                                '📦 Unidades: ' + Math.round(cantidad).toLocaleString('en-US'),
+                                '🏷️ Línea: ' + lineaComercial
+                            ];
                             ];
                         }
                     }
