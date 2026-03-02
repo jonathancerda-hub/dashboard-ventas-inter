@@ -178,12 +178,19 @@
                 <div class="avance-agrupado-card" style="margin-top:16px;">
                     <div class="avance-cliente-card">
                         <h3>Avance de Facturación - Total Clientes</h3>
-                        <div class="progress-bar-container">
-                            {% set pct_total = aggregated_advance.porcentaje_facturado_sobre_meta if aggregated_advance and aggregated_advance.porcentaje_facturado_sobre_meta is defined else 0 %}
-                            {% set color_class_total = 'progress-bar-green' if pct_total >= 80 else ('progress-bar-yellow' if pct_total >= 40 else 'progress-bar-red') %}
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-container"
+                                 data-facturado="{{ aggregated_advance.facturado_total if aggregated_advance and aggregated_advance.facturado_total is defined else 0 }}"
+                                 data-meta="{{ aggregated_advance.meta_total if aggregated_advance and aggregated_advance.meta_total is defined else 0 }}">
+                                {% set pct_total = aggregated_advance.porcentaje_facturado_sobre_meta if aggregated_advance and aggregated_advance.porcentaje_facturado_sobre_meta is defined else 0 %}
+                                {% set color_class_total = 'progress-bar-green' if pct_total >= 80 else ('progress-bar-yellow' if pct_total >= 40 else 'progress-bar-red') %}
 
-                            <div class="progress-bar {{ color_class_total }}" style="width: {{ pct_total }}%;">
-                                <span>{{ "%.1f"|format(pct_total) }}%</span>
+                                <div class="progress-bar {{ color_class_total }}" style="width: {{ pct_total }}%;">
+                                    <span>{{ "%.1f"|format(pct_total) }}%</span>
+                                </div>
+                            </div>
+                            <div class="progress-tooltip" id="tooltip-avance-total">
+                                <!-- Contenido generado dinámicamente por JavaScript -->
                             </div>
                         </div>
                         <div class="progress-labels">
@@ -656,6 +663,67 @@
     font-size: 14px;
     color: #555;
     padding: 0 5px;
+}
+
+/* Tooltip para avance esperado */
+.progress-bar-wrapper {
+    position: relative;
+    cursor: help;
+}
+
+.progress-tooltip {
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(44, 62, 80, 0.95);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    pointer-events: none;
+}
+
+.progress-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: rgba(44, 62, 80, 0.95);
+}
+
+.progress-bar-wrapper:hover .progress-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.tooltip-line {
+    margin: 4px 0;
+}
+
+.tooltip-highlight {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.tooltip-success {
+    color: #2ecc71;
+}
+
+.tooltip-warning {
+    color: #f39c12;
+}
+
+.tooltip-danger {
+    color: #e74c3c;
 }
 
 .disabled-link {
@@ -4247,6 +4315,105 @@ function filtrarPorCliente(partnerId) {
         window.location.href = `?cliente_id=${partnerId}&año=${document.getElementById('filtro-año') ? document.getElementById('filtro-año').value : '2025'}`;
     }
 }
+
+// Calcular y mostrar el avance esperado en el tooltip
+function calcularAvanceEsperado() {
+    const container = document.querySelector('[data-facturado][data-meta]');
+    const tooltip = document.getElementById('tooltip-avance-total');
+    
+    if (!container || !tooltip) return;
+    
+    const facturado = parseFloat(container.getAttribute('data-facturado')) || 0;
+    const metaTotal = parseFloat(container.getAttribute('data-meta')) || 0;
+    
+    if (metaTotal === 0) return;
+    
+    // Obtener año actual del filtro o usar año actual
+    const añoActual = document.getElementById('filtro-año') ? 
+        parseInt(document.getElementById('filtro-año').value) : 
+        new Date().getFullYear();
+    
+    // Calcular días del año y días transcurridos
+    const inicioAño = new Date(añoActual, 0, 1);
+    const ahora = new Date();
+    const finAño = new Date(añoActual, 11, 31);
+    
+    // Si la fecha actual es de un año diferente al seleccionado, no mostrar tooltip
+    if (ahora.getFullYear() !== añoActual) {
+        tooltip.innerHTML = `
+            <div class="tooltip-line">📅 <strong>Año seleccionado:</strong> ${añoActual}</div>
+            <div class="tooltip-line" style="color: #95a5a6; font-size: 12px; margin-top: 5px;">
+                No se puede calcular avance esperado para años pasados o futuros
+            </div>
+        `;
+        return;
+    }
+    
+    const diasTranscurridos = Math.floor((ahora - inicioAño) / (1000 * 60 * 60 * 24)) + 1;
+    const diasTotalesAño = Math.floor((finAño - inicioAño) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Calcular avance esperado
+    const porcentajeEsperado = (diasTranscurridos / diasTotalesAño) * 100;
+    const montoEsperado = metaTotal * (porcentajeEsperado / 100);
+    
+    // Calcular avance real
+    const porcentajeReal = (facturado / metaTotal) * 100;
+    
+    // Calcular diferencia
+    const diferencia = facturado - montoEsperado;
+    const diferenciaPorcentaje = porcentajeReal - porcentajeEsperado;
+    
+    // Determinar estado y clase CSS
+    let estadoTexto, estadoClase, estadoIcono;
+    if (diferencia > 0) {
+        estadoTexto = `Adelantados: $ ${diferencia.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        estadoClase = 'tooltip-success';
+        estadoIcono = '✅';
+    } else if (diferencia < 0) {
+        estadoTexto = `Atrasados: $ ${Math.abs(diferencia).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        estadoClase = 'tooltip-danger';
+        estadoIcono = '⚠️';
+    } else {
+        estadoTexto = 'Justo en meta esperada';
+        estadoClase = 'tooltip-success';
+        estadoIcono = '✅';
+    }
+    
+    // Formatear fecha actual
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const fechaTexto = `${ahora.getDate()} ${meses[ahora.getMonth()]} ${añoActual}`;
+    
+    // Generar contenido del tooltip
+    tooltip.innerHTML = `
+        <div class="tooltip-line" style="border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; margin-bottom: 6px;">
+            <strong>📊 Avance Diario Esperado</strong>
+        </div>
+        <div class="tooltip-line">📅 <strong>Fecha actual:</strong> ${fechaTexto}</div>
+        <div class="tooltip-line">⏱️ Días transcurridos: ${diasTranscurridos} de ${diasTotalesAño}</div>
+        <div class="tooltip-line" style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.2);">
+            <strong>Avance esperado hoy:</strong>
+        </div>
+        <div class="tooltip-line tooltip-highlight">
+            ${porcentajeEsperado.toFixed(1)}% ($ ${montoEsperado.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})
+        </div>
+        <div class="tooltip-line" style="margin-top: 6px;">
+            <strong>Avance real actual:</strong> ${porcentajeReal.toFixed(1)}%
+        </div>
+        <div class="tooltip-line tooltip-highlight ${estadoClase}" style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.2);">
+            ${estadoIcono} ${estadoTexto}
+        </div>
+        ${diferenciaPorcentaje !== 0 ? `
+        <div class="tooltip-line" style="font-size: 12px; color: #ecf0f1; margin-top: 4px;">
+            (${diferenciaPorcentaje > 0 ? '+' : ''}${diferenciaPorcentaje.toFixed(1)}% vs esperado)
+        </div>
+        ` : ''}
+    `;
+}
+
+// Ejecutar al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    calcularAvanceEsperado();
+});
 </script>
 
 {% endblock %}
