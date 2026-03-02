@@ -1610,11 +1610,16 @@ function crearGraficoProductosPendientes(productosData) {
     
     // Si no se pasan datos, usar los datos iniciales
     if (!productosData) {
-        productosData = datosProductosPendientes.map(p => ({nombre: p.nombre, total_pendiente: p.total_pendiente}));
+        productosData = datosProductosPendientes.map(p => ({
+            nombre: p.nombre, 
+            total_pendiente: p.total_pendiente,
+            cantidad_pendiente: p.cantidad_pendiente
+        }));
     }
 
     const labels = productosData.map(item => (item.nombre || item[0]).length > 20 ? (item.nombre || item[0]).substring(0, 20) + '...' : (item.nombre || item[0]));
     const data = productosData.map(item => item.total_pendiente || item[1] || 0);
+    const cantidades = productosData.map(item => item.cantidad_pendiente || 0);
     
     // Si el gráfico ya existe, lo destruimos para crearlo de nuevo
     if (productosPendientesChart) {
@@ -1630,7 +1635,8 @@ function crearGraficoProductosPendientes(productosData) {
                 data: data,
                 backgroundColor: '#f39c12',
                 borderColor: '#e67e22',
-                borderWidth: 1
+                borderWidth: 1,
+                cantidades: cantidades  // Almacenar cantidades para el tooltip
             }]
         },
         options: {
@@ -1643,7 +1649,14 @@ function crearGraficoProductosPendientes(productosData) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context) => 'Pendiente: $ ' + Math.round(context.parsed.x || 0).toLocaleString('en-US')
+                        label: function(context) {
+                            const monto = Math.round(context.parsed.x || 0).toLocaleString('en-US');
+                            const cantidad = context.dataset.cantidades[context.dataIndex];
+                            return [
+                                'Monto: $ ' + monto,
+                                'Unidades: ' + Math.round(cantidad).toLocaleString('en-US')
+                            ];
+                        }
                     }
                 },
                 datalabels: {

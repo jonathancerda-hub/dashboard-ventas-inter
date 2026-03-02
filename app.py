@@ -831,45 +831,57 @@ def dashboard():
         for pending in pending_data:
             nombre_producto = pending.get('producto', 'Producto Sin Nombre')
             total_pendiente = pending.get('total_pendiente', 0)
+            cantidad_pendiente = pending.get('cantidad_pendiente', 0)
             linea_comercial = pending.get('linea_comercial', 'Sin Línea')
             
             if nombre_producto not in pendientes_por_producto:
-                pendientes_por_producto[nombre_producto] = 0
+                pendientes_por_producto[nombre_producto] = {'total': 0, 'cantidad': 0}
                 producto_pendiente_a_linea[nombre_producto] = linea_comercial
             
-            pendientes_por_producto[nombre_producto] += total_pendiente
+            pendientes_por_producto[nombre_producto]['total'] += total_pendiente
+            pendientes_por_producto[nombre_producto]['cantidad'] += cantidad_pendiente
         
-        # Ordenar y tomar top 7 productos pendientes
-        productos_pendientes_ordenados = sorted(pendientes_por_producto.items(), key=lambda x: x[1], reverse=True)[:7]
+        # Ordenar y tomar top 7 productos pendientes (por monto total)
+        productos_pendientes_ordenados = sorted(pendientes_por_producto.items(), key=lambda x: x[1]['total'], reverse=True)[:7]
         datos_productos_pendientes = []
-        for nombre_producto, total_pendiente in productos_pendientes_ordenados:
-            if total_pendiente > 0:
+        for nombre_producto, datos in productos_pendientes_ordenados:
+            if datos['total'] > 0:
                 datos_productos_pendientes.append({
                     'nombre': nombre_producto,
-                    'total_pendiente': total_pendiente,
+                    'total_pendiente': datos['total'],
+                    'cantidad_pendiente': datos['cantidad'],
                     'linea_comercial': producto_pendiente_a_linea.get(nombre_producto, 'Sin Línea')
                 })
         
         # Crear diccionario completo de productos pendientes por línea comercial
         productos_pendientes_por_linea = {}
+        cantidad_pendientes_por_linea = {}
         for pending in pending_data:
             linea = pending.get('linea_comercial', 'Sin Línea')
             producto = pending.get('producto', 'Producto Sin Nombre')
             total_pendiente = pending.get('total_pendiente', 0)
+            cantidad_pendiente = pending.get('cantidad_pendiente', 0)
             
             if linea not in productos_pendientes_por_linea:
                 productos_pendientes_por_linea[linea] = {}
+                cantidad_pendientes_por_linea[linea] = {}
             
             if producto not in productos_pendientes_por_linea[linea]:
                 productos_pendientes_por_linea[linea][producto] = 0
+                cantidad_pendientes_por_linea[linea][producto] = 0
             productos_pendientes_por_linea[linea][producto] += total_pendiente
+            cantidad_pendientes_por_linea[linea][producto] += cantidad_pendiente
         
         # Convertir a formato para JavaScript (Top 7 por cada línea)
         productos_pendientes_por_linea_top = {}
         for linea, productos in productos_pendientes_por_linea.items():
             top_productos_pendientes = sorted(productos.items(), key=lambda x: x[1], reverse=True)[:7]
             productos_pendientes_por_linea_top[linea] = [
-                {'nombre': nombre, 'total_pendiente': total} for nombre, total in top_productos_pendientes if total > 0
+                {
+                    'nombre': nombre, 
+                    'total_pendiente': total,
+                    'cantidad_pendiente': cantidad_pendientes_por_linea[linea].get(nombre, 0)
+                } for nombre, total in top_productos_pendientes if total > 0
             ]
         
         # Calcular KPIs adicionales
