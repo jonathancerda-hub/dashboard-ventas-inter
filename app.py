@@ -278,8 +278,21 @@ def callback():
         user_picture = id_info.get('picture')
         
         # Cargar lista de usuarios permitidos
-        with open('allowed_users.json', 'r') as f:
-            allowed_emails = json.load(f).get('allowed_emails', [])
+        # Primero intentar desde variable de entorno (para Render)
+        allowed_users_env = os.getenv('ALLOWED_USERS')
+        if allowed_users_env:
+            # Variable de entorno existe, parsear lista separada por comas
+            allowed_emails = [email.strip() for email in allowed_users_env.split(',')]
+            app.logger.info(f"Usuarios cargados desde variable de entorno: {len(allowed_emails)} usuarios")
+        else:
+            # Fallback: leer desde archivo local
+            try:
+                with open('allowed_users.json', 'r') as f:
+                    allowed_emails = json.load(f).get('allowed_emails', [])
+                app.logger.info(f"Usuarios cargados desde allowed_users.json: {len(allowed_emails)} usuarios")
+            except FileNotFoundError:
+                app.logger.error("Archivo allowed_users.json no encontrado y variable ALLOWED_USERS no configurada")
+                allowed_emails = []
         
         # Verificar si el usuario está autorizado (case-insensitive)
         allowed_emails_lower = [email.lower() for email in allowed_emails]
@@ -291,14 +304,10 @@ def callback():
             app.logger.info(f"Login OAuth2 exitoso: {user_email}")
             return redirect(url_for('dashboard'))
         else:
-            app.logger.warning(f"Usuario {user_email} no autorizado")
+            app.logger.warning(f"Usuario {user_email} no autorizado. Emails permitidos: {len(allowed_emails)}")
             flash(f'El usuario {user_email} no tiene permiso para acceder a esta aplicación.', 'danger')
             return redirect(url_for('login'))
             
-    except FileNotFoundError:
-        app.logger.error("Archivo allowed_users.json no encontrado")
-        flash('Error de configuración: El archivo de usuarios permitidos no se encuentra.', 'danger')
-        return redirect(url_for('login'))
     except Exception as e:
         app.logger.error(f"Error en callback OAuth2: {e}", exc_info=True)
         flash(f'Error al completar inicio de sesión: {str(e)}', 'danger')
