@@ -4,14 +4,14 @@ This file contains concise, action-oriented guidance for AI coding agents workin
 
 Key project facts
 - Python Flask web app (single file router `app.py`) that renders dashboards using Jinja2 templates in `templates/`.
-- Primary data sources: Odoo via XML-RPC (`odoo_manager.py`) and Google Sheets via `google_sheets_manager.py` (gspread + google-auth).
+- Primary data sources: Odoo via XML-RPC (`odoo_manager.py`) and Supabase via `supabase_manager.py` (PostgreSQL database).
 - Visualizations are client-side with ECharts and Chart.js; templates inject JSON contexts produced in `app.py`.
 
 What to read first (quick onboarding order)
 1. `project-context.md` — high level overview of architecture and data flow.
 2. `app.py` — entrypoint; contains routes, data aggregation logic, and where chart data are prepared and injected into templates.
 3. `odoo_manager.py` — data access layer for Odoo. Understand how `get_sales_lines` and `get_pending_orders` compute `amount_currency`, partner/order identifiers, and filtering by sales channel.
-4. `google_sheets_manager.py` — how metas and equipos (teams) are read/written to Google Sheets tabs.
+4. `supabase_manager.py` — how metas and equipos (teams) are read/written to Supabase tables.
 5. `templates/dashboard_clean.html` and `templates/dashboard_linea.html` — how server-side data are rendered and consumed by client JS (ECharts/Chart.js formatters).
 
 Project-specific conventions and patterns
@@ -24,10 +24,10 @@ Project-specific conventions and patterns
   - Invoiced sales (`get_sales_lines`): MUST filter by year using `date_from` and `date_to` parameters.
   - Pending orders (`get_pending_orders`): MUST NOT filter by date — returns ALL active pending orders regardless of creation year. This is intentional for international sales tracking where orders from previous years may invoice partially in future years.
   - Cache keys: MUST include `año` parameter to differentiate cached data by year.
-  - Metas (goals): MUST load from the selected year in Google Sheets (e.g., `metas_clientes_año = metas_clientes.get(año_str, {})`).
+  - Metas (goals): MUST load from the selected year from Supabase (e.g., query by `año` field: `supabase.table('metas_clientes').select('*').eq('año', año_str).execute()`).
 
 Run / debug / local development
-- Environment: uses `.env` variables (see top of `app.py` and `conectar_odoo.py`) for Odoo URL/user/pass, Google Sheets name, and `SECRET_KEY`.
+- Environment: uses `.env` variables (see top of `app.py` and `conectar_odoo.py`) for Odoo URL/user/pass, Supabase URL/key, and `SECRET_KEY`.
 - Install dependencies: check `requirements.txt` for pinned libs; create a venv and install via pip.
   Example: `python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt`
 - Start server locally (development): `python app.py` (the app uses `app.run(debug=False)` in main). If you need Flask debug mode, change `app.run(debug=True)` temporarily and remember to disable before CI/production.
@@ -39,7 +39,7 @@ Tests and linting
 
 Integration points and secrets
 - Odoo: XML-RPC endpoints; `odoo_manager.py` performs searches on models like `sale.order.line`, `sale.order`, `account.move.line`. Preserve query domains and team/channel filtering to avoid regressions.
-- Google Sheets: depends on `credentials.json` (service account) in workspace root. `GoogleSheetsManager` expects specific worksheet/tab names (teams/metas). Changing sheet structure requires corresponding code updates.
+- Supabase: PostgreSQL database for metas and teams. `SupabaseManager` handles SQL queries and data persistence. Changing table structure requires corresponding code updates.
 
 Common fixes the project expects
 - When adding charts: prefer server-side aggregation in `app.py` and expose JSON via `render_template(..., orders_chart_data=orders_chart_data)` rather than re-aggregating client-side.
@@ -74,8 +74,8 @@ Client-side features (dashboard_clean.html)
   - `pendingDataAll`: datos pendientes (campo clave: `total_pendiente`)
   - Ambos arrays contienen TODOS los clientes; filtrado se hace en frontend por `partner_id`
 
-If you modify credentials or Google Sheets interaction
-- Do NOT commit real credentials. `credentials.json` in the repo should be a service account key used locally — in CI use secrets or mounted credentials.
+If you modify credentials or Supabase interaction
+- Do NOT commit real credentials. Supabase credentials should be in `.env` (SUPABASE_URL and SUPABASE_KEY) and used locally — in CI use secrets or environment variables.
 
 What not to change
 - Don't change the canonical currency display or the `amount_currency` based computations without a clear migration plan.

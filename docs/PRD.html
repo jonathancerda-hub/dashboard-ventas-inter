@@ -367,7 +367,7 @@
                 <p>
                     El Dashboard de Ventas Internacional es una aplicación web desarrollada en Flask que funciona como 
                     sistema de inteligencia de negocios para el área de ventas internacionales de una empresa farmacéutica. 
-                    La plataforma se conecta en tiempo real con el sistema ERP Odoo y Google Sheets para visualizar, 
+                    La plataforma se conecta en tiempo real con el sistema ERP Odoo y Supabase para visualizar, 
                     analizar y gestionar datos de ventas, pedidos y metas comerciales.
                 </p>
                 
@@ -414,7 +414,7 @@
                             <li><strong>Flask</strong> - Framework web ligero</li>
                             <li><strong>xmlrpc.client</strong> - Comunicación con API Odoo</li>
                             <li><strong>Pandas</strong> - Manipulación y análisis de datos</li>
-                            <li><strong>gspread</strong> - Integración con Google Sheets</li>
+                            <li><strong>supabase</strong> - Integración con Supabase (PostgreSQL)</li>
                         </ul>
                     </div>
                     <div class="tech-category">
@@ -431,7 +431,7 @@
                         <h4>Fuentes de Datos</h4>
                         <ul class="tech-list">
                             <li><strong>Odoo ERP</strong> - Datos de ventas, pedidos, clientes</li>
-                            <li><strong>Google Sheets</strong> - Gestión de metas y equipos</li>
+                            <li><strong>Supabase (PostgreSQL)</strong> - Gestión de metas y equipos</li>
                             <li><strong>XML-RPC API</strong> - Protocolo de integración</li>
                         </ul>
                     </div>
@@ -446,7 +446,7 @@
                         <strong>Autenticación:</strong> Verificación de sesión activa contra usuarios de Odoo
                     </div>
                     <div class="flow-step" data-step="3">
-                        <strong>Recolección de Datos:</strong> OdooManager obtiene ventas y pendientes; GoogleSheetsManager obtiene metas
+                        <strong>Recolección de Datos:</strong> OdooManager obtiene ventas y pendientes; SupabaseManager obtiene metas
                     </div>
                     <div class="flow-step" data-step="4">
                         <strong>Procesamiento:</strong> Agregación, cálculo de KPIs y preparación de datasets para gráficos
@@ -501,7 +501,7 @@
 
                     <div class="feature-card">
                         <h4>🎯 Gestión de Metas</h4>
-                        <p>Interfaces para configurar metas anuales por cliente y línea comercial. Integración con Google Sheets para persistencia y colaboración.</p>
+                        <p>Interfaces para configurar metas anuales por cliente y línea comercial. Integración con Supabase para persistencia y consultas SQL.</p>
                     </div>
 
                     <div class="feature-card">
@@ -671,7 +671,7 @@
                     <li>Las exportaciones a Excel DEBEN incluir los 17 campos especificados</li>
                     <li>Los gráficos DEBEN ser interactivos y permitir drill-down</li>
                     <li>El sistema DEBE soportar paginación en vistas de tablas (configurable: 100, 500, 1000 registros)</li>
-                    <li>Las metas DEBEN poder configurarse por año/mes y persistirse en Google Sheets</li>
+                    <li>Las metas DEBEN poder configurarse por año/mes y persistirse en Supabase</li>
                 </ul>
 
                 <h3>6.2 Requisitos No Funcionales</h3>
@@ -693,7 +693,8 @@
                     <li>ODOO_USER - Usuario con permisos de lectura</li>
                     <li>ODOO_PASSWORD - Contraseña del usuario</li>
                     <li>SECRET_KEY - Clave secreta para sesiones Flask</li>
-                    <li>GOOGLE_SHEET_NAME - Nombre de la hoja de metas</li>
+                    <li>SUPABASE_URL - URL del proyecto Supabase</li>
+                    <li>SUPABASE_KEY - API Key de Supabase</li>
                 </ul>
             </section>
 
@@ -718,7 +719,14 @@
                     <li>Incluye descuentos aplicados a la línea</li>
                 </ul>
 
-                <h3>7.3 Estructura de Metas (Google Sheets)</h3>
+                <h3>7.3 Estructura de Metas (Supabase)</h3>
+                <p>Tablas principales en PostgreSQL:</p>
+                <ul>
+                    <li><strong>metas_clientes:</strong> Metas anuales por cliente</li>
+                    <li><strong>metas_lineas:</strong> Metas mensuales por línea comercial</li>
+                    <li><strong>equipos:</strong> Composición de equipos comerciales</li>
+                    <li><strong>metas_vendedores:</strong> Metas individuales por vendedor</li>
+                </ul>
                 <p>Dos pestañas principales:</p>
                 <ul>
                     <li><strong>Metas por Cliente:</strong> {año: {cliente_id: {linea_id: monto}}}</li>
@@ -750,9 +758,9 @@
                     <li>Exclusiones: productos con código SERV, códigos que inician con 81</li>
                 </ul>
 
-                <h3>8.2 Integración con Google Sheets</h3>
-                <p><strong>Librería:</strong> gspread + google-auth</p>
-                <p><strong>Autenticación:</strong> Service Account con archivo credentials.json</p>
+                <h3>8.2 Integración con Supabase</h3>
+                <p><strong>Librería:</strong> supabase-py</p>
+                <p><strong>Autenticación:</strong> API Key y URL del proyecto</p>
                 <p><strong>Operaciones:</strong></p>
                 <ul>
                     <li>Lectura de metas por cliente (pestaña por año)</li>
@@ -782,7 +790,7 @@
                 <ul>
                     <li>Python 3.8 o superior</li>
                     <li>Acceso de red a servidor Odoo (puerto según configuración)</li>
-                    <li>Acceso a internet para Google Sheets API</li>
+                    <li>Acceso a internet para Supabase API</li>
                     <li>4GB RAM mínimo (8GB recomendado)</li>
                     <li>2 CPU cores mínimo</li>
                 </ul>
@@ -794,14 +802,14 @@
                     <li>Activar entorno: <code>venv\Scripts\activate.ps1</code> (Windows) o <code>source venv/bin/activate</code> (Linux)</li>
                     <li>Instalar dependencias: <code>pip install -r requirements.txt</code></li>
                     <li>Configurar archivo <code>.env</code> con credenciales</li>
-                    <li>Colocar <code>credentials.json</code> de Google en directorio raíz</li>
+                    <li>Configurar variables de entorno SUPABASE_URL y SUPABASE_KEY</li>
                     <li>Ejecutar aplicación: <code>python app.py</code></li>
                 </ol>
 
                 <h3>10.3 Mantenimiento Periódico</h3>
                 <ul>
                     <li><strong>Semanal:</strong> Revisión de logs de errores</li>
-                    <li><strong>Mensual:</strong> Actualización de metas en Google Sheets</li>
+                    <li><strong>Mensual:</strong> Actualización de metas en Supabase</li>
                     <li><strong>Trimestral:</strong> Actualización de dependencias Python (pip upgrade)</li>
                     <li><strong>Anual:</strong> Revisión de lista de usuarios autorizados</li>
                 </ul>
@@ -974,11 +982,10 @@
                 <ul class="tech-list">
                     <li>app.py - Aplicación Flask principal (rutas y lógica de negocio)</li>
                     <li>odoo_manager.py - Capa de acceso a datos Odoo</li>
-                    <li>google_sheets_manager.py - Capa de acceso a Google Sheets</li>
+                    <li>supabase_manager.py - Capa de acceso a Supabase</li>
                     <li>conectar_odoo.py - Script de prueba de conexión</li>
                     <li>templates/ - Plantillas HTML Jinja2</li>
                     <li>static/ - Archivos estáticos (CSS, JS, imágenes)</li>
-                    <li>credentials.json - Credenciales de Google Service Account</li>
                     <li>.env - Variables de entorno (NO versionado)</li>
                     <li>requirements.txt - Dependencias Python</li>
                     <li>allowed_users.json - Whitelist de usuarios autorizados</li>
@@ -990,7 +997,7 @@
                     <li>Flask-Caching - Sistema de caché</li>
                     <li>pandas - Análisis de datos</li>
                     <li>openpyxl - Generación de Excel</li>
-                    <li>gspread - Cliente de Google Sheets</li>
+                    <li>supabase - Cliente de Supabase</li>
                     <li>google-auth - Autenticación Google</li>
                     <li>python-dotenv - Gestión de variables de entorno</li>
                 </ul>
@@ -1000,7 +1007,7 @@
                     <li><a href="https://www.odoo.com/documentation" target="_blank">Documentación oficial Odoo API</a></li>
                     <li><a href="https://flask.palletsprojects.com/" target="_blank">Documentación Flask</a></li>
                     <li><a href="https://echarts.apache.org/" target="_blank">Documentación ECharts</a></li>
-                    <li><a href="https://docs.gspread.org/" target="_blank">Documentación gspread</a></li>
+                    <li><a href="https://supabase.com/docs/reference/python/introduction" target="_blank">Documentación Supabase Python</a></li>
                 </ul>
             </section>
         </div>

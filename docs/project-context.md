@@ -2,7 +2,7 @@
 
 ## 1. Resumen del Proyecto
 
-Este proyecto es una aplicación web desarrollada en Flask que funciona como un **Dashboard de Ventas** para una empresa farmacéutica. La aplicación se conecta en tiempo real a un sistema ERP (Odoo) y a Google Sheets para visualizar, analizar y gestionar datos de ventas y metas comerciales.
+Este proyecto es una aplicación web desarrollada en Flask que funciona como un **Dashboard de Ventas** para una empresa farmacéutica. La aplicación se conecta en tiempo real a un sistema ERP (Odoo) y a Supabase (base de datos PostgreSQL) para visualizar, analizar y gestionar datos de ventas y metas comerciales.
 
 El dashboard está dividido en dos grandes áreas:
 1.  **Dashboard de Ventas Internacionales**: El dashboard principal, que muestra KPIs, análisis de ventas por cliente, línea comercial y producto. Integra las metas anuales por cliente para calcular la brecha comercial y el avance.
@@ -18,7 +18,7 @@ La aplicación también provee interfaces para la visualización detallada de da
     *   **Python**: Lenguaje principal de programación.
     *   **Flask**: Micro-framework web para construir la aplicación.
     *   **xmlrpc.client**: Para la comunicación con la API de Odoo.
-    *   **gspread & google-auth**: Para interactuar con la API de Google Sheets.
+    *   **supabase**: Para interactuar con la base de datos PostgreSQL en Supabase.
     *   **Pandas**: Para la manipulación y agregación de datos.
     *   **python-dotenv**: Para la gestión de variables de entorno (credenciales, claves secretas).
 
@@ -30,21 +30,21 @@ La aplicación también provee interfaces para la visualización detallada de da
 
 *   **Fuentes de Datos**:
     *   **Odoo**: El sistema ERP principal de donde se extraen los datos de ventas, pedidos, clientes y productos.
-    *   **Google Sheets**: Utilizado como una base de datos simple para almacenar y gestionar las metas de venta y la composición de los equipos comerciales.
+    *   **Supabase (PostgreSQL)**: Base de datos relacional para almacenar y gestionar las metas de venta y la composición de los equipos comerciales.
 
 ## 3. Estructura del Proyecto
 
 *   `app.py`:
     *   **Rol**: Es el corazón de la aplicación.
-    *   **Funcionalidad**: Define todas las rutas (URLs), maneja la lógica de negocio, procesa las peticiones del usuario, se comunica con los *managers* de datos (`OdooManager`, `GoogleSheetsManager`), procesa los datos y los pasa a las plantillas de Jinja2 para ser renderizados.
+    *   **Funcionalidad**: Define todas las rutas (URLs), maneja la lógica de negocio, procesa las peticiones del usuario, se comunica con los *managers* de datos (`OdooManager`, `SupabaseManager`), procesa los datos y los pasa a las plantillas de Jinja2 para ser renderizados.
 
 *   `odoo_manager.py`:
     *   **Rol**: Capa de acceso a datos para Odoo (Data Access Layer).
     *   **Funcionalidad**: Encapsula toda la lógica de conexión y consulta al ERP Odoo a través de su API XML-RPC. Contiene métodos para autenticar, obtener líneas de venta, pedidos pendientes, clientes, productos, etc.
 
-*   `google_sheets_manager.py`:
-    *   **Rol**: Capa de acceso a datos para Google Sheets.
-    *   **Funcionalidad**: Gestiona la conexión con la API de Google Sheets. Se encarga de leer y escribir las metas de venta (por línea y por vendedor) y la configuración de los equipos comerciales.
+*   `supabase_manager.py`:
+    *   **Rol**: Capa de acceso a datos para Supabase.
+    *   **Funcionalidad**: Gestiona la conexión con la base de datos PostgreSQL en Supabase. Se encarga de leer y escribir las metas de venta (por línea y por vendedor) y la configuración de los equipos comerciales.
 
 *   `templates/`:
     *   **Rol**: Capa de presentación (Vistas).
@@ -67,7 +67,7 @@ La aplicación también provee interfaces para la visualización detallada de da
     *   La función `dashboard()` llama a `OdooManager` para obtener:
         -   **Ventas facturadas** (`get_sales_lines`): Filtradas por el año seleccionado (parámetro `año` del query string, por defecto 2025).
         -   **Pedidos pendientes** (`get_pending_orders`): **SIN filtro de fecha** — muestra TODOS los pedidos activos pendientes de facturar, independientemente del año en que se crearon. Esto permite seguimiento continuo de pedidos de años anteriores (2024, 2025) que aún no se han facturado completamente.
-    *   También puede llamar a `GoogleSheetsManager` para obtener datos de metas del año seleccionado si fuera necesario en esa vista.
+    *   También puede llamar a `SupabaseManager` para obtener datos de metas del año seleccionado si fuera necesario en esa vista.
 5.  **Procesamiento de Datos**:
     *   Dentro de la función `dashboard()`, los datos crudos de Odoo se procesan y agregan usando bucles de Python y, en algunos casos, la librería Pandas.
     *   Se calculan KPIs (total de ventas, brecha comercial), se agrupan ventas por línea, por producto, etc.
@@ -85,7 +85,7 @@ La aplicación también provee interfaces para la visualización detallada de da
     *   **Filtro de Año**: Selector desplegable que permite cambiar el año de análisis (por defecto 2025). Al cambiar el año:
         -   **Ventas facturadas**: Se filtran mostrando solo facturas del año seleccionado.
         -   **Pedidos pendientes**: Se mantienen SIN filtro de fecha, mostrando TODOS los pedidos activos sin importar su año de origen (esto permite seguimiento continuo de ventas internacionales, donde pedidos de años anteriores pueden facturarse parcialmente en años posteriores).
-        -   **Metas**: Se cargan las metas del año seleccionado desde Google Sheets.
+        -   **Metas**: Se cargan las metas del año seleccionado desde Supabase.
         -   **Caché**: El caché diferencia por año, garantizando datos correctos al cambiar de año.
         -   **Exportaciones Excel**: Incluyen el parámetro de año para exportar datos consistentes con la vista actual.
     *   KPIs clave: Ventas totales, meta, brecha comercial.

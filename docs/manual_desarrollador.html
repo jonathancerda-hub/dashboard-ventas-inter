@@ -166,7 +166,7 @@
             <li><a href="#flujo-sales">Flujo de Datos: Ventas (/sales)</a></li>
             <li><a href="#flujo-pending">Flujo de Datos: Pendientes (/pending)</a></li>
             <li><a href="#sistema-cache">Sistema de Caché</a></li>
-            <li><a href="#integracion-google-sheets">Integración con Google Sheets</a></li>
+            <li><a href="#integracion-supabase">Integración con Supabase</a></li>
             <li><a href="#logica-dashboards">Lógica de los Dashboards</a></li>
         </ul>
     </nav>
@@ -207,7 +207,7 @@
                 Esta capa abstrae la complejidad de la comunicación con las fuentes de datos externas.
                 <ul>
                     <li><strong><code>odoo_manager.py</code>:</strong> Encapsula toda la lógica para conectarse y consultar la API XML-RPC de Odoo. Contiene métodos específicos como <code>get_sales_lines</code> o <code>get_pending_orders</code> que devuelven datos de Odoo en un formato estructurado.</li>
-                    <li><strong><code>google_sheets_manager.py</code>:</strong> Se encarga de la interacción con la API de Google Sheets. Proporciona métodos para leer y escribir las metas de venta y la configuración de los equipos comerciales.</li>
+                    <li><strong><code>supabase_manager.py</code>:</strong> Se encarga de la interacción con la base de datos PostgreSQL en Supabase. Proporciona métodos para leer y escribir las metas de venta y la configuración de los equipos comerciales.</li>
                 </ul>
             </p>
 
@@ -239,7 +239,7 @@
                 <li><strong>Python:</strong> Lenguaje principal.</li>
                 <li><strong>Flask:</strong> Micro-framework web para la estructura de la aplicación.</li>
                 <li><strong>xmlrpc.client:</strong> Librería nativa de Python para la comunicación con la API de Odoo.</li>
-                <li><strong>gspread & google-auth:</strong> Para la autenticación y manipulación de Google Sheets.</li>
+                <li><strong>supabase:</strong> Para la interacción con la base de datos PostgreSQL en Supabase.</li>
                 <li><strong>Pandas:</strong> Utilizado para la manipulación avanzada y agregación de datos.</li>
                 <li><strong>python-dotenv:</strong> Para cargar las variables de entorno desde el archivo <code>.env</code>.</li>
                 <li><strong>openpyxl:</strong> Para generar los archivos de exportación en formato <code>.xlsx</code>.</li>
@@ -388,6 +388,16 @@
                 <li>Se ensambla la estructura de datos final, calculando el <code>total_pendiente</code> para cada línea.</li>
             </ol>
 
+            <h4>Campos de Fecha en Pedidos Pendientes</h4>
+            <div class="note">
+                <strong><i class="bi bi-calendar-event"></i>Importante:</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>fecha:</strong> Se obtiene del campo <code>date_order</code> de Odoo, que representa la <strong>fecha de confirmación del pedido</strong>. Este es el dato que aparece como "Fecha Pedido" en el dashboard y en las exportaciones.</li>
+                    <li><strong>commitment_date:</strong> Es un campo separado que indica la <strong>fecha comprometida de entrega</strong> al cliente. Aparece en las exportaciones en la columna "Fecha de entrega".</li>
+                    <li>La tabla en el dashboard muestra la fecha de confirmación (date_order), mientras que la exportación incluye ambas fechas para una planificación más completa.</li>
+                </ul>
+            </div>
+
         </section>
 
         <section id="sistema-cache">
@@ -481,65 +491,89 @@ def dashboard():
             </ul>
         </section>
 
-        <section id="integracion-google-sheets">
-            <h2><i class="bi bi-file-earmark-spreadsheet-fill"></i> Integración con Google Sheets</h2>
+        <section id="integracion-supabase">
+            <h2><i class="bi bi-database-fill"></i> Integración con Supabase</h2>
             <p>
-                La aplicación utiliza Google Sheets como una base de datos simple y accesible para gestionar toda la información relacionada con las <strong>metas de venta</strong> y la <strong>composición de los equipos comerciales</strong>. La clase <code>GoogleSheetsManager</code> en <code>google_sheets_manager.py</code> encapsula toda la lógica de esta interacción.
+                La aplicación utiliza Supabase (PostgreSQL) como base de datos para gestionar toda la información relacionada con las <strong>metas de venta</strong> y la <strong>composición de los equipos comerciales</strong>. La clase <code>SupabaseManager</code> (en desarrollo) encapsulará toda la lógica de esta interacción.
             </p>
 
             <h3>1. Autenticación y Configuración</h3>
             <p>
-                La conexión se establece utilizando una <strong>Cuenta de Servicio</strong> de Google Cloud.
+                La conexión se establece utilizando las credenciales de <strong>Supabase</strong>.
             </p>
             <ul>
-                <li><strong>Credenciales:</strong> Se requiere un archivo <code>credentials.json</code>, que contiene las claves de la cuenta de servicio. Este archivo debe estar en la raíz del proyecto.</li>
-                <li><strong>Permisos:</strong> La dirección de correo electrónico de la cuenta de servicio (que se encuentra dentro de <code>credentials.json</code>) debe tener permisos de editor sobre el documento de Google Sheets que se va a utilizar.</li>
-                <li><strong>Nombre de la Hoja:</strong> El nombre del documento de Google Sheets se especifica en la variable de entorno <code>GOOGLE_SHEET_NAME</code> en el archivo <code>.env</code>.</li>
+                <li><strong>Variables de Entorno:</strong> Se requieren las credenciales de conexión en el archivo <code>.env</code>:
+                    <ul>
+                        <li><code>SUPABASE_URL</code>: URL del proyecto Supabase</li>
+                        <li><code>SUPABASE_KEY</code>: API Key del proyecto</li>
+                    </ul>
+                </li>
+                <li><strong>Cliente Supabase:</strong> Se utiliza la librería <code>supabase-py</code> para interactuar con la base de datos PostgreSQL.</li>
             </ul>
 
-            <h3>2. Estructura de Datos en Google Sheets</h3>
+            <h3>2. Estructura de Datos en Supabase</h3>
             <p>
-                El sistema espera que el documento de Google Sheets contenga varias pestañas (hojas de cálculo) con una estructura específica, donde los datos se almacenan en formato JSON en una única celda (generalmente <code>A1</code>) para simplificar la lectura y escritura.
+                El sistema utiliza tablas relacionales en PostgreSQL para almacenar las metas y configuraciones:
             </p>
             <ul>
                 <li>
-                    <strong><code>metas_linea</code>:</strong> Almacena las metas mensuales por línea comercial. La estructura es un diccionario donde la clave es el mes (<code>YYYY-MM</code>) y el valor es otro diccionario con las metas.
-                    <pre><code>{
-    "2024-01": {
-        "metas": {"petmedica": 10000, "agrovet": 15000},
-        "metas_ipn": {"petmedica": 3000, "agrovet": 5000}
-    }, ...
-}</code></pre>
+                    <strong><code>metas_clientes</code>:</strong> Almacena las metas anuales por cliente.
+                    <pre><code>- id (primary key)
+- año (integer)
+- cliente_id (integer)
+- cliente_nombre (text)
+- meta (numeric)
+- created_at / updated_at</code></pre>
                 </li>
                 <li>
-                    <strong><code>equipos</code>:</strong> Define qué vendedores pertenecen a cada equipo. La clave es el ID del equipo y el valor es una lista de IDs de vendedores.
-                    <pre><code>{
-    "petmedica": [10, 15, 22],
-    "agrovet": [12, 18]
-}</code></pre>
+                    <strong><code>metas_lineas</code>:</strong> Almacena las metas mensuales por línea comercial.
+                    <pre><code>- id (primary key)
+- año (integer)
+- mes (integer)
+- linea_comercial (text)
+- meta (numeric)
+- meta_ipn (numeric)
+- created_at / updated_at</code></pre>
                 </li>
                 <li>
-                    <strong><code>metas_vendedor</code>:</strong> Almacena las metas individuales de cada vendedor. Es una estructura anidada: <code>equipo -> vendedor_id -> mes -> {meta, meta_ipn}</code>.
-                    <pre><code>{
-    "petmedica": {
-        "10": {
-            "2024-01": {"meta": 5000, "meta_ipn": 1500},
-            "2024-02": {"meta": 5500, "meta_ipn": 1600}
-        }
-    }, ...
-}</code></pre>
+                    <strong><code>equipos</code>:</strong> Define qué vendedores pertenecen a cada equipo.
+                    <pre><code>- id (primary key)
+- equipo_nombre (text)
+- vendedor_id (integer)
+- vendedor_nombre (text)
+- created_at / updated_at</code></pre>
+                </li>
+                <li>
+                    <strong><code>metas_vendedores</code>:</strong> Almacena las metas individuales de cada vendedor.
+                    <pre><code>- id (primary key)
+- equipo_nombre (text)
+- vendedor_id (integer)
+- año (integer)
+- mes (integer)
+- meta (numeric)
+- meta_ipn (numeric)
+- created_at / updated_at</code></pre>
                 </li>
             </ul>
 
             <h3>3. Flujo de Lectura y Escritura</h3>
             <p>
-                Las rutas de Flask como <code>/meta</code> y <code>/metas_vendedor</code> utilizan el <code>GoogleSheetsManager</code> para gestionar estos datos.
+                Las rutas de Flask como <code>/meta</code> y <code>/metas_vendedor</code> utilizan el <code>SupabaseManager</code> para gestionar estos datos.
             </p>
             <ol>
-                <li><strong>Lectura (GET):</strong> Cuando un usuario visita una página de metas, <code>app.py</code> llama a un método de lectura (ej. <code>gs_manager.read_metas()</code>). Este método lee el contenido JSON de la celda <code>A1</code> de la hoja correspondiente y lo deserializa en un diccionario de Python.</li>
-                <li><strong>Procesamiento:</strong> La aplicación utiliza este diccionario para rellenar los formularios y tablas que ve el usuario.</li>
-                <li><strong>Escritura (POST):</strong> Cuando el usuario guarda los cambios, <code>app.py</code> recolecta los datos del formulario, reconstruye el diccionario de Python con la nueva información y llama a un método de escritura (ej. <code>gs_manager.write_metas()</code>). Este método serializa el diccionario a una cadena JSON y la escribe de nuevo en la celda <code>A1</code>, sobrescribiendo los datos anteriores.</li>
+                <li><strong>Lectura (GET):</strong> Cuando un usuario visita una página de metas, <code>app.py</code> realiza consultas SQL a través del cliente Supabase (ej. <code>supabase.table('metas_clientes').select('*').eq('año', 2025).execute()</code>). Los datos se devuelven como objetos Python listos para usar.</li>
+                <li><strong>Procesamiento:</strong> La aplicación utiliza estos datos para rellenar los formularios y tablas que ve el usuario.</li>
+                <li><strong>Escritura (POST):</strong> Cuando el usuario guarda cambios, <code>app.py</code> recolecta los datos del formulario y realiza operaciones <code>INSERT</code>, <code>UPDATE</code> o <code>UPSERT</code> en las tablas correspondientes de Supabase.</li>
             </ol>
+
+            <h3>4. Ventajas de Supabase</h3>
+            <ul>
+                <li><strong>Relacional:</strong> Permite consultas SQL complejas y relaciones entre tablas</li>
+                <li><strong>Escalable:</strong> Maneja grandes volúmenes de datos eficientemente</li>
+                <li><strong>Seguro:</strong> Políticas de seguridad RLS (Row Level Security) integradas</li>
+                <li><strong>Real-time:</strong> Capacidad de suscripciones en tiempo real (para futuras mejoras)</li>
+                <li><strong>Backup automático:</strong> Respaldos automáticos de la base de datos</li>
+            </ul>
         </section>
 
         <section id="logica-dashboards">

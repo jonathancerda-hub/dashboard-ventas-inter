@@ -168,7 +168,7 @@
                 Bienvenido al manual del Dashboard de Ventas. Esta aplicación ha sido diseñada para proporcionar una visión clara y en tiempo real del rendimiento comercial de la empresa, tanto a nivel nacional como internacional.
             </p>
             <p>
-                El sistema se conecta directamente con <strong>Odoo</strong> para obtener datos de ventas y con <strong>Google Sheets</strong> para gestionar las metas comerciales, ofreciendo una herramienta centralizada para el análisis y la toma de decisiones.
+                El sistema se conecta directamente con <strong>Odoo</strong> para obtener datos de ventas y con <strong>Supabase (PostgreSQL)</strong> para gestionar las metas comerciales, ofreciendo una herramienta centralizada para el análisis y la toma de decisiones.
             </p>
             
             <h3><i class="bi bi-info-circle-fill"></i>Conceptos Clave y Terminología</h3>
@@ -267,9 +267,9 @@
             
             <p><strong>Origen de los Datos:</strong></p>
             <ul>
-                <li><strong>Fuente:</strong> Google Sheets, pestaña específica del año (ej: "2025").</li>
+                <li><strong>Fuente:</strong> Supabase, tabla de metas filtrada por año específico (ej: "2025").</li>
                 <li><strong>Estructura:</strong> Cada cliente tiene metas definidas por línea comercial (AGROVET, PETMEDICA, AVIVET).</li>
-                <li><strong>Lectura:</strong> El sistema lee las metas al cargar el dashboard usando la función <code>read_metas_por_cliente()</code> del <code>GoogleSheetsManager</code>.</li>
+                <li><strong>Lectura:</strong> El sistema lee las metas al cargar el dashboard usando consultas SQL del <code>SupabaseManager</code>.</li>
             </ul>
             
             <p><strong>Comportamiento con Filtros:</strong></p>
@@ -299,7 +299,7 @@
             <ol>
                 <li>Se calcula <code>total_sales_year</code> sumando todas las ventas facturadas.</li>
                 <li>Se calcula <code>total_por_facturar</code> sumando todos los pedidos pendientes.</li>
-                <li>Se obtiene <code>meta_total_general</code> desde Google Sheets.</li>
+                <li>Se obtiene <code>meta_total_general</code> desde Supabase.</li>
                 <li>Se aplica la fórmula: <code>brecha_comercial = (total_sales_year + total_por_facturar) - meta_total_general</code></li>
             </ol>
             
@@ -332,7 +332,7 @@
             <p><strong>Proceso de Cálculo Técnico:</strong></p>
             <ol>
                 <li>Se suma el <code>amount_currency</code> de todas las facturas confirmadas del año.</li>
-                <li>Se obtiene la <code>meta_total_general</code> desde Google Sheets.</li>
+                <li>Se obtiene la <code>meta_total_general</code> desde Supabase.</li>
                 <li>Se divide y multiplica por 100: <code>(total_sales_year / meta_total_general) * 100</code></li>
                 <li>Si <code>meta_total_general == 0</code>, el resultado es 0% (para evitar división por cero).</li>
             </ol>
@@ -772,7 +772,7 @@
             <ul>
                 <li><strong>Líneas comerciales:</strong> Campo <code>commercial_line_international_id</code> de las líneas de factura de Odoo.</li>
                 <li><strong>Ventas facturadas:</strong> Suma de <code>amount_currency</code> de todas las líneas de factura agrupadas por línea comercial.</li>
-                <li><strong>Metas:</strong> Suma de las metas por cliente para cada línea comercial, obtenidas de Google Sheets.</li>
+                <li><strong>Metas:</strong> Suma de las metas por cliente para cada línea comercial, obtenidas de Supabase.</li>
             </ul>
             
             <p><strong>Proceso de Construcción:</strong></p>
@@ -909,7 +909,7 @@
                 <li><strong>Selecciona un mes:</strong> Usa el selector de la parte superior para elegir el mes para el cual deseas definir las metas.</li>
                 <li><strong>Ingresa las metas:</strong> Para cada línea comercial, verás una "tarjeta" individual. Rellena los campos "Meta Total" y "Meta IPN".</li>
                 <li><strong>Visualiza los totales:</strong> Una tarjeta de resumen en la parte inferior muestra la suma total de las metas que has ingresado, actualizándose en tiempo real.</li>
-                <li><strong>Guarda los cambios:</strong> Haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Google Sheets.</li>
+                <li><strong>Guarda los cambios:</strong> Haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Supabase.</li>
             </ol>
         </section>
 
@@ -928,7 +928,7 @@
                         <li>La celda <strong>"Total General"</strong> muestra la suma de todas las metas.</li>
                     </ul>
                 </li>
-                <li><strong>Guarda los cambios:</strong> Cuando termines, haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Google Sheets y se usarán en el dashboard principal.</li>
+                <li><strong>Guarda los cambios:</strong> Cuando termines, haz clic en el botón <strong>"Guardar Metas"</strong>. Los datos se almacenarán en Supabase y se usarán en el dashboard principal.</li>
             </ol>
             <div class="note">
                 <strong><i class="bi bi-check-circle-fill"></i>Persistencia de Datos:</strong> Después de guardar, los valores que ingresaste permanecerán en los campos, permitiéndote continuar editando o verificando sin que se borren.
@@ -1078,7 +1078,26 @@
                     <ul>
                         <li><strong>Contenido:</strong> Descarga un detalle de todos los pedidos de venta confirmados que aún no se han facturado.</li>
                         <li><strong>Alcance del filtro:</strong> Respeta el filtro de cliente activo. Si hay un cliente seleccionado, exportará solo sus pedidos pendientes. Si no, exportará todos los pendientes.</li>
-                        <li><strong>Columnas incluidas:</strong> Número de pedido, cliente, producto, descripción completa, cantidad, línea comercial, total pendiente en USD, estado del pedido.</li>
+                        <li><strong>Columnas incluidas:</strong> 
+                            <ol>
+                                <li><strong>Pedido:</strong> Número del pedido</li>
+                                <li><strong>Cliente:</strong> Nombre del cliente</li>
+                                <li><strong>País:</strong> País del cliente</li>
+                                <li><strong>Fecha Pedido:</strong> Fecha de confirmación del pedido (date_order en Odoo)</li>
+                                <li><strong>Código Odoo:</strong> Código interno del producto</li>
+                                <li><strong>Producto:</strong> Nombre del producto</li>
+                                <li><strong>Descripción:</strong> Descripción completa del producto</li>
+                                <li><strong>Línea Comercial:</strong> Categoría comercial (AGROVET, PETMEDICA, AVIVET)</li>
+                                <li><strong>Clasificación farmacológica:</strong> Clasificación del producto</li>
+                                <li><strong>Formas Farmacéuticas:</strong> Forma farmacéutica del producto</li>
+                                <li><strong>Vía de Administración:</strong> Vía de administración</li>
+                                <li><strong>Línea de producción:</strong> Línea de producción</li>
+                                <li><strong>Fecha de entrega:</strong> Fecha comprometida de entrega (commitment_date)</li>
+                                <li><strong>Cantidad Pendiente:</strong> Cantidad por facturar</li>
+                                <li><strong>Precio unitario ($):</strong> Precio unitario en USD</li>
+                                <li><strong>Total Pendiente ($):</strong> Monto pendiente total en USD</li>
+                            </ol>
+                        </li>
                         <li><strong>Uso recomendado:</strong> Planificación de facturación, proyecciones de flujo de caja, seguimiento de compromisos comerciales, coordinación con logística.</li>
                     </ul>
                 </li>
@@ -1162,7 +1181,7 @@
 
             <h4>3. Las metas no aparecen o muestran valores incorrectos</h4>
             <ul>
-                <li><strong>Verificar Google Sheets:</strong> Las metas se almacenan en Google Sheets. Verifica que el archivo tenga los permisos correctos.</li>
+                <li><strong>Verificar Supabase:</strong> Las metas se almacenan en Supabase. Verifica que la conexión a la base de datos esté activa y los permisos sean correctos.</li>
                 <li><strong>Año seleccionado:</strong> Asegúrate de estar en el año correcto. Las metas son anuales y se definen por año.</li>
                 <li><strong>Guardar cambios:</strong> Después de modificar metas, debes hacer clic en "Guardar Metas" para que se persistan.</li>
                 <li><strong>Formato de números:</strong> Las metas deben ingresarse como números sin símbolos (ej: 100000, no $100,000).</li>
