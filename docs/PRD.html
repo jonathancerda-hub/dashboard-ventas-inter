@@ -772,14 +772,48 @@
 
             <section id="security">
                 <h2>9. Consideraciones de Seguridad</h2>
+                
+                <h3>9.1 Autenticación y Autorización</h3>
                 <ul>
-                    <li><strong>Autenticación:</strong> Credenciales validadas contra Odoo, sin almacenamiento local de contraseñas</li>
-                    <li><strong>Autorización:</strong> Lista blanca de emails en <code>allowed_users.json</code></li>
-                    <li><strong>Sesiones:</strong> HttpOnly cookies, SameSite=Lax, timeout de 24 horas</li>
-                    <li><strong>Credenciales:</strong> Almacenadas en variables de entorno, nunca en código</li>
-                    <li><strong>Comunicación:</strong> HTTPS recomendado en producción (configuración del servidor web)</li>
+                    <li><strong>OAuth 2.0 de Google:</strong> Autenticación delegada a Google Identity Platform</li>
+                    <li><strong>Sin contraseñas locales:</strong> No se almacenan ni manejan contraseñas directamente</li>
+                    <li><strong>Whitelist de usuarios:</strong> Doble verificación (OAuth + <code>allowed_users.json</code>)</li>
+                    <li><strong>Tokens verificados:</strong> Verificación criptográfica de <code>id_token</code> de Google</li>
+                    <li><strong>CSRF Protection:</strong> Parámetro <code>state</code> en flujo OAuth para prevenir ataques cross-site</li>
+                </ul>
+
+                <h3>9.2 Protección OWASP Top 10 (2021)</h3>
+                <p>La aplicación implementa controles de seguridad que mitigan las principales amenazas identificadas por <a href="https://owasp.org/www-project-top-ten/" target="_blank">OWASP</a>:</p>
+                <ul>
+                    <li><strong>A01 - Broken Access Control:</strong> OAuth 2.0 + whitelist + verificación de sesión en todas las rutas</li>
+                    <li><strong>A02 - Cryptographic Failures:</strong> HTTPS obligatorio, verificación de tokens, SECRET_KEY fuerte</li>
+                    <li><strong>A03 - Injection:</strong> Consultas parametrizadas, escape automático de templates Jinja2</li>
+                    <li><strong>A04 - Insecure Design:</strong> Uso de estándares OAuth 2.0, separación de responsabilidades</li>
+                    <li><strong>A05 - Security Misconfiguration:</strong> Credenciales en <code>.env</code>, scopes mínimos, debug off en producción</li>
+                    <li><strong>A07 - Authentication Failures:</strong> MFA heredado de Google, detección de anomalías, session management seguro</li>
+                </ul>
+
+                <h3>9.3 Gestión de Sesiones</h3>
+                <ul>
+                    <li><strong>Cookies seguras:</strong> HttpOnly, SameSite=Lax, firmadas con SECRET_KEY</li>
+                    <li><strong>Timeout:</strong> Sesiones con duración limitada (24 horas)</li>
+                    <li><strong>Logout completo:</strong> <code>session.clear()</code> invalida toda la sesión</li>
+                </ul>
+
+                <h3>9.4 Comunicación y Datos</h3>
+                <ul>
+                    <li><strong>HTTPS:</strong> Requerido en producción para OAuth 2.0 y transmisión de datos</li>
+                    <li><strong>Credenciales:</strong> Variables de entorno (<code>.env</code>), nunca en código fuente</li>
                     <li><strong>Validación:</strong> Sanitización de inputs en filtros y búsquedas</li>
-                    <li><strong>Logs:</strong> Nivel INFO para operaciones normales, ERROR para excepciones</li>
+                    <li><strong>Logs:</strong> Nivel INFO para operaciones, ERROR para excepciones (sin credenciales en logs)</li>
+                </ul>
+
+                <h3>9.5 Referencias de Seguridad</h3>
+                <ul>
+                    <li><a href="https://owasp.org/www-project-top-ten/" target="_blank">OWASP Top 10 (2021)</a></li>
+                    <li><a href="https://developers.google.com/identity" target="_blank">Google Identity Platform</a></li>
+                    <li><a href="https://datatracker.ietf.org/doc/html/rfc6749" target="_blank">OAuth 2.0 RFC 6749 (Estándar)</a></li>
+                    <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html" target="_blank">OWASP Authentication Cheat Sheet</a></li>
                 </ul>
             </section>
 

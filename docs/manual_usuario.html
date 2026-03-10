@@ -214,10 +214,65 @@
         <section id="inicio-sesion">
             <h2><i class="bi bi-box-arrow-in-right"></i>Inicio de Sesión</h2>
             <p>
-                Para acceder al sistema, deberás utilizar las mismas credenciales (usuario y contraseña) que usas para ingresar a Odoo.
+                El sistema utiliza <strong>Google OAuth 2.0</strong> para la autenticación. Esto significa que inicias sesión con tu cuenta de Google corporativa de forma segura y sin necesidad de recordar contraseñas adicionales.
             </p>
+            
+            <h3>Proceso de Inicio de Sesión:</h3>
+            <ol>
+                <li><strong>Accede a la URL del dashboard</strong> (proporcionada por tu administrador).</li>
+                <li><strong>Haz clic en el botón "Iniciar sesión con Google"</strong> en la página de login.</li>
+                <li><strong>Serás redirigido a Google</strong>: Selecciona tu cuenta de Google corporativa (@agrovetmarket.com o el dominio autorizado).</li>
+                <li><strong>Autoriza el acceso</strong>: La primera vez que accedas, Google te pedirá que autorices al Dashboard de Ventas a acceder a tu información básica de perfil (nombre y correo).</li>
+                <li><strong>Verificación de acceso</strong>: El sistema verificará que tu correo electrónico esté en la lista de usuarios autorizados.</li>
+                <li><strong>Acceso concedido</strong>: Si tu correo está autorizado, serás redirigido automáticamente al dashboard principal.</li>
+            </ol>
+
+            <h3>Seguridad Multinivel:</h3>
             <div class="note">
-                <strong><i class="bi bi-key-fill"></i>Credenciales:</strong> Si tienes problemas para acceder, verifica que tu usuario y contraseña de Odoo sean correctos. El sistema valida la autenticación directamente con el ERP.
+                <strong><i class="bi bi-shield-lock-fill"></i>Autenticación de Dos Capas:</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Capa 1 - Google OAuth2:</strong> Valida tu identidad con Google. Esto garantiza que eres quien dices ser mediante el sistema de autenticación de Google (2FA, verificación de dispositivo, etc.).</li>
+                    <li><strong>Capa 2 - Lista de Usuarios Autorizados:</strong> Incluso con una cuenta de Google válida, solo los correos electrónicos incluidos en la lista de usuarios autorizados (<code>allowed_users.json</code>) pueden acceder al dashboard.</li>
+                </ul>
+            </div>
+
+            <h3>Ventajas de OAuth2:</h3>
+            <ul>
+                <li><strong>Sin contraseñas adicionales:</strong> Usas tu cuenta de Google existente.</li>
+                <li><strong>Mayor seguridad:</strong> Benefíciese de las protecciones de seguridad de Google (2FA, detección de accesos sospechosos).</li>
+                <li><strong>Inicio de sesión único (SSO):</strong> Si ya estás conectado a Google, el acceso es inmediato.</li>
+                <li><strong>Gestión centralizada:</strong> Los administradores pueden revocar accesos desde un único lugar.</li>
+            </ul>
+
+            <h3>Seguridad de Clase Mundial (OWASP Top 10):</h3>
+            <div class="note">
+                <strong><i class="bi bi-shield-check-fill"></i>Protección Contra Amenazas Críticas:</strong>
+                <p style="margin-top: 10px;">
+                    El sistema implementa las mejores prácticas de seguridad recomendadas por <strong>OWASP</strong> (Open Web Application Security Project), la organización internacional de referencia en seguridad web. La autenticación OAuth 2.0 de Google protege contra:
+                </p>
+                <ul style="margin-top: 10px;">
+                    <li>✅ <strong>Acceso no autorizado:</strong> Sistema de doble verificación (Google + lista blanca de usuarios)</li>
+                    <li>✅ <strong>Robo de contraseñas:</strong> No se manejan contraseñas directamente, delegadas a Google</li>
+                    <li>✅ <strong>Ataques de phishing:</strong> Autenticación verificada criptográficamente</li>
+                    <li>✅ <strong>Suplantación de identidad:</strong> Tokens de sesión firmados y protegidos</li>
+                    <li>✅ <strong>Ataques de fuerza bruta:</strong> Google detecta y bloquea intentos sospechosos</li>
+                    <li>✅ <strong>Sesiones inseguras:</strong> Comunicación cifrada con HTTPS en producción</li>
+                </ul>
+                <p style="margin-top: 10px;">
+                    <strong>Más información:</strong> <a href="https://owasp.org/www-project-top-ten/" target="_blank">OWASP Top 10</a> | 
+                    <a href="https://developers.google.com/identity" target="_blank">Google Identity Platform Security</a>
+                </p>
+            </div>
+
+            <h3>Resolución de Problemas:</h3>
+            <div class="note">
+                <strong><i class="bi bi-exclamation-triangle-fill"></i>Si no puedes acceder:</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>Verifica tu correo:</strong> Asegúrate de usar la cuenta de Google corporativa correcta (no cuentas personales).</li>
+                    <li><strong>Usuario no autorizado:</strong> Si ves el mensaje "No autorizado", contacta al administrador del sistema para que agregue tu correo a la lista de usuarios autorizados.</li>
+                    <li><strong>Error de OAuth:</strong> Verifica que tu navegador permita cookies y redirecciones. Intenta en modo incógnito para descartar problemas de caché.</li>
+                    <li><strong>Dominio no permitido:</strong> Solo correos de dominios específicos (@agrovetmarket.com o similares) están autorizados.</li>
+                </ul>
             </div>
         </section>
 
@@ -1165,10 +1220,11 @@
             
             <h4>1. No puedo iniciar sesión</h4>
             <ul>
-                <li><strong>Verificar credenciales:</strong> Asegúrate de usar el mismo usuario y contraseña que usas para acceder a Odoo.</li>
-                <li><strong>Mayúsculas y minúsculas:</strong> Las contraseñas distinguen entre mayúsculas y minúsculas.</li>
-                <li><strong>Espacios adicionales:</strong> Verifica que no haya espacios antes o después del usuario/contraseña.</li>
-                <li><strong>Cuenta bloqueada:</strong> Si has intentado varias veces sin éxito, tu cuenta de Odoo podría estar temporalmente bloqueada. Contacta al administrador del sistema.</li>
+                <li><strong>Verificar cuenta de Google:</strong> Asegúrate de estar usando tu cuenta de Google corporativa autorizada (ejemplo: @agrovetmarket.com).</li>
+                <li><strong>Usuario no autorizado:</strong> Si ves "No autorizado" después del login, tu correo no está en la lista de usuarios permitidos. Contacta al administrador.</li>
+                <li><strong>Error de OAuth:</strong> Si ves errores relacionados con OAuth2, verifica que tu navegador permita cookies y redirecciones. Intenta en modo incógnito.</li>
+                <li><strong>Cuenta personal de Google:</strong> No uses cuentas personales de Gmail. Solo cuentas del dominio corporativo están autorizadas.</li>
+                <li><strong>Permisos revocados:</strong> Si anteriormente funcionaba, verifica en tu configuración de Google (https://myaccount.google.com/permissions) que no hayas revocado el acceso al Dashboard de Ventas.</li>
             </ul>
 
             <h4>2. Los datos no se actualizan o parecen desactualizados</h4>
