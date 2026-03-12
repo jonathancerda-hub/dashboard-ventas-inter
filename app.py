@@ -836,31 +836,41 @@ def dashboard():
             ]
         
         # Generar datos para el gráfico de productos PENDIENTES (Top 7)
+        # IMPORTANTE: Agrupar por código de producto, NO por nombre (cada código = presentación única)
         pendientes_por_producto = {}
-        producto_pendiente_a_linea = {}
+        producto_pendiente_info = {}  # Guardar info completa por código
         for pending in pending_data:
+            codigo_producto = pending.get('codigo_odoo', '') or pending.get('default_code', '') or 'S/C'
             nombre_producto = pending.get('producto', 'Producto Sin Nombre')
+            descripcion = pending.get('descripcion', '')
             total_pendiente = pending.get('total_pendiente', 0)
             cantidad_pendiente = pending.get('cantidad_pendiente', 0)
             linea_comercial = pending.get('linea_comercial', 'Sin Línea')
             
-            if nombre_producto not in pendientes_por_producto:
-                pendientes_por_producto[nombre_producto] = {'total': 0, 'cantidad': 0}
-                producto_pendiente_a_linea[nombre_producto] = linea_comercial
+            if codigo_producto not in pendientes_por_producto:
+                pendientes_por_producto[codigo_producto] = {'total': 0, 'cantidad': 0}
+                # Usar descripción si existe, sino usar nombre
+                nombre_display = descripcion if descripcion and descripcion.strip() else nombre_producto
+                producto_pendiente_info[codigo_producto] = {
+                    'nombre': nombre_display,
+                    'linea_comercial': linea_comercial
+                }
             
-            pendientes_por_producto[nombre_producto]['total'] += total_pendiente
-            pendientes_por_producto[nombre_producto]['cantidad'] += cantidad_pendiente
+            pendientes_por_producto[codigo_producto]['total'] += total_pendiente
+            pendientes_por_producto[codigo_producto]['cantidad'] += cantidad_pendiente
         
         # Ordenar y tomar top 7 productos pendientes (por monto total)
         productos_pendientes_ordenados = sorted(pendientes_por_producto.items(), key=lambda x: x[1]['total'], reverse=True)[:7]
         datos_productos_pendientes = []
-        for nombre_producto, datos in productos_pendientes_ordenados:
+        for codigo_producto, datos in productos_pendientes_ordenados:
             if datos['total'] > 0:
+                info = producto_pendiente_info.get(codigo_producto, {'nombre': codigo_producto, 'linea_comercial': 'Sin Línea'})
                 datos_productos_pendientes.append({
-                    'nombre': nombre_producto,
+                    'codigo': codigo_producto,
+                    'nombre': info['nombre'],
                     'total_pendiente': datos['total'],
                     'cantidad_pendiente': datos['cantidad'],
-                    'linea_comercial': producto_pendiente_a_linea.get(nombre_producto, 'Sin Línea')
+                    'linea_comercial': info['linea_comercial']
                 })
         
         # Crear diccionario completo de productos pendientes por línea comercial
@@ -977,10 +987,10 @@ def dashboard():
                     productos_simplificados = {
                         'ATREVIA 360°': ['ATREVIA 360°', 'ATREVIA 360'],
                         'ATREVIA 360° SPOT ON': ['ATREVIA 360° SPOT ON', 'ATREVIA 360 SPOT ON'],
-                        'ATREVIA ONE': ['ATREVIA ONE'],
+                        'ATREVIA ONE': ['ATREVIA ONE', 'ATREVIA ONE (N)'],
                         'ATREVIA TRIO CATS': ['ATREVIA TRIO CATS'],
                         'ATREVIA VERSA GEL': ['ATREVIA VERSA GEL'],
-                        'ATREVIA XR': ['ATREVIA XR'],
+                        'ATREVIA XR': ['ATREVIA XR', 'ATREVIA XR (N)'],
                         'BIOCAN': ['BIOCAN'],
                         'SURALAN': ['SURALAN'],
                         'EARTHBORN': ['EARTHBORN'],

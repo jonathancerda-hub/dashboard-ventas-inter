@@ -358,14 +358,35 @@
     <!-- Gráfico de Productos PENDIENTES (Ancho completo, debajo de los gráficos superiores) -->
     <div class="grafico-extra-container" style="margin-top: 30px;">
         <div class="grafico-productos" style="width: 100%;">
-            <h3 id="titulo-productos-pendientes">
-                Top Pendientes por Entregar
-                <button id="btn-reset-productos-pendientes" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductosPendientes()">
-                    ✕ Ver Todos
-                </button>
-            </h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 id="titulo-productos-pendientes" style="margin: 0;">
+                    Top Pendientes por Entregar
+                    <button id="btn-reset-productos-pendientes" style="display: none; margin-left: 10px; padding: 5px 10px; font-size: 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="resetearProductosPendientes()">
+                        ✕ Ver Todos
+                    </button>
+                </h3>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="filtro-linea-pendientes" style="font-weight: 500; color: #666;">🏭 Línea Comercial:</label>
+                    <select id="filtro-linea-pendientes" onchange="filtrarPendientesPorLinea()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer;">
+                        <option value="">Todas las líneas</option>
+                    </select>
+                </div>
+            </div>
             <div class="chart-container">
                 <canvas id="grafico-productos-pendientes"></canvas>
+            </div>
+            
+            <!-- Desglose por Cliente (Drilldown) -->
+            <div id="desglose-clientes-pendientes" style="display: none; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #3498db;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h4 id="titulo-desglose-producto" style="margin: 0; color: #2c3e50; font-size: 1.3rem;"></h4>
+                    <button onclick="cerrarDesgloseClientes()" style="padding: 8px 16px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        ✕ Cerrar
+                    </button>
+                </div>
+                <div id="tabla-clientes-pendientes" style="overflow-x: auto;">
+                    <!-- Tabla dinámica aquí -->
+                </div>
             </div>
         </div>
     </div>
@@ -1362,6 +1383,91 @@ const selectedClienteId = {{ selected_filters.cliente_id|default('')|tojson|safe
 const ordersChartDataBackend = {{ orders_chart_data|default([])|tojson|safe }};
 const selectedClienteName = {{ nombre_cliente_seleccionado|default('')|tojson|safe }};
 
+// Extraer líneas comerciales únicas de pendingDataAll y poblar el select
+function inicializarFiltroLineaPendientes() {
+    const selectLinea = document.getElementById('filtro-linea-pendientes');
+    if (!selectLinea || !pendingDataAll) return;
+    
+    const lineasSet = new Set();
+    pendingDataAll.forEach(item => {
+        const lineaComercial = item.linea_comercial;
+        if (lineaComercial && lineaComercial.trim() !== '') {
+            lineasSet.add(lineaComercial);
+        }
+    });
+    
+    // Ordenar líneas alfabéticamente
+    const lineasArray = Array.from(lineasSet).sort();
+    
+    // Limpiar opciones existentes (excepto "Todas")
+    while (selectLinea.options.length > 1) {
+        selectLinea.remove(1);
+    }
+    
+    // Agregar opciones de líneas
+    lineasArray.forEach(linea => {
+        const option = document.createElement('option');
+        option.value = linea;
+        option.textContent = linea;
+        selectLinea.appendChild(option);
+    });
+}
+
+// Filtrar productos pendientes por línea comercial
+function filtrarPendientesPorLinea() {
+    const selectLinea = document.getElementById('filtro-linea-pendientes');
+    const lineaSeleccionada = selectLinea ? selectLinea.value : '';
+    
+    // Filtrar pendingDataAll por línea comercial si se seleccionó una
+    let datosFiltrados = pendingDataAll;
+    if (lineaSeleccionada) {
+        datosFiltrados = pendingDataAll.filter(item => {
+            return item.linea_comercial === lineaSeleccionada;
+        });
+    }
+    
+    // Agrupar por CÓDIGO de producto (NO por nombre)
+    const pendientesPorProducto = {};
+    const productoInfo = {};
+    
+    datosFiltrados.forEach(pending => {
+        const codigoProducto = pending.codigo_odoo || pending.default_code || 'S/C';
+        const nombreProducto = pending.descripcion || pending.producto || 'Producto Sin Nombre';
+        const totalPendiente = pending.total_pendiente || 0;
+        const cantidadPendiente = pending.cantidad_pendiente || 0;
+        const lineaComercial = pending.linea_comercial || 'Sin Línea';
+        
+        if (!pendientesPorProducto[codigoProducto]) {
+            pendientesPorProducto[codigoProducto] = {total: 0, cantidad: 0};
+            productoInfo[codigoProducto] = {
+                nombre: nombreProducto,
+                linea: lineaComercial
+            };
+        }
+        
+        pendientesPorProducto[codigoProducto].total += totalPendiente;
+        pendientesPorProducto[codigoProducto].cantidad += cantidadPendiente;
+    });
+    
+    // Ordenar y tomar top 7
+    const productosOrdenados = Object.entries(pendientesPorProducto)
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 7)
+        .filter(([codigo, datos]) => datos.total > 0);
+    
+    // Preparar datos para el gráfico
+    const datosParaGrafico = productosOrdenados.map(([codigo, datos]) => ({
+        codigo: codigo,
+        nombre: productoInfo[codigo].nombre,
+        total_pendiente: datos.total,
+        cantidad_pendiente: datos.cantidad,
+        linea_comercial: productoInfo[codigo].linea
+    }));
+    
+    // Recrear el gráfico con los datos filtrados
+    crearGraficoProductosPendientes(datosParaGrafico);
+}
+
 // Crear gráfico por pedidos para un cliente seleccionado
 function crearGraficoPedidos(clienteId) {
     try {
@@ -1614,6 +1720,7 @@ function crearGraficoProductosPendientes(productosData) {
     // Si no se pasan datos, usar los datos iniciales
     if (!productosData) {
         productosData = datosProductosPendientes.map(p => ({
+            codigo: p.codigo,
             nombre: p.nombre, 
             total_pendiente: p.total_pendiente,
             cantidad_pendiente: p.cantidad_pendiente,
@@ -1621,7 +1728,25 @@ function crearGraficoProductosPendientes(productosData) {
         }));
     }
 
-    const labels = productosData.map(item => (item.nombre || item[0]).length > 20 ? (item.nombre || item[0]).substring(0, 20) + '...' : (item.nombre || item[0]));
+    // Crear etiquetas mostrando solo el nombre del producto (sin código)
+    const labels = productosData.map(item => {
+        const codigo = item.codigo || 'S/C';
+        let nombre = item.nombre || item[0] || 'Sin Nombre';
+        
+        // Limpiar nombre si incluye el código al inicio
+        if (nombre.startsWith(`[${codigo}]`)) {
+            nombre = nombre.substring(`[${codigo}]`.length).trim();
+        }
+        // También limpiar si el código aparece sin corchetes
+        if (nombre.startsWith(codigo)) {
+            nombre = nombre.substring(codigo.length).trim();
+        }
+        
+        // Truncar a 50 caracteres si es muy largo
+        return nombre.length > 50 ? nombre.substring(0, 50) + '...' : nombre;
+    });
+    const codigos = productosData.map(item => item.codigo || 'S/C'); // Códigos para drilldown y tooltip
+    const nombresCompletos = productosData.map(item => item.nombre || item[0]); // Nombres completos sin truncar
     const data = productosData.map(item => item.total_pendiente || item[1] || 0);
     const cantidades = productosData.map(item => item.cantidad_pendiente || 0);
     const lineasComerciales = productosData.map(item => item.linea_comercial || 'Sin Línea');
@@ -1642,7 +1767,9 @@ function crearGraficoProductosPendientes(productosData) {
                 borderColor: '#e67e22',
                 borderWidth: 1,
                 cantidades: cantidades,  // Almacenar cantidades para el tooltip
-                lineasComerciales: lineasComerciales  // Almacenar líneas comerciales para el tooltip
+                lineasComerciales: lineasComerciales,  // Almacenar líneas comerciales para el tooltip
+                codigos: codigos,  // Almacenar códigos para drilldown y tooltip
+                nombresCompletos: nombresCompletos  // Almacenar nombres completos para drilldown
             }]
         },
         options: {
@@ -1659,10 +1786,12 @@ function crearGraficoProductosPendientes(productosData) {
                             const monto = Math.round(context.parsed.x || 0).toLocaleString('en-US');
                             const cantidad = context.dataset.cantidades[context.dataIndex];
                             const lineaComercial = context.dataset.lineasComerciales[context.dataIndex];
+                            const codigo = context.dataset.codigos[context.dataIndex];
                             return [
+                                '🔖 Código: ' + codigo,
                                 '💰 Monto: $ ' + monto,
                                 '📦 Unidades: ' + Math.round(cantidad).toLocaleString('en-US'),
-                                '🏷️ Línea: ' + lineaComercial
+                                '🏭 Línea: ' + lineaComercial
                             ];
                         }
                     }
@@ -1680,6 +1809,14 @@ function crearGraficoProductosPendientes(productosData) {
                         }
                     }
                 }
+            },
+            onClick: function(event, activeElements) {
+                if (activeElements.length > 0) {
+                    const index = activeElements[0].index;
+                    const codigoProducto = productosPendientesChart.data.datasets[0].codigos[index];
+                    const nombreProducto = productosPendientesChart.data.datasets[0].nombresCompletos[index];
+                    mostrarDesgloseClientesPendientes(codigoProducto, nombreProducto);
+                }
             }
         }
     });
@@ -1687,6 +1824,15 @@ function crearGraficoProductosPendientes(productosData) {
 
 // Función para resetear el filtro de productos pendientes y mostrar todos
 function resetearProductosPendientes() {
+    // Resetear el filtro de línea comercial
+    const selectLinea = document.getElementById('filtro-linea-pendientes');
+    if (selectLinea) {
+        selectLinea.value = '';
+    }
+    
+    // Cerrar desglose si está abierto
+    cerrarDesgloseClientes();
+    
     // Restaurar datos originales
     crearGraficoProductosPendientes();
     
@@ -1704,6 +1850,144 @@ function resetearProductosPendientes() {
     const btnResetPendientes = document.getElementById('btn-reset-productos-pendientes');
     if (btnResetPendientes) {
         btnResetPendientes.style.display = 'none';
+    }
+}
+
+// Mostrar desglose por cliente de un producto pendiente
+function mostrarDesgloseClientesPendientes(codigoProducto, nombreProducto) {
+    const container = document.getElementById('desglose-clientes-pendientes');
+    const titulo = document.getElementById('titulo-desglose-producto');
+    const tablaContainer = document.getElementById('tabla-clientes-pendientes');
+    
+    if (!container || !titulo || !tablaContainer) return;
+    
+    // Filtrar pendingDataAll por el CÓDIGO del producto seleccionado
+    const pedidosProducto = (pendingDataAll || []).filter(item => {
+        const codigo = item.codigo_odoo || item.default_code || '';
+        return codigo === codigoProducto;
+    });
+    
+    if (pedidosProducto.length === 0) {
+        alert('No se encontraron pedidos pendientes para este producto.');
+        return;
+    }
+    
+    // Agrupar por cliente
+    const clientesMap = new Map();
+    pedidosProducto.forEach(item => {
+        let clienteNombre = 'Sin Cliente';
+        let clienteId = null;
+        let pais = '';
+        
+        // Obtener nombre del cliente
+        if (item.partner_id && Array.isArray(item.partner_id) && item.partner_id.length > 1) {
+            clienteId = item.partner_id[0];
+            clienteNombre = item.partner_id[1];
+        } else if (item.cliente) {
+            clienteNombre = item.cliente;
+        }
+        
+        // Obtener país
+        if (item.country_id && Array.isArray(item.country_id) && item.country_id.length > 1) {
+            pais = item.country_id[1];
+        } else if (item.pais) {
+            pais = item.pais;
+        }
+        
+        const key = clienteId ? `${clienteId}_${clienteNombre}` : clienteNombre;
+        
+        if (!clientesMap.has(key)) {
+            clientesMap.set(key, {
+                nombre: clienteNombre,
+                pais: pais,
+                cantidad: 0,
+                monto: 0,
+                pedidos: []
+            });
+        }
+        
+        const cliente = clientesMap.get(key);
+        cliente.cantidad += (item.cantidad_pendiente || 0);
+        cliente.monto += (item.total_pendiente || 0);
+        cliente.pedidos.push(item.pedido || 'N/A');
+    });
+    
+    // Ordenar clientes por monto descendente
+    const clientesArray = Array.from(clientesMap.values()).sort((a, b) => b.monto - a.monto);
+    
+    // Limpiar nombreProducto si ya incluye el código al inicio
+    let nombreLimpio = nombreProducto;
+    // Remover código si aparece entre corchetes al inicio: [CODIGO] Nombre
+    if (nombreLimpio.startsWith(`[${codigoProducto}]`)) {
+        nombreLimpio = nombreLimpio.substring(`[${codigoProducto}]`.length).trim();
+    }
+    // Remover código si aparece sin corchetes al inicio
+    if (nombreLimpio.startsWith(codigoProducto)) {
+        nombreLimpio = nombreLimpio.substring(codigoProducto.length).trim();
+    }
+    
+    // Actualizar título (solo mostrar código una vez)
+    titulo.innerHTML = `<span style="color: #3498db; font-weight: 700;">[${codigoProducto}]</span> ${nombreLimpio} <span style="color: #7f8c8d; font-size: 0.9rem; font-weight: 400;">(— ${clientesArray.length} cliente${clientesArray.length !== 1 ? 's' : ''})</span>`;
+    
+    // Crear tabla
+    let tablaHTML = `
+        <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">#</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">🌎 Cliente</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">🏳️ País</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">📦 Cantidad</th>
+                    <th style="padding: 12px; text-align: right; font-weight: 600;">💰 Monto Pendiente</th>
+                    <th style="padding: 12px; text-align: center; font-weight: 600;">📋 Pedidos</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    clientesArray.forEach((cliente, index) => {
+        const bgColor = index % 2 === 0 ? '#f8f9fa' : 'white';
+        const pedidosUnicos = [...new Set(cliente.pedidos)].join(', ');
+        
+        tablaHTML += `
+            <tr style="background-color: ${bgColor}; border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 10px; font-weight: 500; color: #495057;">${index + 1}</td>
+                <td style="padding: 10px; color: #2c3e50; font-weight: 500;">${cliente.nombre}</td>
+                <td style="padding: 10px; color: #7f8c8d;">${cliente.pais || '—'}</td>
+                <td style="padding: 10px; text-align: right; color: #3498db; font-weight: 600;">${Math.round(cliente.cantidad).toLocaleString('en-US')}</td>
+                <td style="padding: 10px; text-align: right; color: #27ae60; font-weight: 700; font-size: 1.05rem;">$ ${Math.round(cliente.monto).toLocaleString('en-US')}</td>
+                <td style="padding: 10px; text-align: center; font-size: 0.85rem; color: #6c757d;">${pedidosUnicos}</td>
+            </tr>
+        `;
+    });
+    
+    // Totales
+    const totalCantidad = clientesArray.reduce((sum, c) => sum + c.cantidad, 0);
+    const totalMonto = clientesArray.reduce((sum, c) => sum + c.monto, 0);
+    
+    tablaHTML += `
+            <tr style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; font-weight: 700; box-shadow: 0 -2px 10px rgba(52, 152, 219, 0.3);">
+                <td colspan="3" style="padding: 14px 12px; font-size: 1.15rem; letter-spacing: 0.5px;">TOTAL</td>
+                <td style="padding: 14px 12px; text-align: right; font-size: 1.15rem;">${Math.round(totalCantidad).toLocaleString('en-US')}</td>
+                <td style="padding: 14px 12px; text-align: right; font-size: 1.2rem; font-weight: 800;">$ ${Math.round(totalMonto).toLocaleString('en-US')}</td>
+                <td style="padding: 14px 12px;"></td>
+            </tr>
+            </tbody>
+        </table>
+    `;
+    
+    tablaContainer.innerHTML = tablaHTML;
+    container.style.display = 'block';
+    
+    // Scroll suave hacia el desglose
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Cerrar desglose de clientes
+function cerrarDesgloseClientes() {
+    const container = document.getElementById('desglose-clientes-pendientes');
+    if (container) {
+        container.style.display = 'none';
     }
 }
 
@@ -4046,6 +4330,7 @@ function cambiarAño(año) {
 document.addEventListener('DOMContentLoaded', function() {
     crearGraficoProductos();
     crearGraficoProductosPendientes();
+    inicializarFiltroLineaPendientes(); // Inicializar filtro de línea comercial
     crearGraficoLineas();
     crearGraficoFormaFarmaceutica();
     crearGraficoDrilldown();
