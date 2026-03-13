@@ -1,4 +1,4 @@
-# odoo_manager.py - Versión Completa Restaurada
+# odoo_manager.py - Versión con JSON-RPC (evita módulo cs_login_audit_log)
 
 import xmlrpc.client
 import http.client
@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import logging
 import re
+import requests
+import json
 
 # Load environment variables
 load_dotenv()
@@ -66,9 +68,9 @@ class OdooManager:
             'legend': [cat[1] for cat in categories]
         }
     def __init__(self):
-        # Configurar conexión a Odoo - Usar credenciales del .env
+        # Configurar conexión a Odoo - Usar JSON-RPC (evita cs_login_audit_log)
         try:
-            # Cargar credenciales desde variables de entorno (sin valores por defecto)
+            # Cargar credenciales desde variables de entorno
             self.url = os.getenv('ODOO_URL')
             self.db = os.getenv('ODOO_DB')
             self.username = os.getenv('ODOO_USER')
@@ -82,76 +84,174 @@ class OdooManager:
                 ] if not val]
                 raise ValueError(f"Variables de entorno faltantes: {', '.join(missing)}")
             
-            # Timeout configurable para llamadas XML-RPC (segundos)
+            # Timeout configurable (segundos)
             try:
-                rpc_timeout = int(os.getenv('ODOO_RPC_TIMEOUT', '10'))
+                self.rpc_timeout = int(os.getenv('ODOO_RPC_TIMEOUT', '30'))
             except Exception:
-                rpc_timeout = 10
-
-            # Transport personalizado que aplica timeout a la conexión HTTP/HTTPS
-            class TimeoutTransport(xmlrpc.client.Transport):
-                def __init__(self, timeout=None, use_https=False):
-                    super().__init__()
-                    self._timeout = timeout
-                    self._use_https = use_https
-
-                def make_connection(self, host):
-                    # host may include :port
-                    if self._use_https:
-                        return http.client.HTTPSConnection(host, timeout=self._timeout)
-                    return http.client.HTTPConnection(host, timeout=self._timeout)
-
-            use_https = str(self.url).lower().startswith('https')
-            transport = TimeoutTransport(timeout=rpc_timeout, use_https=use_https)
-
-            # Establecer conexión con timeout
-            common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common', transport=transport)
-            try:
-                self.uid = common.authenticate(self.db, self.username, self.password, {})
-            except socket.timeout:
-                self.uid = None
-            except Exception as auth_e:
-                # Manejar errores de protocolo o conexión sin bloquear
-                self.uid = None
+                self.rpc_timeout = 30
             
-            if self.uid:
-                # Usar el mismo transport para el endpoint de object
-                self.models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object', transport=transport)
-                logging.info(f"Conexión a Odoo exitosa. UID: {self.uid}.")
-            else:
+            # URL para JSON-RPC
+            self.jsonrpc_url = f"{self.url}/jsonrpc"
+            
+            # === AUTENTICACIÓN VIA JSON-RPC ===
+            # Este método evita el módulo cs_login_audit_log que bloquea XML-RPC
+            try:
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {
+                        "service": "common",
+                        "method": "authenticate",
+                        "args": [self.db, self.username, self.password, {}]
+                    },
+                    "id": 1
+                }
+                
+                response = requests.post(
+                    self.jsonrpc_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=self.rpc_timeout
+                )
+                result = response.json()
+                
+                if "result" in result and result["result"]:
+                    self.uid = result["result"]
+                    # Crear objeto models simulado para compatibilidad
+                    self.models = self._create_jsonrpc_models_proxy()
+                    logging.info(f"✅ Conexión a Odoo exitosa via JSON-RPC. UID: {self.uid}")
+                else:
+                    self.uid = None
+                    self.models = None
+                    logging.warning(f"❌ Autenticación JSON-RPC falló: {result.get('error', 'Sin respuesta')}")
+                    
+            except requests.exceptions.Timeout:
                 self.uid = None
                 self.models = None
-                logging.warning("Falló la autenticación con Odoo. UID es None.")
+                logging.warning("⏱️ Timeout en autenticación JSON-RPC")
+            except Exception as auth_e:
+                self.uid = None
+                self.models = None
+                logging.warning(f"⚠️ Error en autenticación JSON-RPC: {auth_e}")
                 
         except Exception as e:
-            logging.error(f"Error en la conexión a Odoo: {e}")
+            logging.error(f"❌ Error crítico en conexión a Odoo: {e}")
             logging.info("Continuando en modo offline.")
             self.uid = None
             self.models = None
+    
+    def _create_jsonrpc_models_proxy(self):
+        """Crea un objeto proxy que simula el comportamiento de xmlrpc models"""
+        class JSONRPCModelsProxy:
+            def __init__(self, manager):
+                self.manager = manager
+            
+            def execute_kw(self, db, uid, password, model, method, args, kwargs=None):
+                """Wrapper que convierte llamadas XML-RPC a JSON-RPC"""
+                if kwargs is None:
+                    kwargs = {}
+                
+                try:
+                    headers = {"Content-Type": "application/json"}
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "method": "call",
+                        "params": {
+                            "service": "object",
+                            "method": "execute_kw",
+                            "args": [db, uid, password, model, method, args, kwargs]
+                        },
+                        "id": 1
+                    }
+                    
+                    response = requests.post(
+                        self.manager.jsonrpc_url,
+                        json=payload,
+                        headers=headers,
+                        timeout=self.manager.rpc_timeout
+                    )
+                    result = response.json()
+                    
+                    if "result" in result:
+                        return result["result"]
+                    elif "error" in result:
+                        error = result["error"]
+                        error_msg = error.get("data", {}).get("message", str(error))
+                        logging.error(f"Error Odoo JSON-RPC: {error_msg}")
+                        return None
+                    else:
+                        return None
+                        
+                except Exception as e:
+                    logging.error(f"Error en execute_kw JSON-RPC: {e}")
+                    return None
+        
+        return JSONRPCModelsProxy(self)
 
     def authenticate_user(self, username, password):
         """Autenticar usuario contra Odoo y devolver sus datos si es exitoso."""
         try:
-            common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
-            uid = common.authenticate(self.db, username, password, {})
+            # === USAR JSON-RPC para autenticación ===
+            headers = {"Content-Type": "application/json"}
             
-            if uid:
-                # Una vez autenticado, obtener el nombre del usuario
-                models = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
-                user_data = models.execute_kw(
-                    self.db, uid, password, 'res.users', 'read',
-                    [uid], {'fields': ['name', 'login']}
+            # Autenticar
+            auth_payload = {
+                "jsonrpc": "2.0",
+                "method": "call",
+                "params": {
+                    "service": "common",
+                    "method": "authenticate",
+                    "args": [self.db, username, password, {}]
+                },
+                "id": 1
+            }
+            
+            response = requests.post(
+                self.jsonrpc_url,
+                json=auth_payload,
+                headers=headers,
+                timeout=self.rpc_timeout
+            )
+            result = response.json()
+            
+            if "result" in result and result["result"]:
+                uid = result["result"]
+                
+                # Leer datos del usuario
+                read_payload = {
+                    "jsonrpc": "2.0",
+                    "method": "call",
+                    "params": {
+                        "service": "object",
+                        "method": "execute_kw",
+                        "args": [
+                            self.db, uid, password,
+                            'res.users', 'read',
+                            [uid], {'fields': ['name', 'login']}
+                        ]
+                    },
+                    "id": 2
+                }
+                
+                response = requests.post(
+                    self.jsonrpc_url,
+                    json=read_payload,
+                    headers=headers,
+                    timeout=self.rpc_timeout
                 )
-                if user_data:
-                    return user_data[0]  # Devuelve {'id': uid, 'name': 'John Doe', 'login': '...'}
+                result = response.json()
+                
+                if "result" in result and result["result"]:
+                    return result["result"][0]  # {'id': uid, 'name': 'John Doe', 'login': '...'}
                 else:
-                    # Fallback si no se pueden leer los datos del usuario
+                    # Fallback si no se pueden leer los datos
                     return {'id': uid, 'name': username, 'login': username}
             else:
                 return None
                 
         except Exception as e:
-            # En caso de error de conexión, no se puede autenticar
+            logging.error(f"Error en authenticate_user JSON-RPC: {e}")
             return None
 
     def get_international_clients(self):
