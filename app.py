@@ -74,7 +74,8 @@ client_secrets = {
 # Configuración de sesión
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+# Expiración automática tras 15 minutos de inactividad
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=15)
 
 # Configuración de seguridad adicional para producción
 if IS_PRODUCTION:
@@ -126,6 +127,25 @@ def format_month_name_filter(value):
         return f"{meses_nombres[mes - 1]} {año}"
     except (ValueError, IndexError):
         return value
+
+# --- Middleware para renovar sesión en cada actividad ---
+@app.before_request
+def refresh_session():
+    """Renueva la sesión en cada request para reiniciar el contador de inactividad.
+    La sesión expirará 15 minutos después de la última actividad del usuario.
+    """
+    # Rutas públicas que no requieren sesión activa
+    public_routes = ['login', 'login_google', 'callback', 'static']
+    
+    # Si es una ruta pública, no hacer nada
+    if request.endpoint in public_routes:
+        return
+    
+    # Si hay sesión activa, actualizar timestamp para renovar la cookie
+    if 'username' in session:
+        session.modified = True
+        # Actualizar timestamp de última actividad (opcional, para logging)
+        session['last_activity'] = datetime.utcnow().isoformat()
 
 # --- Inicialización de Managers ---
 data_manager = OdooManager()

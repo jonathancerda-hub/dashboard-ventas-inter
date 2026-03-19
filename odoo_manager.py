@@ -259,8 +259,8 @@ class OdooManager:
         try:
             all_partner_ids = set()
 
-            # Obtener clientes directamente de las líneas de factura que ya estamos usando en el dashboard
-            # para asegurar consistencia.
+            # 1. Obtener clientes de facturas posteadas
+            # (Clientes que ya han facturado internacionalmente)
             client_fetch_domain = [
                 ('move_id.journal_id.name', '=', 'F150 (Venta exterior)'), # Diario de Venta Exterior por nombre
                 ('move_id.move_type', 'in', ['out_invoice', 'out_refund']),
@@ -286,6 +286,27 @@ class OdooManager:
             for group in partner_groups:
                 if group.get('partner_id'):
                     all_partner_ids.add(group['partner_id'][0])
+            
+            # 2. Obtener clientes de pedidos de venta internacionales
+            # (Incluir clientes con pedidos aunque no hayan facturado aún)
+            try:
+                sale_order_partners = self.models.execute_kw(
+                    self.db, self.uid, self.password, 'sale.order', 'read_group',
+                    [[('team_id.name', 'ilike', 'INTERNACIONAL')]],
+                    {
+                        'fields': ['partner_id'],
+                        'groupby': ['partner_id'],
+                        'lazy': False
+                    }
+                )
+                
+                for group in sale_order_partners:
+                    if group.get('partner_id'):
+                        all_partner_ids.add(group['partner_id'][0])
+                
+                logging.debug(f"Agregados {len(sale_order_partners)} clientes desde pedidos de venta internacionales")
+            except Exception as order_error:
+                logging.warning(f"No se pudieron obtener clientes de pedidos de venta: {order_error}")
 
             partner_ids = list(all_partner_ids)
             
