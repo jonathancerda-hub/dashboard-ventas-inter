@@ -3,8 +3,9 @@
 from flask_caching import Cache
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from dotenv import load_dotenv
-from odoo_manager import OdooManager
-from google_sheets_manager import GoogleSheetsManager
+from database.odoo_manager import OdooManager
+from database.google_sheets_manager import GoogleSheetsManager
+from database.supabase_manager import SupabaseManager
 import os
 import pandas as pd
 import json
@@ -149,10 +150,15 @@ def refresh_session():
 
 # --- Inicialización de Managers ---
 data_manager = OdooManager()
+
+# Google Sheets Manager (mantener para compatibilidad con otras funciones)
 gs_manager = GoogleSheetsManager(
     credentials_file='credentials.json',
     sheet_name=os.getenv('GOOGLE_SHEET_NAME')
 )
+
+# Supabase Manager (para metas de clientes)
+supabase_manager = SupabaseManager()
 
 # --- Funciones Auxiliares ---
 
@@ -931,7 +937,7 @@ def dashboard():
         
         # --- INTEGRACIÓN DE METAS POR CLIENTE ---
         # 1. Cargar metas de clientes para el año seleccionado (no el año actual)
-        metas_clientes_historicas = gs_manager.read_metas_por_cliente()
+        metas_clientes_historicas = supabase_manager.read_metas_por_cliente()
         año_str = str(año_seleccionado)  # Usar año_seleccionado en lugar de datetime.now().year
         metas_clientes_año = metas_clientes_historicas.get(año_str, {})
 
@@ -2263,7 +2269,7 @@ def metas_cliente():
         if request.method == 'POST':
             año_formulario = request.form.get('año_seleccionado', año_seleccionado)
             # Leer las metas existentes para actualizarlas
-            metas_historicas = gs_manager.read_metas_por_cliente()
+            metas_historicas = supabase_manager.read_metas_por_cliente()
             
             # Crear o actualizar la entrada para el mes actual
             metas_del_año = metas_historicas.get(año_formulario, {})
@@ -2306,8 +2312,8 @@ def metas_cliente():
             # Actualizar las metas del mes en la estructura histórica
             metas_historicas[año_formulario] = metas_del_año
 
-            # Guardar en Google Sheets
-            gs_manager.write_metas_por_cliente(metas_historicas)
+            # Guardar en Supabase
+            supabase_manager.write_metas_por_cliente(metas_historicas)
             
             # Guardar las metas recién guardadas en la sesión para evitar latencia de lectura
             # La sesión ahora debe guardar la estructura completa del año
@@ -2321,7 +2327,7 @@ def metas_cliente():
             return redirect(url_for('metas_cliente', año=año_formulario))
 
         # GET request: Cargar y mostrar datos
-        metas_historicas = gs_manager.read_metas_por_cliente()
+        metas_historicas = supabase_manager.read_metas_por_cliente()
 
         # Lógica para evitar latencia de Google Sheets:
         # 1. Intentar obtener las metas de la sesión (que se guardaron en el POST)
