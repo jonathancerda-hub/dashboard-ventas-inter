@@ -457,9 +457,6 @@ class OdooManager:
                 ('tax_ids.name', 'ilike', 'EXE_IGV_EXP'), # Filtro por impuesto EXE_IGV_EXP
                 # Filtros para excluir productos no deseados
                 ('product_id', '!=', False),
-                ('product_id.default_code', 'not ilike', '%SERV%'), # Excluir servicios
-                # ('product_id.default_code', 'not like', '81%'), # DESACTIVADO: Este filtro causa un bug en un módulo custom de Odoo
-                                                                  # que excluye productos incorrectamente (ej: 35000PER00081).
                 ('product_id.name', '!=', 'VTA SERV GENERALES') # Excluir explícitamente el producto de servicio
             ]
             
@@ -638,6 +635,7 @@ class OdooManager:
 
             # Obtener datos de líneas de orden de venta con más campos
             sale_line_data = {}
+            sale_line_ids_for_stock = []  # Para buscar lotes
             if order_ids and product_ids:
                 try:
                     sale_lines = self.models.execute_kw(
@@ -656,8 +654,56 @@ class OdooManager:
                         if sl.get('order_id') and sl.get('product_id'):
                             key = (sl['order_id'][0], sl['product_id'][0])
                             sale_line_data[key] = sl
+                            sale_line_ids_for_stock.append(sl['id'])
                 except Exception as e:
                     pass
+            
+            # Obtener lotes y fechas de vencimiento desde movimientos de stock
+            lot_data = {}  # {product_id: {'lote': 'nombre_lote', 'fecha_vencimiento': 'fecha'}}
+            if sale_line_ids_for_stock:
+                try:
+                    # Buscar movimientos de stock asociados a las líneas de venta
+                    stock_moves = self.models.execute_kw(
+                        self.db, self.uid, self.password, 'stock.move', 'search_read',
+                        [[('sale_line_id', 'in', sale_line_ids_for_stock)]],
+                        {'fields': ['id', 'product_id', 'sale_line_id'], 'limit': 5000}
+                    )
+                    
+                    if stock_moves:
+                        stock_move_ids = [sm['id'] for sm in stock_moves]
+                        
+                        # Buscar líneas de movimiento con lotes
+                        stock_move_lines = self.models.execute_kw(
+                            self.db, self.uid, self.password, 'stock.move.line', 'search_read',
+                            [[('move_id', 'in', stock_move_ids), ('lot_id', '!=', False)]],
+                            {'fields': ['move_id', 'product_id', 'lot_id', 'lot_name'], 'limit': 5000}
+                        )
+                        
+                        # Obtener IDs únicos de lotes
+                        lot_ids = list(set([sml['lot_id'][0] for sml in stock_move_lines if sml.get('lot_id')]))
+                        
+                        if lot_ids:
+                            # Consultar información de lotes incluyendo fecha de vencimiento
+                            lots = self.models.execute_kw(
+                                self.db, self.uid, self.password, 'stock.lot', 'search_read',
+                                [[('id', 'in', lot_ids)]],
+                                {'fields': ['id', 'name', 'expiration_date', 'use_date', 'product_id']}
+                            )
+                            
+                            # Crear mapa: product_id -> datos de lote
+                            for lot in lots:
+                                if lot.get('product_id'):
+                                    product_id = lot['product_id'][0]
+                                    fecha_venc = lot.get('expiration_date') or lot.get('use_date') or ''
+                                    
+                                    # Guardar datos del lote por producto_id
+                                    if product_id not in lot_data:
+                                        lot_data[product_id] = {
+                                            'lote': lot.get('name', ''),
+                                            'fecha_vencimiento': fecha_venc
+                                        }
+                except Exception as e:
+                    logging.warning(f"No se pudieron obtener datos de lotes: {e}")
             
             # Obtener todos los tax_ids únicos de las líneas contables
             all_tax_ids = set()
@@ -749,6 +795,10 @@ class OdooManager:
                 if not display_pedido:
                     display_pedido = move.get('invoice_origin')
                 
+                # Obtener datos de lote y fecha de vencimiento
+                product_id_value = product_id[0] if product_id else None
+                lote_info = lot_data.get(product_id_value, {})
+                
                 sales_lines.append({
                     # 1. Pedido (número de orden de venta) - SOLUCIÓN ESPECIAL PARA S00791
                     'pedido': display_pedido,
@@ -801,6 +851,12 @@ class OdooManager:
                     
                     # 16. Total
                     'total': -line.get('balance', 0) if line.get('balance') is not None else 0,
+                    
+                    # 17. Lote (nuevo campo)
+                    'lote': lote_info.get('lote', ''),
+                    
+                    # 18. Fecha de Vencimiento (nuevo campo)
+                    'fecha_vencimiento': lote_info.get('fecha_vencimiento', ''),
                     
                     # DEBUG: Agregar información de factura para identificar líneas múltiples
                     'factura': move.get('name', ''),

@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+        crossorigin="anonymous"></script>
 {% endblock %}
 
 {% block content %}
@@ -1360,8 +1361,10 @@ body {
 }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"
+        crossorigin="anonymous"></script>
 <script>
 // Datos del backend para los gráficos (con valores positivos)
 const datosLineas = {{ datos_lineas|default([])|tojson|safe }};

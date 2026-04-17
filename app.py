@@ -1,11 +1,15 @@
 # app.py - Dashboard de Ventas Farmacéuticas
 
 from flask_caching import Cache
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from dotenv import load_dotenv
 from database.odoo_manager import OdooManager
 from database.google_sheets_manager import GoogleSheetsManager
 from database.supabase_manager import SupabaseManager
+from services.validation_service import ValidationService
+from services.security_logger import SecurityLogger
 import os
 import pandas as pd
 import json
@@ -74,7 +78,7 @@ client_secrets = {
 
 # Configuración de sesión
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # ✅ 'Lax' permite OAuth callbacks (Strict los bloquea)
 # Expiración automática tras 15 minutos de inactividad
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=15)
 
@@ -92,6 +96,16 @@ cache_config = {
 }
 cache = Cache(config=cache_config)
 cache.init_app(app)
+
+# --- Configuración de Rate Limiting ---
+# Previene ataques de fuerza bruta y DoS
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    strategy="fixed-window"
+)
 
 # Configuración para deshabilitar cache de templates
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -129,6 +143,46 @@ def format_month_name_filter(value):
     except (ValueError, IndexError):
         return value
 
+# --- Middleware de Seguridad: Headers ---
+@app.after_request
+def add_security_headers(response):
+    """Agrega headers de seguridad a todas las respuestas.
+    Cumplimiento OWASP: X-Frame-Options, CSP, X-Content-Type-Options, etc.
+    """
+    # Protección contra clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    
+    # Prevenir MIME-type sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # Habilitar protección XSS del navegador
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Content Security Policy (CSP) - Configuración relajada para desarrollo
+    # Permite scripts/estilos de CDNs específicos (ECharts, Chart.js)
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://accounts.google.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+        "connect-src 'self' https://accounts.google.com; "
+        "frame-src 'self' https://accounts.google.com;"
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
+    
+    # Strict Transport Security (solo en producción con HTTPS)
+    if IS_PRODUCTION:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Referrer Policy
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # Permissions Policy (antes Feature-Policy)
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    
+    return response
+
 # --- Middleware para renovar sesión en cada actividad ---
 @app.before_request
 def refresh_session():
@@ -147,6 +201,14 @@ def refresh_session():
         session.modified = True
         # Actualizar timestamp de última actividad (opcional, para logging)
         session['last_activity'] = datetime.utcnow().isoformat()
+    else:
+        # ✅ Log evento de seguridad: intento de acceso no autorizado
+        if request.endpoint and request.endpoint not in public_routes:
+            security_logger.log_unauthorized_access(
+                endpoint=request.endpoint,
+                user=None,
+                request=request
+            )
 
 # --- Inicialización de Managers ---
 data_manager = OdooManager()
@@ -159,6 +221,12 @@ gs_manager = GoogleSheetsManager(
 
 # Supabase Manager (para metas de clientes)
 supabase_manager = SupabaseManager()
+
+# Validation Service (para validación centralizada de inputs)
+validation_service = ValidationService()
+
+# Security Logger (para auditoría de eventos de seguridad)
+security_logger = SecurityLogger()
 
 # --- Funciones Auxiliares ---
 
@@ -246,6 +314,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/login/google')
+@limiter.limit("5 per minute")
 def login_google():
     """Inicia el flujo de autenticación OAuth2 con Google"""
     try:
@@ -264,11 +333,14 @@ def login_google():
         session['state'] = state
         return redirect(authorization_url)
     except Exception as e:
+        # ✅ Log detallado para debugging (solo visible en logs del servidor)
         app.logger.error(f"Error iniciando OAuth2: {e}", exc_info=True)
-        flash(f'Error al intentar iniciar sesión con Google: {e}', 'danger')
+        # ✅ Mensaje genérico para usuario (no expone detalles técnicos)
+        flash('Error al iniciar sesión. Por favor, inténtelo nuevamente.', 'danger')
         return redirect(url_for('login'))
 
 @app.route('/login/callback')
+@limiter.limit("10 per minute")
 def callback():
     """Maneja la respuesta de Google OAuth2"""
     try:
@@ -323,24 +395,53 @@ def callback():
         # Verificar si el usuario está autorizado (case-insensitive)
         allowed_emails_lower = [email.lower() for email in allowed_emails]
         if user_email.lower() in allowed_emails_lower:
+            # ⏱️ MEDICIÓN DE TIEMPO: Registrar inicio de sesión
+            import time
+            session['login_timestamp'] = time.time()
+            
             session['username'] = user_email
             session['user_name'] = user_name
             session['user_picture'] = user_picture
             session.permanent = True
-            app.logger.info(f"Login OAuth2 exitoso: {user_email}")
+            app.logger.info(f"⏱️ Login OAuth2 exitoso: {user_email} | Timestamp: {session['login_timestamp']}")
+            
+            # ✅ Log evento de seguridad: login exitoso
+            security_logger.log_login_attempt(
+                email=user_email,
+                success=True,
+                request=request
+            )
+            
             return redirect(url_for('dashboard'))
         else:
             app.logger.warning(f"Usuario {user_email} no autorizado. Emails permitidos: {len(allowed_emails)}")
+            
+            # ✅ Log evento de seguridad: login fallido por no autorizado
+            security_logger.log_login_attempt(
+                email=user_email,
+                success=False,
+                request=request,
+                reason="User not in allowed list"
+            )
+            
             flash(f'El usuario {user_email} no tiene permiso para acceder a esta aplicación.', 'danger')
             return redirect(url_for('login'))
             
     except Exception as e:
+        # ✅ Log detallado para auditoría de seguridad
         app.logger.error(f"Error en callback OAuth2: {e}", exc_info=True)
-        flash(f'Error al completar inicio de sesión: {str(e)}', 'danger')
+        # ✅ Mensaje genérico sin detalles técnicos
+        flash('Error al completar la autenticación. Por favor, inténtelo nuevamente.', 'danger')
         return redirect(url_for('login'))
 
 @app.route('/logout')
 def logout():
+    user_email = session.get('username', 'Unknown')
+    
+    # ✅ Log evento de seguridad: logout
+    if user_email != 'Unknown':
+        security_logger.log_logout(email=user_email, request=request)
+    
     session.clear()
     flash('Has cerrado sesión correctamente.', 'info')
     return redirect(url_for('login'))
@@ -387,8 +488,19 @@ def sales():
                 query_filters[key] = None
 
         # --- PAGINACIÓN (se pasa a OdooManager) ---
-        page = int(request.args.get('page', 1))
-        per_page = int(selected_filters.get('per_page', 1000))
+        try:
+            page = int(request.args.get('page', 1))
+            if page < 1:
+                page = 1
+        except (ValueError, TypeError):
+            page = 1
+            
+        try:
+            per_page = int(selected_filters.get('per_page', 1000))
+            if per_page < 1 or per_page > 10000:  # Límite máximo
+                per_page = 1000
+        except (ValueError, TypeError):
+            per_page = 1000
 
         # Obtener datos y paginación directamente de OdooManager
         sales_data_filtered, pagination_data = data_manager.get_sales_lines(
@@ -425,7 +537,10 @@ def sales():
             pagination=pagination
         )
     except Exception as e:
-        flash(f'Error al obtener datos: {str(e)}', 'danger')
+        # ✅ Log detallado para debugging
+        app.logger.error(f"Error obteniendo datos de ventas: {e}", exc_info=True)
+        # ✅ Mensaje genérico para usuario
+        flash('Error al cargar los datos de ventas. Por favor, inténtelo nuevamente.', 'danger')
         pagination_default = {
             'page': 1, 'per_page': 1000, 'total': 0, 'pages': 0,
             'showing_from': 0, 'showing_to': 0, 'has_prev': False, 'has_next': False
@@ -471,8 +586,19 @@ def pending():
             selected_filters = {k: v for k, v in selected_filters.items() if v}
 
         # --- PAGINACIÓN (se pasa a OdooManager) ---
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 1000))
+        try:
+            page = int(request.args.get('page', 1))
+            if page < 1:
+                page = 1
+        except (ValueError, TypeError):
+            page = 1
+            
+        try:
+            per_page = int(request.args.get('per_page', 1000))
+            if per_page < 1 or per_page > 10000:  # Límite máximo
+                per_page = 1000
+        except (ValueError, TypeError):
+            per_page = 1000
 
         # Obtener datos y paginación directamente de OdooManager
         pending_data, pagination_data = data_manager.get_pending_orders(
@@ -505,7 +631,10 @@ def pending():
                              fecha_actual=datetime.now()
         )
     except Exception as e:
-        flash(f'Error al obtener datos de pedidos pendientes: {str(e)}', 'danger')
+        # ✅ Log detallado para debugging
+        app.logger.error(f"Error obteniendo pedidos pendientes: {e}", exc_info=True)
+        # ✅ Mensaje genérico para usuario
+        flash('Error al cargar los pedidos pendientes. Por favor, inténtelo nuevamente.', 'danger')
         pagination_default = {
             'page': 1, 'per_page': 1000, 'total': 0, 'pages': 0,
             'showing_from': 0, 'showing_to': 0, 'has_prev': False, 'has_next': False
@@ -518,13 +647,54 @@ def pending():
                              pagination=pagination_default)
 
 @app.route('/dashboard', methods=['GET', 'POST'])
+@limiter.limit("100 per minute")
 def dashboard():
+    # ⏱️ MEDICIÓN DE TIEMPO: Inicio de carga del dashboard
+    import time
+    dashboard_start = time.time()
+    
+    # Calcular tiempo desde login si existe
+    login_timestamp = session.get('login_timestamp')
+    if login_timestamp:
+        time_since_login = dashboard_start - login_timestamp
+        app.logger.info(f"⏱️ ===== DASHBOARD INICIADO ===== | Tiempo desde login: {time_since_login:.3f}s")
+    else:
+        app.logger.info(f"⏱️ ===== DASHBOARD INICIADO ===== | Sin timestamp de login")
+    
     if 'username' not in session:
         return redirect(url_for('login'))
     
-    # Construir una clave de caché única basada en los filtros incluyendo el año
-    año_actual = datetime.now().year
-    cache_key = f"dashboard_{request.method}_{request.args.get('cliente_id', 'all')}_{request.args.get('año', str(año_actual))}_{request.args.get('date_from', '')}_{request.args.get('date_to', '')}"
+    # Validar filtros usando ValidationService
+    try:
+        validated_filters = validation_service.validate_dashboard_filters(request.args)
+        año_seleccionado = validated_filters['año']
+        cliente_id_param = validated_filters.get('cliente_id')
+        date_from_param = validated_filters.get('date_from')
+        date_to_param = validated_filters.get('date_to')
+    except ValueError as e:
+        app.logger.warning(f"Validación de filtros falló: {e}")
+        
+        # ✅ Log evento de seguridad: error de validación
+        security_logger.log_validation_error(
+            param='dashboard_filters',
+            value=str(request.args),
+            request=request,
+            error_type="DASHBOARD_VALIDATION"
+        )
+        
+        flash('Los parámetros de búsqueda no son válidos', 'warning')
+        return redirect(url_for('dashboard'))
+    
+    # Construir una clave de caché única basada en los filtros validados
+    cache_key_parts = [
+        'dashboard',
+        request.method,
+        validation_service.sanitize_for_cache_key(cliente_id_param or 'all'),
+        str(año_seleccionado),
+        validation_service.sanitize_for_cache_key(date_from_param or ''),
+        validation_service.sanitize_for_cache_key(date_to_param or '')
+    ]
+    cache_key = '_'.join(cache_key_parts)
     
     # Intentar obtener datos de caché solo para GET requests
     if request.method == 'GET':
@@ -551,37 +721,18 @@ def dashboard():
             selected_filters = {'cliente_id': request.args.get('cliente_id')}
             selected_filters['año'] = request.args.get('año')
 
-        # Limpiar filtros para la consulta
-        query_filters = selected_filters.copy()
-        for key, value in query_filters.items():
-            if not value:
-                query_filters[key] = None
+        # Usar filtros ya validados
+        partner_id = cliente_id_param
         
-        # Convertir cliente_id a entero si existe
-        partner_id = None
-        if query_filters.get('cliente_id'):
-            try:
-                partner_id = int(query_filters['cliente_id'])
-            except ValueError:
-                partner_id = None
-        
-    # Debug info removed
-        
-        # MODIFICACIÓN: Soporte para filtro de año
-        # Si no hay año seleccionado, usar el año actual por defecto
-        año_actual = datetime.now().year
-        año_seleccionado = selected_filters.get('año') or str(año_actual)
-        try:
-            año_seleccionado = int(año_seleccionado)
-        except (ValueError, TypeError):
-            año_seleccionado = año_actual
-        
-        # Generar lista de años disponibles (desde 2025 hasta el año actual + 1)
-        años_disponibles = list(range(2025, año_actual + 2))
+        # Generar lista de años disponibles (desde 2020 hasta el año actual + 5)
+        años_disponibles = list(range(
+            validation_service.MIN_YEAR,
+            validation_service.MAX_YEAR + 1
+        ))
         
         # Establecer date_from y date_to según el año seleccionado
-        date_from = selected_filters.get('date_from') or f"{año_seleccionado}-01-01"
-        date_to = selected_filters.get('date_to') or f"{año_seleccionado}-12-31"
+        date_from = date_from_param or f"{año_seleccionado}-01-01"
+        date_to = date_to_param or f"{año_seleccionado}-12-31"
         
         # CORRECCIÓN: get_sales_lines ahora devuelve una tupla (datos, paginación).
         # Desempaquetamos y solo usamos los datos.
@@ -650,7 +801,7 @@ def dashboard():
 
             # Agrupar pendiente por pedido desde pending_data
             pendiente_by_pedido = {}
-            for p in pending_data: # Usar los datos crudos de pendientes
+            for p in pending_data: # Usar los datos completos de pendientes
                 pedido_name = p.get('pedido') or p.get('order_name') or p.get('move_name') or ''
                 if not pedido_name:
                     continue
@@ -709,7 +860,25 @@ def dashboard():
             # Removed verbose debug logging for orders_chart_data
         else:
             orders_chart_data = []
-
+        
+        # ✅ FILTRO GLOBAL: Excluir códigos que empiezan con "81000" o "SERV" de TODOS los datos
+        sales_data_year = [
+            item for item in sales_data_year
+            if not (
+                (item.get('codigo_odoo', '') or '').startswith('81000') or
+                (item.get('codigo_odoo', '') or '').startswith('SERV')
+            )
+        ]
+        
+        pending_data = [
+            item for item in pending_data
+            if not (
+                (item.get('codigo_odoo', '') or '').startswith('81000') or
+                (item.get('codigo_odoo', '') or '').startswith('SERV')
+            )
+        ]
+        
+        # Usar todos los datos del año (ya filtrados)
         sales_data = sales_data_year
         sales_data_international = sales_data_year
         
@@ -741,6 +910,8 @@ def dashboard():
             total_sales_year += venta_amount
         
         # Procesar datos pendientes para la tabla - POR AÑO
+        pending_data_filtered = pending_data
+        
         por_facturar_2025_por_linea = {}
         por_facturar_2026_por_linea = {}
         por_facturar_2027_por_linea = {}
@@ -756,7 +927,7 @@ def dashboard():
         debug_count_2026 = 0
         debug_count_2027 = 0
         
-        for pending_item in pending_data:
+        for pending_item in pending_data_filtered:
             linea_nombre = pending_item.get('linea_comercial', 'Sin Línea Comercial')
             total_pendiente = pending_item.get('total_pendiente', 0)
             commitment_year = pending_item.get('commitment_year', '')
@@ -1669,6 +1840,17 @@ def dashboard():
                              avance_lineal_ipn_pct=0,
                              faltante_meta_ipn=0)
         
+        # ⏱️ MEDICIÓN DE TIEMPO: Fin de carga del dashboard
+        dashboard_end = time.time()
+        total_time = dashboard_end - dashboard_start
+        
+        # Calcular tiempo total desde login si existe
+        if login_timestamp:
+            total_from_login = dashboard_end - login_timestamp
+            app.logger.info(f"⏱️ ===== DASHBOARD COMPLETADO ===== | Tiempo de carga: {total_time:.3f}s | Tiempo total desde login: {total_from_login:.3f}s")
+        else:
+            app.logger.info(f"⏱️ ===== DASHBOARD COMPLETADO ===== | Tiempo de carga: {total_time:.3f}s")
+        
         # Guardar en caché solo para GET requests (5 minutos)
         if request.method == 'GET':
             cache.set(cache_key, response, timeout=300)
@@ -2374,6 +2556,7 @@ def metas_cliente():
                              años_disponibles=[], año_seleccionado="", fecha_actual=datetime.now())
 
 @app.route('/export/excel/sales')
+@limiter.limit("10 per minute")
 def export_excel_sales():
     if 'username' not in session:
         return redirect(url_for('login'))
@@ -2405,6 +2588,15 @@ def export_excel_sales():
         # DEBUG: Log para ver qué año se está usando
         logging.info(f"DEBUG export_excel_sales - Año final: {año_seleccionado}, date_from: {año_seleccionado}-01-01, date_to: {año_seleccionado}-12-31")
         
+        # ✅ VALIDACIÓN: Rango de años razonable (no más de 5 años atrás)
+        if año_seleccionado < (año_actual - 5):
+            flash(f'No se pueden exportar datos de más de 5 años atrás. Año mínimo: {año_actual - 5}', 'warning')
+            return redirect(url_for('dashboard'))
+        
+        if año_seleccionado > (año_actual + 1):
+            flash(f'No se pueden exportar datos de años futuros. Año máximo: {año_actual + 1}', 'warning')
+            return redirect(url_for('dashboard'))
+        
         # Obtener datos de ventas para el cliente y año seleccionado
         date_from = f"{año_seleccionado}-01-01"
         date_to = f"{año_seleccionado}-12-31"
@@ -2415,8 +2607,22 @@ def export_excel_sales():
             date_to=date_to, 
             partner_id=partner_id,
             page=1,
-            per_page=99999 # Sin límite para exportar todo
+            per_page=15000  # ✅ Límite aumentado pero controlado (antes 99999)
         )
+        
+        # ✅ FILTRO GLOBAL: Excluir códigos que empiezan con "81000" o "SERV"
+        sales_data_raw = [
+            item for item in sales_data_raw
+            if not (
+                (item.get('codigo_odoo', '') or '').startswith('81000') or
+                (item.get('codigo_odoo', '') or '').startswith('SERV')
+            )
+        ]
+        
+        # ✅ VALIDACIÓN: Verificar límite de registros DESPUÉS de obtener datos
+        if len(sales_data_raw) >= 15000:
+            flash(f'Resultado truncado: se encontraron {len(sales_data_raw)}+ registros. '
+                  f'Por favor, filtre por cliente o rango de fechas más pequeño.', 'warning')
         
         # Crear DataFrame
         df = pd.DataFrame(sales_data_raw)
@@ -2467,6 +2673,15 @@ def export_excel_sales():
 
         output.seek(0)
         
+        # ✅ Log evento de seguridad: exportación de datos
+        security_logger.log_export_request(
+            user=session.get('username', 'Unknown'),
+            export_type='sales',
+            filters={'cliente_id': partner_id, 'año': año_seleccionado},
+            num_records=len(df_export),
+            request=request
+        )
+        
         # Generar nombre de archivo con fecha en formato dd-mm-yyyy
         timestamp = datetime.now().strftime("%d-%m-%Y")
         filename = f'Pedidos_Facturados_{timestamp}.xlsx'
@@ -2483,6 +2698,7 @@ def export_excel_sales():
         return redirect(url_for('sales'))
 
 @app.route('/export/excel/pending')
+@limiter.limit("10 per minute")
 def export_excel_pending():
     if 'username' not in session:
         return redirect(url_for('login'))
@@ -2513,13 +2729,32 @@ def export_excel_pending():
         # DEBUG: Log para confirmar el año
         logging.info(f"DEBUG export_excel_pending - Año final: {año_seleccionado}")
         
+        # ✅ VALIDACIÓN: Año razonable
+        if año_seleccionado < (año_actual - 5) or año_seleccionado > (año_actual + 2):
+            flash(f'Rango de año inválido. Use entre {año_actual - 5} y {año_actual + 2}.', 'warning')
+            return redirect(url_for('dashboard'))
+        
         # Obtener datos de pedidos pendientes para el cliente seleccionado
         # CORRECCIÓN: Desempaquetar la tupla y pedir todos los registros
         pending_data_raw, _ = data_manager.get_pending_orders(
             filters={'partner_id': partner_id},
             page=1,
-            per_page=99999 # Sin límite para exportar todo
+            per_page=15000  # ✅ Límite controlado (antes 99999)
         )
+        
+        # ✅ FILTRO GLOBAL: Excluir códigos que empiezan con "81000" o "SERV"
+        pending_data_raw = [
+            item for item in pending_data_raw
+            if not (
+                (item.get('codigo_odoo', '') or '').startswith('81000') or
+                (item.get('codigo_odoo', '') or '').startswith('SERV')
+            )
+        ]
+        
+        # ✅ VALIDACIÓN: Verificar límite de registros
+        if len(pending_data_raw) >= 15000:
+            flash(f'Resultado truncado: se encontraron {len(pending_data_raw)}+ registros pendientes. '
+                  f'Por favor, filtre por cliente específico.', 'warning')
         
         if not pending_data_raw:
             flash('No hay datos pendientes de facturar para exportar.', 'info')
@@ -2570,6 +2805,15 @@ def export_excel_pending():
             worksheet.add_table(table)
 
         output.seek(0)
+        
+        # ✅ Log evento de seguridad: exportación de datos pendientes
+        security_logger.log_export_request(
+            user=session.get('username', 'Unknown'),
+            export_type='pending',
+            filters={'cliente_id': partner_id, 'año': año_seleccionado},
+            num_records=len(df_export),
+            request=request
+        )
         
         timestamp = datetime.now().strftime("%d-%m-%Y")
         filename = f'Pedidos_Pendientes_{timestamp}.xlsx'
@@ -2710,6 +2954,7 @@ def metas_vendedor():
                            metas_guardadas=metas_guardadas)
 
 @app.route('/export/dashboard/details')
+@limiter.limit("10 per minute")
 def export_dashboard_details():
     if 'username' not in session:
         return redirect(url_for('login'))
@@ -2723,6 +2968,21 @@ def export_dashboard_details():
 
         # Calcular fechas para el mes seleccionado
         año_sel, mes_sel = mes_seleccionado.split('-')
+        
+        # ✅ VALIDACIÓN: Mes y año válidos
+        try:
+            año_int = int(año_sel)
+            mes_int = int(mes_sel)
+            if not (1 <= mes_int <= 12):
+                flash('Mes inválido. Debe estar entre 1 y 12.', 'danger')
+                return redirect(url_for('dashboard'))
+            if año_int < 2020 or año_int > (datetime.now().year + 1):
+                flash(f'Año inválido. Debe estar entre 2020 y {datetime.now().year + 1}.', 'danger')
+                return redirect(url_for('dashboard'))
+        except (ValueError, AttributeError):
+            flash('Formato de fecha inválido. Use YYYY-MM.', 'danger')
+            return redirect(url_for('dashboard'))
+        
         fecha_inicio = f"{año_sel}-{mes_sel}-01"
         ultimo_dia = calendar.monthrange(int(año_sel), int(mes_sel))[1]
         fecha_fin = f"{año_sel}-{mes_sel}-{ultimo_dia}"
@@ -2731,8 +2991,13 @@ def export_dashboard_details():
         sales_data = data_manager.get_sales_lines(
             date_from=fecha_inicio,
             date_to=fecha_fin,
-            limit=10000  # Límite alto para exportación
+            limit=15000  # ✅ Límite aumentado pero controlado (antes 10000)
         )
+        
+        # ✅ VALIDACIÓN: Advertir si se alcanzó el límite
+        if len(sales_data) >= 15000:
+            flash(f'Advertencia: resultado truncado a 15,000 registros. '
+                  f'Considere exportar por rango de fechas más pequeño.', 'warning')
 
         # Filtrar VENTA INTERNACIONAL (exportaciones), igual que en el dashboard
         sales_data_filtered = []
@@ -2749,6 +3014,15 @@ def export_dashboard_details():
                     continue
             
             sales_data_filtered.append(sale)
+        
+        # ✅ FILTRO GLOBAL: Excluir códigos que empiezan con "81000" o "SERV"
+        sales_data_filtered = [
+            item for item in sales_data_filtered
+            if not (
+                (item.get('codigo_odoo', '') or item.get('default_code', '') or '').startswith('81000') or
+                (item.get('codigo_odoo', '') or item.get('default_code', '') or '').startswith('SERV')
+            )
+        ]
 
         # Convertir el balance a positivo para que coincida con el dashboard
         for sale in sales_data_filtered:
@@ -2763,6 +3037,15 @@ def export_dashboard_details():
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name=f'Detalle Ventas {mes_seleccionado}', index=False)
         output.seek(0)
+
+        # ✅ Log evento de seguridad: exportación detallada del dashboard
+        security_logger.log_export_request(
+            user=session.get('username', 'Unknown'),
+            export_type='dashboard_details',
+            filters={'mes': mes_seleccionado},
+            num_records=len(df),
+            request=request
+        )
 
         # Generar nombre de archivo
         filename = f'detalle_ventas_{mes_seleccionado}.xlsx'
