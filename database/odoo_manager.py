@@ -1143,7 +1143,7 @@ class OdooManager:
                             'partner_id': order.get('partner_id'),
                             'cliente_id': order.get('partner_id')[0] if order.get('partner_id') and isinstance(order.get('partner_id'), (list, tuple)) else None,
                             'pais': partner_country,
-                            'fecha': order.get('date_order', '').split(' ')[0] if order.get('date_order') else '',  # Fecha de pedido (date_order)
+                            'fecha': commitment_date.split(' ')[0] if commitment_date else (order.get('date_order', '').split(' ')[0] if order.get('date_order') else ''),  # Priorizar commitment_date, fallback a date_order
                             'fecha_confirmacion': order.get('date_order', '').split(' ')[0] if order.get('date_order') else '',  # Fecha de confirmación (date_order)
                             'mes': mes,
                             'codigo_odoo': product.get('default_code', ''),
