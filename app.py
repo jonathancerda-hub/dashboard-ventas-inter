@@ -79,8 +79,8 @@ client_secrets = {
 # Configuración de sesión
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # ✅ 'Lax' permite OAuth callbacks (Strict los bloquea)
-# Expiración automática tras 15 minutos de inactividad
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=15)
+# Expiración automática tras 30 minutos de inactividad
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # Configuración de seguridad adicional para producción
 if IS_PRODUCTION:
@@ -187,7 +187,7 @@ def add_security_headers(response):
 @app.before_request
 def refresh_session():
     """Renueva la sesión en cada request para reiniciar el contador de inactividad.
-    La sesión expirará 15 minutos después de la última actividad del usuario.
+    La sesión expirará 30 minutos después de la última actividad del usuario.
     """
     # Rutas públicas que no requieren sesión activa
     public_routes = ['login', 'login_google', 'callback', 'static']

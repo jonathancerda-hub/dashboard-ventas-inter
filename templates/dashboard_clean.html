@@ -133,43 +133,53 @@
                     <thead>
                         <tr>
                             <th>Línea Comercial</th>
-                            <th>Facturado ($)</th>
-                            <th>% Part.</th>
                             <th>Meta</th>
+                            <th>Facturado ($)</th>
                             <th>Brecha</th>
+                            <th>% Part.</th>
                             <th>% Avance</th>
-                            <th>Por Definir ($)</th>
                             <th>Por Facturar 2026 ($)</th>
+                            <th>Falta Colocar ($)</th>
+                            <th>Por Definir ($)</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for linea in datos_lineas_tabla %}
                         <tr>
                             <td class="text-left">{{ linea.nombre }}</td>
-                            <td>{{ "$ {:,.2f}".format(linea.venta) }}</td>
-                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.meta) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.venta) }}</td>
                             <td>{{ "$ {:,.2f}".format((linea.meta if linea.meta is defined else 0) - (linea.venta if linea.venta is defined else 0)) }}</td>
+                            <td class="porcentaje">{{ "{:.1f}%".format(linea.porcentaje_sobre_total) }}</td>
                             {% set pct_linea = (linea.venta / linea.meta * 100) if (linea.meta is defined and (linea.meta|float) > 0) else 0 %}
                             <td class="porcentaje">{{ "{:.1f}%".format(pct_linea) }}</td>
-                            <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                             <td>{{ "$ {:,.2f}".format(linea.por_facturar_2026 if linea.por_facturar_2026 is defined else 0) }}</td>
+                            {% set meta_linea = linea.meta if linea.meta is defined else 0 %}
+                            {% if meta_linea > 0 %}
+                                {% set falta_colocar_linea = meta_linea - (linea.venta if linea.venta is defined else 0) - (linea.por_facturar_2026 if linea.por_facturar_2026 is defined else 0) - (linea.por_facturar if linea.por_facturar is defined else 0) %}
+                            {% else %}
+                                {% set falta_colocar_linea = 0 %}
+                            {% endif %}
+                            <td>{{ "$ {:,.2f}".format(falta_colocar_linea) }}</td>
+                            <td>{{ "$ {:,.2f}".format(linea.por_facturar) }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="8" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
+                        <tr><td colspan="9" style="text-align: center; padding: 20px;">No hay datos de ventas para el cliente seleccionado.</td></tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="fila-total">
                         <tr>
                             <td class="text-left"><strong>Total</strong></td>
-                            <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
-                            <td class="porcentaje"><strong>100.0%</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(meta_total_kpi) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.venta_total) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format((meta_total_kpi if meta_total_kpi is defined else 0) - (kpis.venta_total if kpis and kpis.venta_total is defined else 0)) }}</strong></td>
+                            <td class="porcentaje"><strong>100.0%</strong></td>
                             {% set pct_total_kpi = (kpis.venta_total / meta_total_kpi * 100) if (meta_total_kpi is defined and (meta_total_kpi|float) > 0 and kpis and kpis.venta_total is defined) else 0 %}
                             <td class="porcentaje"><strong>{{ "{:.1f}%".format(pct_total_kpi) }}</strong></td>
-                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                             <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar_2026 if kpis.total_por_facturar_2026 is defined else 0) }}</strong></td>
+                            {% set falta_colocar_total = (meta_total_kpi if meta_total_kpi is defined else 0) - (kpis.venta_total if kpis and kpis.venta_total is defined else 0) - (kpis.total_por_facturar_2026 if kpis.total_por_facturar_2026 is defined else 0) - (kpis.total_por_facturar if kpis and kpis.total_por_facturar is defined else 0) %}
+                            <td><strong>{{ "$ {:,.2f}".format(falta_colocar_total) }}</strong></td>
+                            <td><strong>{{ "$ {:,.2f}".format(kpis.total_por_facturar) }}</strong></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -203,6 +213,70 @@
                                 <strong>Total Cliente ($):</strong>
                                 $ {{ "{:,.2f}".format(aggregated_advance.meta_total if aggregated_advance and aggregated_advance.meta_total is defined else 0) }}
                             </span>
+                        </div>
+                    </div>
+
+                    <!-- Nuevo indicador: Avance de Órdenes Colocadas -->
+                    <div class="avance-cliente-card" style="margin-top: 20px;">
+                        {% set facturado_val = aggregated_advance.facturado_total if aggregated_advance and aggregated_advance.facturado_total is defined else 0 %}
+                        {% set pendiente_val = aggregated_advance.pendiente_total if aggregated_advance and aggregated_advance.pendiente_total is defined else 0 %}
+                        {% set meta_val = aggregated_advance.meta_total if aggregated_advance and aggregated_advance.meta_total is defined else 0 %}
+                        {% set falta_colocar = (meta_val - (facturado_val + pendiente_val)) if meta_val > 0 else 0 %}
+                        {% set pct_facturado = (facturado_val / meta_val * 100) if meta_val > 0 else 0 %}
+                        {% set pct_pendiente = (pendiente_val / meta_val * 100) if meta_val > 0 else 0 %}
+                        {% set pct_faltante = (falta_colocar / meta_val * 100) if meta_val > 0 else 0 %}
+                        
+                        <h3 style="text-align: center; margin-bottom: 15px;">Total · Meta ${{ "{:,.1f}M".format(meta_val / 1000000) }}</h3>
+                        
+                        <!-- Barra de progreso segmentada en 3 colores -->
+                        <div class="progress-bar-segmented">
+                            <!-- Segmento Verde: Facturado -->
+                            <div class="segment segment-green" style="width: {{ pct_facturado }}%;">
+                                {% if pct_facturado > 5 %}
+                                <span class="segment-label">{{ "%.1f"|format(pct_facturado) }}%</span>
+                                {% endif %}
+                            </div>
+                            <!-- Segmento Azul: Por Facturar -->
+                            <div class="segment segment-blue" style="width: {{ pct_pendiente }}%;">
+                                {% if pct_pendiente > 5 %}
+                                <span class="segment-label">{{ "%.1f"|format(pct_pendiente) }}%</span>
+                                {% endif %}
+                            </div>
+                            <!-- Segmento Rojo: Falta colocar -->
+                            <div class="segment segment-red" style="width: {{ pct_faltante }}%;">
+                                {% if pct_faltante > 5 %}
+                                <span class="segment-label">{{ "%.1f"|format(pct_faltante) }}%</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Leyenda debajo de la barra -->
+                        <div class="progress-legend">
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #2ecc71;"></span>
+                                <span class="legend-text">Facturado ${{ "{:,.1f}M".format(facturado_val / 1000000) }}</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #3498db;"></span>
+                                <span class="legend-text">Por facturar ${{ "{:,.1f}M".format(pendiente_val / 1000000) }}</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #e74c3c;"></span>
+                                <span class="legend-text">Falta colocar ${{ "{:,.1f}M".format(falta_colocar / 1000000) }}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Mensaje destacado con el monto faltante -->
+                        <div style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #fff5f5, #ffe6e6); border-left: 4px solid #e74c3c; border-radius: 8px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="bi bi-exclamation-triangle-fill" style="color: #e74c3c; font-size: 20px;"></i>
+                                <div>
+                                    <div style="font-size: 12px; color: #666; margin-bottom: 3px;">Pendiente por colocar para alcanzar meta:</div>
+                                    <div style="font-size: 20px; font-weight: 700; color: #c0392b;">
+                                        $ {{ "{:,.2f}".format(falta_colocar) }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -342,18 +416,6 @@
             </div>
         </div>
 
-        <!-- Gráfico Drilldown -->
-        <div class="grafico-echarts">
-            <h3 id="titulo-grafico-drilldown">Análisis Jerárquico: Ventas por Clasificación Farmacológica</h3>
-            <div id="grafico-drilldown" style="width: 100%; height: 400px;"></div>
-        </div>
-
-        <!-- Gráfico de Forma Farmacéutica -->
-        <div class="grafico-echarts">
-            <h3 id="titulo-grafico-productos-pastel">Top Productos por Venta</h3>
-            <div id="grafico-forma-farmaceutica" style="width: 100%; height: 350px;"></div>
-        </div>
-
     </div>
     
     <!-- Gráfico de Productos PENDIENTES (Ancho completo, debajo de los gráficos superiores) -->
@@ -424,13 +486,13 @@
         <!-- Contenedor de dos gráficos lado a lado -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
             
-            <!-- ==================== VERSIÓN A: FECHA DE CONFIRMACIÓN (150 DÍAS) ==================== -->
+            <!-- ==================== VERSIÓN A: FECHA DE ENTREGA (COMMITMENT_DATE) ==================== -->
             <div class="grafico-echarts" style="border: 3px solid #3498db; border-radius: 12px; padding: 20px; background: #f8fbff;">
                 <h3 style="text-align: center; color: #3498db; font-size: 1.35rem; margin-bottom: 10px; font-weight: 700;">
-                    📅 VERSIÓN A: Fecha de Confirmación
+                    🚚 VERSIÓN A: Fecha de Entrega
                 </h3>
                 <p style="text-align: center; color: #555; font-size: 0.85rem; margin-bottom: 20px;">
-                    Días desde <strong>date_order</strong> (confirmación del pedido) + política de 150 días
+                    Días hasta <strong>commitment_date</strong> (fecha de entrega comprometida)
                 </p>
                 
                 <!-- Filtros Versión A -->
@@ -458,15 +520,15 @@
                     <span id="productos-contador-conf" style="margin-left: 10px; font-weight: 600; color: #666; font-size: 12px;"></span>
                 </div>
                 
-                <!-- Leyenda Versión A (150 días) -->
+                <!-- Leyenda Versión A (fecha entrega) -->
                 <div style="background: #e3f2fd; border-left: 4px solid #3498db; padding: 12px; margin: 15px 0; border-radius: 6px;">
                     <div style="text-align: center; font-size: 10px; color: #555; line-height: 1.6;">
-                        <strong style="color: #3498db; font-size: 11px;">Estados (150 días)</strong><br/>
-                        🚨 <strong>Vencido</strong>: >150 días transcurridos<br/>
-                        🔴 <strong>Crítico</strong>: <30 días restantes<br/>
-                        ⚠️ <strong>Alerta</strong>: 30-60 días restantes<br/>
-                        🟡 <strong>Progreso</strong>: 60-90 días restantes<br/>
-                        🟢 <strong>Exitoso</strong>: >90 días restantes
+                        <strong style="color: #3498db; font-size: 11px;">Estados (fecha entrega)</strong><br/>
+                        🚨 <strong>Vencido</strong>: Fecha pasada (días negativos)<br/>
+                        🔴 <strong>Crítico</strong>: <30 días para entrega<br/>
+                        ⚠️ <strong>Alerta</strong>: 30-60 días para entrega<br/>
+                        🟡 <strong>Progreso</strong>: 60-90 días para entrega<br/>
+                        🟢 <strong>Exitoso</strong>: >90 días para entrega
                     </div>
                 </div>
                 
@@ -484,13 +546,13 @@
                 <div id="grafico-bullet-productos-conf" style="width: 100%; min-height: 650px;"></div>
             </div>
             
-            <!-- ==================== VERSIÓN B: FECHA DE ENTREGA (DÍAS HASTA ENTREGA) ==================== -->
+            <!-- ==================== VERSIÓN B: FECHA DE CONFIRMACIÓN (150 DÍAS) ==================== -->
             <div class="grafico-echarts" style="border: 3px solid #e74c3c; border-radius: 12px; padding: 20px; background: #fff8f8;">
                 <h3 style="text-align: center; color: #e74c3c; font-size: 1.35rem; margin-bottom: 10px; font-weight: 700;">
-                    🚚 VERSIÓN B: Fecha de Entrega
+                    📅 VERSIÓN B: Fecha de Confirmación
                 </h3>
                 <p style="text-align: center; color: #555; font-size: 0.85rem; margin-bottom: 20px;">
-                    Días hasta <strong>commitment_date</strong> (fecha de entrega comprometida)
+                    Días desde <strong>date_order</strong> (confirmación del pedido) + política de 150 días
                 </p>
                 
                 <!-- Filtros Versión B -->
@@ -518,15 +580,15 @@
                     <span id="productos-contador-ent" style="margin-left: 10px; font-weight: 600; color: #666; font-size: 12px;"></span>
                 </div>
                 
-                <!-- Leyenda Versión B (días hasta entrega) -->
+                <!-- Leyenda Versión B (150 días) -->
                 <div style="background: #ffe8e8; border-left: 4px solid #e74c3c; padding: 12px; margin: 15px 0; border-radius: 6px;">
                     <div style="text-align: center; font-size: 10px; color: #555; line-height: 1.6;">
-                        <strong style="color: #e74c3c; font-size: 11px;">Estados (fecha entrega)</strong><br/>
-                        🚨 <strong>Vencido</strong>: Fecha pasada (días negativos)<br/>
-                        🔴 <strong>Crítico</strong>: <30 días para entrega<br/>
-                        ⚠️ <strong>Alerta</strong>: 30-60 días para entrega<br/>
-                        🟡 <strong>Progreso</strong>: 60-90 días para entrega<br/>
-                        🟢 <strong>Exitoso</strong>: >90 días para entrega
+                        <strong style="color: #e74c3c; font-size: 11px;">Estados (150 días)</strong><br/>
+                        🚨 <strong>Vencido</strong>: >150 días transcurridos<br/>
+                        🔴 <strong>Crítico</strong>: <30 días restantes<br/>
+                        ⚠️ <strong>Alerta</strong>: 30-60 días restantes<br/>
+                        🟡 <strong>Progreso</strong>: 60-90 días restantes<br/>
+                        🟢 <strong>Exitoso</strong>: >90 días restantes
                     </div>
                 </div>
                 
@@ -638,6 +700,23 @@
                 <i class="bi bi-people-fill"></i> Clientes por País
             </h4>
             <div id="lista-clientes-pais"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos de Análisis Farmacológico (movidos al final) -->
+<div class="grafico-extra-container" style="margin-top: 30px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+        <!-- Gráfico Drilldown -->
+        <div class="grafico-echarts">
+            <h3 id="titulo-grafico-drilldown">Análisis Jerárquico: Ventas por Clasificación Farmacológica</h3>
+            <div id="grafico-drilldown" style="width: 100%; height: 400px;"></div>
+        </div>
+
+        <!-- Gráfico de Forma Farmacéutica -->
+        <div class="grafico-echarts">
+            <h3 id="titulo-grafico-productos-pastel">Ventas por Clasificación Farmacológica</h3>
+            <div id="grafico-forma-farmaceutica" style="width: 100%; height: 350px;"></div>
         </div>
     </div>
 </div>
@@ -769,6 +848,74 @@
 .disabled-link {
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+/* Estilos para barra de progreso segmentada (3 colores) */
+.progress-bar-segmented {
+    width: 100%;
+    height: 50px;
+    display: flex;
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 15px;
+}
+
+.segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    transition: all 0.5s ease-in-out;
+    position: relative;
+}
+
+.segment-green {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+
+.segment-blue {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.segment-red {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.segment-label {
+    color: white;
+    font-weight: 700;
+    font-size: 16px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    white-space: nowrap;
+}
+
+.progress-legend {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #2c3e50;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-text {
+    font-weight: 600;
 }
 
 /* === ESTILOS DEL DASHBOARD === */
@@ -2638,8 +2785,12 @@ function crearGraficoBullet() {
     if (!chartDom) return;
     const myChart = echarts.init(chartDom);
 
-    // Ordenar datos por nombre de cliente alfabéticamente
-    bulletChartData.sort((a, b) => a.cliente.localeCompare(b.cliente));
+    // Ordenar datos de Z-A para que se vea A-Z visualmente (el gráfico muestra de abajo hacia arriba)
+    bulletChartData.sort((a, b) => {
+        const nombreA = (a.cliente || '').toString().toLowerCase();
+        const nombreB = (b.cliente || '').toString().toLowerCase();
+        return nombreB.localeCompare(nombreA);
+    });
 
     // Ajustar altura del gráfico dinámicamente
     const barHeight = 25; // Altura por barra
@@ -2809,7 +2960,8 @@ function crearGraficoBulletProductosConf() {
     // Prevenir inicialización múltiple
     if (productosGraficoDataGlobalConf.length > 0) return;
     
-    productosGraficoDataGlobalConf = {{ products_chart_data_confirmacion|default([])|tojson|safe }};
+    // INTERCAMBIO: Versión A (Conf) ahora usa datos de ENTREGA (commitment_date)
+    productosGraficoDataGlobalConf = {{ products_chart_data_entrega|default([])|tojson|safe }};
     if (!productosGraficoDataGlobalConf || productosGraficoDataGlobalConf.length === 0) return;
     
     // Poblar el select de líneas comerciales (versión confirmación)
@@ -2862,7 +3014,8 @@ function crearGraficoBulletProductosEnt() {
     // Prevenir inicialización múltiple
     if (productosGraficoDataGlobalEnt.length > 0) return;
     
-    productosGraficoDataGlobalEnt = {{ products_chart_data_entrega|default([])|tojson|safe }};
+    // INTERCAMBIO: Versión B (Ent) ahora usa datos de CONFIRMACIÓN (date_order)
+    productosGraficoDataGlobalEnt = {{ products_chart_data_confirmacion|default([])|tojson|safe }};
     if (!productosGraficoDataGlobalEnt || productosGraficoDataGlobalEnt.length === 0) return;
     
     // Poblar el select de líneas comerciales (versión entrega)
@@ -2912,63 +3065,10 @@ function cambiarPaginaProductosConf(direccion) {
     renderizarGraficoProductosConf();
 }
 
-// Estado basado en días restantes (política de 150 días desde confirmación)
+// Estado basado en días hasta entrega (commitment_date) - VERSIÓN A
 function calcularEstadoProductoConf(producto) {
     const pct = producto.porcentaje || 0;
-    const diasRestantes = producto.dias_restantes;
-    
-    // Si ya está 100% facturado, es exitoso
-    if (pct >= 100) {
-        return 'exitoso';
-    }
-    
-    // Si no hay fecha, basarse solo en avance
-    if (diasRestantes === null || diasRestantes === undefined) {
-        if (pct < 40) return 'critico';
-        if (pct < 80) return 'en_progreso';
-        return 'exitoso';
-    }
-    
-    // VENCIDO: >150 días transcurridos (días restantes negativos)
-    if (diasRestantes < 0) {
-        return 'vencido';
-    }
-    
-    // CRÍTICO: <30 días restantes
-    if (diasRestantes < 30) {
-        return 'critico';
-    }
-    
-    // ALERTA: 30-60 días restantes
-    if (diasRestantes < 60) {
-        return 'alerta';
-    }
-    
-    // EN PROGRESO: 60-90 días restantes
-    if (diasRestantes < 90) {
-        return 'en_progreso';
-    }
-    
-    // EXITOSO: >90 días restantes
-    return 'exitoso';
-}
-
-// ==================== VERSIÓN B: Funciones de Paginación y Estado (Entrega - días hasta entrega) ====================
-
-function cambiarPaginaProductosEnt(direccion) {
-    const totalPaginas = Math.ceil(productosGraficoFiltradosEnt.length / productosGraficoPorPaginaEnt);
-    paginaActualGraficoProductosEnt += direccion;
-    
-    if (paginaActualGraficoProductosEnt < 1) paginaActualGraficoProductosEnt = 1;
-    if (paginaActualGraficoProductosEnt > totalPaginas) paginaActualGraficoProductosEnt = totalPaginas;
-    
-    renderizarGraficoProductosEnt();
-}
-
-// Estado basado en días hasta entrega (commitment_date)
-function calcularEstadoProductoEnt(producto) {
-    const pct = producto.porcentaje || 0;
-    const diasParaEntrega = producto.dias_para_entrega;
+    const diasParaEntrega = producto.dias_para_entrega; // Ahora usa dias_para_entrega (commitment_date)
     
     // Si ya está 100% facturado, es exitoso
     if (pct >= 100) {
@@ -3003,6 +3103,59 @@ function calcularEstadoProductoEnt(producto) {
     }
     
     // EXITOSO: >90 días para entrega
+    return 'exitoso';
+}
+
+// ==================== VERSIÓN B: Funciones de Paginación y Estado (Entrega - días hasta entrega) ====================
+
+function cambiarPaginaProductosEnt(direccion) {
+    const totalPaginas = Math.ceil(productosGraficoFiltradosEnt.length / productosGraficoPorPaginaEnt);
+    paginaActualGraficoProductosEnt += direccion;
+    
+    if (paginaActualGraficoProductosEnt < 1) paginaActualGraficoProductosEnt = 1;
+    if (paginaActualGraficoProductosEnt > totalPaginas) paginaActualGraficoProductosEnt = totalPaginas;
+    
+    renderizarGraficoProductosEnt();
+}
+
+// Estado basado en días restantes (política de 150 días desde confirmación) - VERSIÓN B
+function calcularEstadoProductoEnt(producto) {
+    const pct = producto.porcentaje || 0;
+    const diasRestantes = producto.dias_restantes; // Ahora usa dias_restantes (date_order + 150)
+    
+    // Si ya está 100% facturado, es exitoso
+    if (pct >= 100) {
+        return 'exitoso';
+    }
+    
+    // Si no hay fecha, basarse solo en avance
+    if (diasRestantes === null || diasRestantes === undefined) {
+        if (pct < 40) return 'critico';
+        if (pct < 80) return 'en_progreso';
+        return 'exitoso';
+    }
+    
+    // VENCIDO: >150 días transcurridos (días restantes negativos)
+    if (diasRestantes < 0) {
+        return 'vencido';
+    }
+    
+    // CRÍTICO: <30 días restantes
+    if (diasRestantes < 30) {
+        return 'critico';
+    }
+    
+    // ALERTA: 30-60 días restantes
+    if (diasRestantes < 60) {
+        return 'alerta';
+    }
+    
+    // EN PROGRESO: 60-90 días restantes
+    if (diasRestantes < 90) {
+        return 'en_progreso';
+    }
+    
+    // EXITOSO: >90 días restantes
     return 'exitoso';
 }
 
@@ -3104,9 +3257,8 @@ function renderizarGraficoProductosConf() {
     const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
     const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
     const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
-    const diasTranscurridos = datosPagina.map(d => d.dias_transcurridos !== null ? d.dias_transcurridos : null);
-    const diasRestantes = datosPagina.map(d => d.dias_restantes !== null ? d.dias_restantes : null);
-    const fechasPedido = datosPagina.map(d => d.fecha_pedido || null);
+    const diasParaEntrega = datosPagina.map(d => d.dias_para_entrega !== null ? d.dias_para_entrega : null); // Ahora usa dias_para_entrega
+    const fechasEntrega = datosPagina.map(d => d.fecha_entrega || null); // Ahora usa fecha_entrega
     
     const facturadoSeriesData = facturados.map((valor, i) => {
         const estado = calcularEstadoProductoConf(datosPagina[i]);
@@ -3126,12 +3278,12 @@ function renderizarGraficoProductosConf() {
                 color: '#333',
                 formatter: function(params) {
                     const pct = porcentajes[params.dataIndex].toFixed(1);
-                    const diasRest = diasRestantes[params.dataIndex];
+                    const diasEnt = diasParaEntrega[params.dataIndex]; // Ahora muestra dias_para_entrega
                     let icon = '';
-                    if (diasRest !== null) {
-                        if (diasRest < 0) icon = ' 🚨';
-                        else if (diasRest < 30) icon = ' 🔴';
-                        else if (diasRest < 60) icon = ' ⚠️';
+                    if (diasEnt !== null) {
+                        if (diasEnt < 0) icon = ' 🚨';
+                        else if (diasEnt < 30) icon = ' 🔴';
+                        else if (diasEnt < 60) icon = ' ⚠️';
                     }
                     return pct + '%' + icon;
                 }
@@ -3158,11 +3310,10 @@ function renderizarGraficoProductosConf() {
                 const qtyPend = qtyPendientes[idx] || 0;
                 const qtyTotal = qtyTotales[idx] || 0;
                 
-                const diasTrans = diasTranscurridos[idx];
-                const diasRest = diasRestantes[idx];
-                const fechaPed = fechasPedido[idx];
+                const diasEnt = diasParaEntrega[idx]; // Ahora usa diasParaEntrega
+                const fechaEnt = fechasEntrega[idx]; // Ahora usa fechasEntrega
                 
-                // Determinar estado (Versión A - 150 días)
+                // Determinar estado (Versión A - commitment_date / días hasta entrega)
                 const estado = calcularEstadoProductoConf(datosPagina[idx]);
                 let estadoLabel = '';
                 let emoji = '';
@@ -3190,38 +3341,37 @@ function renderizarGraficoProductosConf() {
                     colorIndicador = '#2ecc71';
                 }
                 
-                // Información de tiempo (Versión A: 150 días desde confirmación)
+                // Información de tiempo (Versión A: días hasta commitment_date)
                 let tiempoInfo = '';
-                if (diasTrans !== null && diasRest !== null) {
+                if (diasEnt !== null) {
                     let alertaColor = '#666';
                     let alertaEmoji = '📅';
                     let estadoTiempo = '';
                     
-                    if (diasRest < 0) {
+                    if (diasEnt < 0) {
                         alertaColor = '#dc2626';
                         alertaEmoji = '🚨';
-                        estadoTiempo = 'VENCIDO (>150 días transcurridos)';
-                    } else if (diasRest < 30) {
+                        estadoTiempo = 'VENCIDO - Fecha de entrega pasada';
+                    } else if (diasEnt < 30) {
                         alertaColor = '#ef4444';
                         alertaEmoji = '🔴';
-                        estadoTiempo = 'CRÍTICO - Menos de 30 días restantes';
-                    } else if (diasRest < 60) {
+                        estadoTiempo = 'CRÍTICO - Menos de 30 días para entrega';
+                    } else if (diasEnt < 60) {
                         alertaColor = '#f59e0b';
                         alertaEmoji = '⚠️';
-                        estadoTiempo = 'ALERTA - Menos de 60 días restantes';
-                    } else if (diasRest < 90) {
+                        estadoTiempo = 'ALERTA - Menos de 60 días para entrega';
+                    } else if (diasEnt < 90) {
                         alertaColor = '#f1c40f';
                         alertaEmoji = '⏳';
-                        estadoTiempo = 'Menos de 90 días restantes';
+                        estadoTiempo = 'Menos de 90 días para entrega';
                     } else {
                         estadoTiempo = 'Tiempo suficiente (>90 días)';
                     }
                     
                     tiempoInfo = `<div style="margin-top: 8px; padding: 6px; background-color: ${alertaColor}15; border-left: 3px solid ${alertaColor}; border-radius: 4px;">
                         <strong style="color: ${alertaColor};">${alertaEmoji} ${estadoTiempo}</strong><br/>
-                        <span style="color: #666;">Fecha confirmación pedido:</span> <strong>${fechaPed || 'N/A'}</strong><br/>
-                        <span style="color: #666;">Días transcurridos:</span> <strong>${diasTrans}</strong><br/>
-                        <span style="color: ${alertaColor};">Días restantes (política 150):</span> <strong>${diasRest}</strong>
+                        <span style="color: #666;">Fecha entrega comprometida:</span> <strong>${fechaEnt || 'N/A'}</strong><br/>
+                        <span style="color: ${alertaColor};">Días para entrega:</span> <strong>${diasEnt}</strong>
                     </div>`;
                 }
                 
@@ -3277,13 +3427,13 @@ function renderizarGraficoProductosConf() {
     // Event handler: Click para drill-down
     productosGraficoChartInstanceConf.off('click');
     productosGraficoChartInstanceConf.on('click', function(params) {
-        console.log('🔵 CLICK en GRÁFICO A (CONFIRMACIÓN)', params);
+        console.log('🔵 CLICK en GRÁFICO A (ahora muestra ENTREGA/commitment_date)', params);
         if (params.componentType === 'series' && params.seriesName === 'Facturado') {
             const productoData = datosPagina[params.dataIndex];
             console.log('📆 Producto data:', productoData);
             if (productoData) {
-                console.log('➡️ Llamando modal con versión: confirmacion');
-                mostrarPedidosDelProducto(productoData, 'confirmacion');
+                console.log('➡️ Llamando modal con versión: entrega');
+                mostrarPedidosDelProducto(productoData, 'entrega'); // INTERCAMBIO: ahora usa modal de entrega
             }
         }
     });
@@ -3325,8 +3475,9 @@ function renderizarGraficoProductosEnt() {
     const qtyFacturadas = datosPagina.map(d => Math.round(Number(d.qty_facturada || 0)));
     const qtyPendientes = datosPagina.map(d => Math.round(Number(d.qty_pendiente || 0)));
     const qtyTotales = datosPagina.map(d => Math.round(Number(d.qty_total || 0)));
-    const diasParaEntrega = datosPagina.map(d => d.dias_para_entrega !== null ? d.dias_para_entrega : null);
-    const fechasEntrega = datosPagina.map(d => d.fecha_entrega || null);
+    const diasTranscurridos = datosPagina.map(d => d.dias_transcurridos !== null ? d.dias_transcurridos : null); // Ahora usa dias_transcurridos
+    const diasRestantes = datosPagina.map(d => d.dias_restantes !== null ? d.dias_restantes : null); // Ahora usa dias_restantes
+    const fechasPedido = datosPagina.map(d => d.fecha_pedido || null); // Ahora usa fecha_pedido
     
     const facturadoSeriesData = facturados.map((valor, i) => {
         const estado = calcularEstadoProductoEnt(datosPagina[i]);
@@ -3346,12 +3497,12 @@ function renderizarGraficoProductosEnt() {
                 color: '#333',
                 formatter: function(params) {
                     const pct = porcentajes[params.dataIndex].toFixed(1);
-                    const diasPara = diasParaEntrega[params.dataIndex];
+                    const diasRest = diasRestantes[params.dataIndex]; // Ahora muestra dias_restantes
                     let icon = '';
-                    if (diasPara !== null) {
-                        if (diasPara < 0) icon = ' 🚨';
-                        else if (diasPara < 30) icon = ' 🔴';
-                        else if (diasPara < 60) icon = ' ⚠️';
+                    if (diasRest !== null) {
+                        if (diasRest < 0) icon = ' 🚨';
+                        else if (diasRest < 30) icon = ' 🔴';
+                        else if (diasRest < 60) icon = ' ⚠️';
                     }
                     return pct + '%' + icon;
                 }
@@ -3498,13 +3649,13 @@ function renderizarGraficoProductosEnt() {
     // Event handler: Click para drill-down
     productosGraficoChartInstanceEnt.off('click');
     productosGraficoChartInstanceEnt.on('click', function(params) {
-        console.log('🔴 CLICK en GRÁFICO B (ENTREGA)', params);
+        console.log('🔴 CLICK en GRÁFICO B (ahora muestra CONFIRMACIÓN/date_order)', params);
         if (params.componentType === 'series' && params.seriesName === 'Facturado') {
             const productoData = datosPagina[params.dataIndex];
             console.log('📦 Producto data:', productoData);
             if (productoData) {
-                console.log('➡️ Llamando modal con versión: entrega');
-                mostrarPedidosDelProducto(productoData, 'entrega');
+                console.log('➡️ Llamando modal con versión: confirmacion');
+                mostrarPedidosDelProducto(productoData, 'confirmacion'); // INTERCAMBIO: ahora usa modal de confirmación
             }
         }
     });
@@ -3663,7 +3814,7 @@ function mostrarPedidosDelProducto(productoData, version = 'entrega') {
         if (pedido.diasCalculado !== null) {
             const dias = pedido.diasCalculado;
             if (version === 'confirmacion') {
-                // Versión A: días restantes (150 - transcurridos)
+                // Modal de confirmación: días restantes (política 150 días desde date_order)
                 if (dias < 0) {
                     estado = 'vencido';
                     estadoLabel = 'VENCIDO';
@@ -3690,7 +3841,7 @@ function mostrarPedidosDelProducto(productoData, version = 'entrega') {
                     estadoBorder = '#f59e0b';
                 }
             } else {
-                // Versión B: días para entrega
+                // Modal de entrega: días hasta commitment_date
                 if (dias < 0) {
                     estado = 'vencido';
                     estadoLabel = 'VENCIDO';
@@ -3728,7 +3879,7 @@ function mostrarPedidosDelProducto(productoData, version = 'entrega') {
         if (pedido.diasCalculado !== null) {
             const dias = pedido.diasCalculado;
             if (version === 'confirmacion') {
-                // Días restantes (política 150)
+                // Modal confirmación: Días restantes (política 150 días)
                 if (dias < 0) {
                     diasMostrar = `<span style="color: #dc2626; font-weight: bold;">${Math.abs(dias)} días VENCIDO 🚨</span>`;
                 } else if (dias === 0) {
@@ -3743,7 +3894,7 @@ function mostrarPedidosDelProducto(productoData, version = 'entrega') {
                     </td>`;
                 }
             } else {
-                // Días para entrega
+                // Modal entrega: Días para entrega (commitment_date)
                 if (dias < 0) {
                     diasMostrar = `<span style="color: #dc2626; font-weight: bold;">${Math.abs(dias)} días VENCIDO 🚨</span>`;
                 } else if (dias === 0) {
@@ -3845,6 +3996,13 @@ function crearGraficoEjecutivo(targetElementId = 'grafico-ejecutivo-clientes') {
     if (!chartDom) return;
     
     const myChart = echarts.init(chartDom);
+
+    // Ordenar datos de Z-A para que se vea A-Z visualmente (el gráfico muestra de abajo hacia arriba)
+    bulletChartData.sort((a, b) => {
+        const nombreA = (a.cliente || '').toString().toLowerCase();
+        const nombreB = (b.cliente || '').toString().toLowerCase();
+        return nombreB.localeCompare(nombreA);
+    });
 
     // Verificar si hay cliente seleccionado
     const hayClienteSeleccionado = selectedClienteId && selectedClienteId !== '';
