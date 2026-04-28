@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 🔧 PERSONALIZAR: Cambiar el título del proyecto -->
+    <title>Verificación de Codificación Segura ISO 27001 - [NOMBRE DEL PROYECTO]</title>
+    
+    <style>
+        /* ===========================================
+           ESTILOS CSS - NO MODIFICAR
+           Estos estilos son reutilizables para cualquier proyecto
+           =========================================== */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .metadata {
+            background: #f8f9fa;
+            padding: 20px 40px;
+            border-bottom: 3px solid #e9ecef;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .metadata-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metadata-item strong {
+            color: #495057;
+            min-width: 120px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 2em;
+            color: #1e3c72;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-subtitle {
+            font-size: 1.5em;
+            color: #2a5298;
+            margin: 30px 0 15px 0;
+            padding-left: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section-subsubtitle {
+            font-size: 1.2em;
+            color: #495057;
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .badge-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .badge-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .badge-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .card-success {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+
+        .card-warning {
+            border-left-color: #ffc107;
+            background: #fffef8;
+        }
+
+        .card-danger {
+            border-left-color: #dc3545;
+            background: #fff8f8;
+        }
+
+        .card-info {
+            border-left-color: #17a2b8;
+            background: #f8fdff;
+        }
+
+        .card h4 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2em;
+        }
+
+        .code-block {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+            margin: 15px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        .code-block .comment {
+            color: #5c6370;
+        }
+
+        .code-block .keyword {
+            color: #c678dd;
+        }
+
+        .code-block .string {
+            color: #98c379;
+        }
+
+        .code-block .function {
+            color: #61afef;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-top: 4px solid #667eea;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .summary-card .number {
+            font-size: 3em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .summary-card .label {
+            font-size: 1em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .progress-container {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            margin: 20px 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            transition: width 1s ease;
+        }
+
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+
+        .checklist li {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checklist li::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .checklist li.unchecked::before {
+            content: "☐";
+            color: #6c757d;
+        }
+
+        .checklist li.warning::before {
+            content: "⚠";
+            color: #ffc107;
+        }
+
+        .checklist li.error::before {
+            content: "✗";
+            color: #dc3545;
+        }
+
+        .alert {
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+
+        .alert h5 {
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 70px;
+            margin-bottom: 30px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #667eea;
+        }
+
+        .timeline-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .timeline-content h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            border-top: 3px solid #e9ecef;
+            color: #6c757d;
+        }
+
+        .footer .signature {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .footer .signature-item {
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .footer .signature-line {
+            border-top: 2px solid #333;
+            margin: 10px 20px 5px 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .section-title {
+                font-size: 1.5em;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+            }
+
+            .code-block {
+                background: #f5f5f5;
+                color: #333;
+            }
+
+            .summary-card {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ========================================
+             HEADER - PERSONALIZAR DATOS DEL PROYECTO
+             ======================================== -->
+        <div class="header">
+            <!-- 🔧 PERSONALIZAR: Cambiar emoji y nombre del proyecto -->
+            <h1>📋 Verificación de Codificación Segura ISO 27001</h1>
+            <div class="subtitle">[NOMBRE DEL PROYECTO] - Auditoría de Seguridad Interna</div>
+        </div>
+
+        <!-- ========================================
+             METADATA - PERSONALIZAR INFORMACIÓN
+             ======================================== -->
+        <div class="metadata">
+            <div class="metadata-grid">
+                <div class="metadata-item">
+                    <strong>📅 Fecha:</strong>
+                    <!-- 🔧 PERSONALIZAR: Fecha de evaluación -->
+                    <span>[DD de MES de YYYY]</span>
+                </div>
+                <div class="metadata-item">
+                    <strong>👤 Evaluador:</strong>
+                    <!-- 🔧 PERSONALIZAR: Nombre del evaluador o equipo -->
+                    <span>[Nombre del Evaluador / Equipo]</span>
+                </div>
+                <div class="metadata-item">
+                    <strong>🔢 Versión:</strong>
+                    <!-- 🔧 PERSONALIZAR: Versión del sistema -->
+                    <span>[Versión X.Y]</span>
+                </div>
+                <div class="metadata-item">
+                    <strong>📚 Estándares:</strong>
+                    <!-- 🔧 PERSONALIZAR: Estándares aplicables (usualmente se mantiene) -->
+                    <span>ISO 27001, OWASP Top 10, CWE</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================
+             CONTENIDO PRINCIPAL
+             ======================================== -->
+        <div class="content">
+            
+            <!-- ========================================
+                 RESUMEN EJECUTIVO
+                 🔧 PERSONALIZAR: Puntuación y estado de cada categoría
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">✅ Resumen Ejecutivo</h2>
+                
+                <div class="alert alert-success">
+                    <h5>Estado Global</h5>
+                    <!-- 🔧 PERSONALIZAR: Puntuación global (calcular suma de categorías) -->
+                    <p><strong>Puntuación:</strong> [XX]/100 <span class="badge badge-success">APROBADO</span></p>
+                    <p>El sistema cumple con los requisitos [mínimos/completos] de seguridad según ISO 27001, OWASP Top 10 y CWE.</p>
+                </div>
+
+                <!-- 🔧 PERSONALIZAR: Estado de cada categoría -->
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Categoría</th>
+                            <th>Cumplimiento</th>
+                            <th>Gaps Identificados</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1. Conocimiento y Directrices</td>
+                            <td><span class="badge badge-success">✅ Cumple</span></td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>2. Entradas y Salidas</td>
+                            <td><span class="badge badge-success">✅ Cumple</span></td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>3. Autenticación y Autorización</td>
+                            <td><span class="badge badge-warning">🟡 Parcial</span></td>
+                            <td>[Describir gap]</td>
+                        </tr>
+                        <tr>
+                            <td>4. Gestión de Secretos y Criptografía</td>
+                            <td><span class="badge badge-success">✅ Cumple</span></td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>5. Manejo de Errores y Logs</td>
+                            <td><span class="badge badge-warning">🟡 Parcial</span></td>
+                            <td>[Describir gap]</td>
+                        </tr>
+                        <tr>
+                            <td>6. Control de Entorno y Repositorio</td>
+                            <td><span class="badge badge-success">✅ Cumple</span></td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- 🔧 PERSONALIZAR: Porcentaje en la barra de progreso -->
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 85%">
+                        85% Cumplimiento Global
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 EVALUACIÓN DETALLADA POR CATEGORÍA
+                 🔧 PERSONALIZAR: Evidencias y hallazgos de cada categoría
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">📊 Evaluación Detallada por Categoría</h2>
+
+                <!-- CATEGORÍA 1: CONOCIMIENTO Y DIRECTRICES -->
+                <h3 class="section-subtitle">1. Conocimiento y Directrices</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumple</h4>
+                    <p><strong>Guías de codificación segura implementadas:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Evidencias específicas del proyecto -->
+                    <ul class="checklist">
+                        <li>Sistema basado en OWASP Top 10</li>
+                        <li>Documentación en <code>[ruta/a/documentacion.md]</code></li>
+                        <li>Procedimientos de auditoría [frecuencia]</li>
+                        <li>Code reviews documentados</li>
+                    </ul>
+                    
+                    <!-- 🔧 PERSONALIZAR: Código de evidencia -->
+                    <p style="margin-top: 15px;"><strong>Evidencia:</strong></p>
+                    <div class="code-block">
+<span class="comment"># [Agregar evidencia de código aquí]</span>
+<span class="comment"># Ejemplo: configuraciones, políticas, etc.</span>
+                    </div>
+                </div>
+
+                <!-- CATEGORÍA 2: ENTRADAS Y SALIDAS -->
+                <h3 class="section-subtitle">2. Entradas y Salidas</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumple Completamente</h4>
+                    
+                    <p><strong>A. Validación y sanitización de entradas:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Ejemplos de validación del proyecto -->
+                    <div class="code-block">
+<span class="comment"># [Agregar código de validación de entradas]</span>
+<span class="comment"># Ejemplo: type casting, sanitización, etc.</span>
+                    </div>
+
+                    <p><strong>B. Outputs codificados (prevención XSS):</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Ejemplos de escape de outputs -->
+                    <div class="code-block">
+<span class="comment">&lt;!-- [Agregar código de escape de outputs] --&gt;</span>
+                    </div>
+
+                    <p><strong>C. Consultas parametrizadas (prevención SQL Injection):</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Ejemplos de consultas seguras -->
+                    <div class="code-block">
+<span class="comment"># [Agregar ejemplos de consultas parametrizadas]</span>
+                    </div>
+
+                    <p><strong>Pruebas de seguridad ejecutadas:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Tests realizados -->
+                    <ul class="checklist">
+                        <li><code>[nombre_test_1.py]</code> ✅ Pasado</li>
+                        <li><code>[nombre_test_2.py]</code> ✅ Pasado</li>
+                        <li>No se encontraron vectores de inyección</li>
+                    </ul>
+                </div>
+
+                <!-- CATEGORÍA 3: AUTENTICACIÓN Y AUTORIZACIÓN -->
+                <h3 class="section-subtitle">3. Autenticación y Autorización</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumple Completamente</h4>
+                    
+                    <p><strong>A. Principio de Privilegio Mínimo:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Sistema de roles del proyecto -->
+                    <div class="code-block">
+<span class="comment"># [Agregar definición de roles y permisos]</span>
+                    </div>
+
+                    <p><strong>B. Control de acceso implementado:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Decoradores o middleware de autorización -->
+                    <div class="code-block">
+<span class="comment"># [Agregar ejemplos de control de acceso]</span>
+                    </div>
+
+                    <p><strong>C. Gestión segura de sesiones:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Configuración de sesiones -->
+                    <ul class="checklist">
+                        <li>Cookies con flags SECURE y HTTPONLY</li>
+                        <li>Protección CSRF implementada</li>
+                        <li>Expiración de sesiones: [XX horas/días]</li>
+                        <li>Autenticación: [OAuth 2.0 / JWT / otro]</li>
+                    </ul>
+                </div>
+
+                <!-- CATEGORÍA 4: GESTIÓN DE SECRETOS -->
+                <h3 class="section-subtitle">4. Gestión de Secretos y Criptografía</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumple Completamente</h4>
+                    
+                    <p><strong>A. No hay credenciales hardcoded:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Verificación de variables de entorno -->
+                    <div class="code-block">
+<span class="comment"># [Mostrar cómo se cargan las credenciales desde .env]</span>
+                    </div>
+
+                    <p><strong>B. Cifrado de datos:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Métodos de cifrado utilizados -->
+                    <ul class="checklist">
+                        <li><strong>En tránsito:</strong> TLS [versión]</li>
+                        <li><strong>En reposo:</strong> [Algoritmo, ej: AES-256]</li>
+                        <li><strong>Hashing:</strong> [Algoritmo, ej: bcrypt, Argon2]</li>
+                    </ul>
+                </div>
+
+                <!-- CATEGORÍA 5: MANEJO DE ERRORES Y LOGS -->
+                <h3 class="section-subtitle">5. Manejo de Errores y Logs</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumplimiento Completo</h4>
+                    
+                    <p><strong>A. Logging de eventos de seguridad:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Eventos que se registran -->
+                    <ul class="checklist">
+                        <li>Inicios de sesión (exitosos y fallidos)</li>
+                        <li>Cambios de privilegios</li>
+                        <li>Accesos denegados</li>
+                        <li>Operaciones críticas en [módulo X]</li>
+                    </ul>
+
+                    <p><strong>B. Mensajes de error genéricos:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Estrategia de manejo de errores -->
+                    <div class="code-block">
+<span class="comment"># [Mostrar manejadores de errores globales]</span>
+                    </div>
+                </div>
+
+                <!-- CATEGORÍA 6: CONTROL DE ENTORNO -->
+                <h3 class="section-subtitle">6. Control de Entorno y Repositorio</h3>
+                
+                <div class="card card-success">
+                    <h4>✅ Cumplimiento Completo</h4>
+                    
+                    <p><strong>A. Control de dependencias:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Dependencias y versiones -->
+                    <ul class="checklist">
+                        <li><code>[paquete1]==X.Y.Z</code> ✅ Sin CVEs</li>
+                        <li><code>[paquete2]==X.Y.Z</code> ✅ Sin CVEs</li>
+                        <li>Última auditoría: [fecha]</li>
+                    </ul>
+
+                    <p><strong>B. SAST implementado:</strong></p>
+                    <!-- 🔧 PERSONALIZAR: Herramientas de análisis estático -->
+                    <ul class="checklist">
+                        <li>Herramienta: [bandit / semgrep / CodeQL]</li>
+                        <li>Frecuencia: [en cada commit / diaria / semanal]</li>
+                        <li>CI/CD: [GitHub Actions / GitLab CI / otro]</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 PLAN DE ACCIÓN
+                 🔧 PERSONALIZAR: Tareas y plazos específicos
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">🎯 Plan de Acción para Cumplimiento 100%</h2>
+
+                <h3 class="section-subtitle">Prioridad Alta (30 días)</h3>
+                
+                <!-- 🔧 PERSONALIZAR: Resumen de tareas prioritarias -->
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="number">[Xh]</div>
+                        <div class="label">[Tarea 1]</div>
+                        <p style="margin-top: 10px; font-size: 0.9em;">[Descripción breve]</p>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">[Xh]</div>
+                        <div class="label">[Tarea 2]</div>
+                        <p style="margin-top: 10px; font-size: 0.9em;">[Descripción breve]</p>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">[Xh]</div>
+                        <div class="label">[Tarea 3]</div>
+                        <p style="margin-top: 10px; font-size: 0.9em;">[Descripción breve]</p>
+                    </div>
+                </div>
+
+                <!-- 🔧 PERSONALIZAR: Checklist de tareas -->
+                <div class="card">
+                    <h4>Checklist - Prioridad Alta:</h4>
+                    <ul class="checklist">
+                        <li class="unchecked">[Tarea pendiente 1]</li>
+                        <li class="unchecked">[Tarea pendiente 2]</li>
+                        <li class="unchecked">[Tarea pendiente 3]</li>
+                        <li class="unchecked">[Tarea pendiente 4]</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 ROADMAP DE IMPLEMENTACIÓN
+                 🔧 PERSONALIZAR: Cronograma de actividades
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">📅 Roadmap de Implementación</h2>
+                
+                <div class="timeline">
+                    <!-- 🔧 PERSONALIZAR: Hitos del proyecto -->
+                    <div class="timeline-item">
+                        <div class="timeline-content">
+                            <h4>Mes 1 ([Mes Año])</h4>
+                            <ul>
+                                <li>Semana 1-2: [Actividad]</li>
+                                <li>Semana 3: [Actividad]</li>
+                                <li>Semana 4: [Actividad]</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-content">
+                            <h4>Mes 2 ([Mes Año])</h4>
+                            <ul>
+                                <li>Semana 1-2: [Actividad]</li>
+                                <li>Semana 3: [Actividad]</li>
+                                <li>Semana 4: [Actividad]</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-content">
+                            <h4>Mes 3 ([Mes Año])</h4>
+                            <ul>
+                                <li>Semana 1-2: [Actividad]</li>
+                                <li>Semana 3-4: [Actividad]</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 MÉTRICAS DE CUMPLIMIENTO
+                 🔧 PERSONALIZAR: Criterios evaluados
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">📈 Métricas de Cumplimiento</h2>
+
+                <h3 class="section-subtitle">Estado Actual</h3>
+                
+                <!-- 🔧 PERSONALIZAR: Tabla de criterios y su cumplimiento -->
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Criterio</th>
+                            <th>Cumple</th>
+                            <th>Evidencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1.1 Guías de codificación segura</td>
+                            <td><span class="badge badge-success">✅</span></td>
+                            <td><code>[archivo.md]</code></td>
+                        </tr>
+                        <tr>
+                            <td>1.2 Capacitación anual</td>
+                            <td><span class="badge badge-warning">🟡</span></td>
+                            <td>[Estado]</td>
+                        </tr>
+                        <!-- Agregar más filas según necesidad -->
+                    </tbody>
+                </table>
+
+                <!-- 🔧 PERSONALIZAR: Puntuación actual -->
+                <div class="alert alert-info">
+                    <h5>Puntuación Actual</h5>
+                    <p><strong>[X]/[Y] cumplidos = [Z]% compliance</strong></p>
+                </div>
+
+                <h3 class="section-subtitle">Objetivo Post-Implementación</h3>
+                
+                <!-- 🔧 PERSONALIZAR: Objetivos cuantitativos -->
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="number">100%</div>
+                        <div class="label">Compliance Target</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">[X]/[X]</div>
+                        <div class="label">Criterios Cumplidos</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">[X]</div>
+                        <div class="label">Días para Target</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 CERTIFICACIÓN ISO 27001
+                 🔧 PERSONALIZAR: Controles aplicables del Anexo A
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">🔐 Certificación ISO 27001 - Gap Analysis</h2>
+
+                <!-- 🔧 PERSONALIZAR: Evaluación de controles ISO -->
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Control</th>
+                            <th>Descripción</th>
+                            <th>Cumplimiento</th>
+                            <th>Gap / Evidencia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>A.14.2.1</strong></td>
+                            <td>Política de desarrollo seguro</td>
+                            <td><span class="badge badge-success">✅</span></td>
+                            <td>[Evidencia]</td>
+                        </tr>
+                        <tr>
+                            <td><strong>A.14.2.2</strong></td>
+                            <td>Procedimientos de cambio</td>
+                            <td><span class="badge badge-success">✅</span></td>
+                            <td>[Evidencia]</td>
+                        </tr>
+                        <!-- Agregar más controles según apliquen -->
+                    </tbody>
+                </table>
+
+                <!-- 🔧 PERSONALIZAR: Porcentaje de cumplimiento ISO -->
+                <div class="alert alert-success">
+                    <h5>Cumplimiento ISO 27001 (Anexo A.14)</h5>
+                    <p><strong>[XX]% ✅</strong></p>
+                    <p>El sistema cumple con [la mayoría / todos] los controles aplicables del Anexo A.</p>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 CONCLUSIONES Y RECOMENDACIONES
+                 🔧 PERSONALIZAR: Fortalezas y áreas de mejora
+                 ======================================== -->
+            <div class="section">
+                <h2 class="section-title">📝 Conclusiones y Recomendaciones</h2>
+
+                <h3 class="section-subtitle">Fortalezas del Sistema</h3>
+                <!-- 🔧 PERSONALIZAR: Puntos fuertes identificados -->
+                <div class="card card-success">
+                    <ul class="checklist">
+                        <li><strong>[Fortaleza 1]:</strong> [Descripción]</li>
+                        <li><strong>[Fortaleza 2]:</strong> [Descripción]</li>
+                        <li><strong>[Fortaleza 3]:</strong> [Descripción]</li>
+                    </ul>
+                </div>
+
+                <h3 class="section-subtitle">Áreas de Mejora</h3>
+                <!-- 🔧 PERSONALIZAR: Mejoras recomendadas -->
+                <div class="card card-warning">
+                    <ul class="checklist">
+                        <li class="warning"><strong>[Mejora 1]:</strong> [Descripción]</li>
+                        <li class="warning"><strong>[Mejora 2]:</strong> [Descripción]</li>
+                        <li class="warning"><strong>[Mejora 3]:</strong> [Descripción]</li>
+                    </ul>
+                </div>
+
+                <!-- 🔧 PERSONALIZAR: Declaración final -->
+                <div class="alert alert-success" style="margin-top: 30px;">
+                    <h5>✅ Declaración de Cumplimiento</h5>
+                    <p><strong>Estado:</strong> <span class="badge badge-success">[APROBADO / APROBADO CON CONDICIONES / NO APROBADO]</span></p>
+                    <p>El sistema <strong>[NOMBRE DEL PROYECTO] v[X.Y]</strong> cumple con <strong>[XX]% de los requisitos</strong> de codificación segura según estándares ISO 27001, OWASP Top 10 y CWE.</p>
+                    <p><strong>Recomendación:</strong> <span class="badge badge-success">[✅ APROBAR / ⚠️ APROBAR CON CONDICIONES / ❌ NO APROBAR]</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================
+             FOOTER - FIRMAS Y APROBACIONES
+             🔧 PERSONALIZAR: Aprobadores requeridos
+             ======================================== -->
+        <div class="footer">
+            <h3>Aprobaciones Requeridas</h3>
+            <div class="signature">
+                <!-- 🔧 PERSONALIZAR: Roles que deben aprobar -->
+                <div class="signature-item">
+                    <strong>[Rol 1 - ej: Tech Lead]</strong>
+                    <div class="signature-line"></div>
+                    <small>Firma y Fecha</small>
+                </div>
+                <div class="signature-item">
+                    <strong>[Rol 2 - ej: Security Officer]</strong>
+                    <div class="signature-line"></div>
+                    <small>Firma y Fecha</small>
+                </div>
+                <div class="signature-item">
+                    <strong>[Rol 3 - ej: Auditor Externo]</strong>
+                    <div class="signature-line"></div>
+                    <small>Firma y Fecha</small>
+                </div>
+            </div>
+
+            <!-- 🔧 PERSONALIZAR: Fecha de próxima revisión -->
+            <p style="margin-top: 30px;"><strong>Próxima revisión:</strong> [DD de MONTH de YYYY] ([X meses])</p>
+            <p style="margin-top: 10px; font-size: 0.9em; color: #999;">
+                <!-- 🔧 PERSONALIZAR: Clasificación del documento -->
+                Documento generado por [Equipo/Empresa] - [Confidencial / Interno / Público] - Solo para uso [interno/autorizado]
+            </p>
+        </div>
+    </div>
+
+    <!-- ========================================
+         INSTRUCCIONES DE USO
+         ======================================== 
+         
+         GUÍA RÁPIDA: Cómo personalizar esta plantilla
+         
+         1. BUSCAR Y REEMPLAZAR:
+            - Busca "[NOMBRE DEL PROYECTO]" y reemplaza por tu proyecto
+            - Busca "[XX]" y reemplaza por valores numéricos
+            - Busca "[Descripción]" y completa con detalles
+         
+         2. SECCIONES MARCADAS CON 🔧:
+            - Cada comentario "🔧 PERSONALIZAR:" indica qué cambiar
+            - Lee el comentario para saber qué dato actualizar
+         
+         3. CONTENIDO TÉCNICO:
+            - En bloques <div class="code-block">: Agrega código real de tu proyecto
+            - En <ul class="checklist">: Agrega evidencias específicas
+            - En tablas: Completa filas con datos reales
+         
+         4. BADGES DE ESTADO:
+            - badge-success: ✅ Cumple (verde)
+            - badge-warning: 🟡 Parcial (amarillo)
+            - badge-danger: ❌ No Cumple (rojo)
+            - badge-info: ℹ️ Información (azul)
+         
+         5. CARDS:
+            - card-success: Para cumplimientos
+            - card-warning: Para cumplimientos parciales
+            - card-danger: Para no cumplimientos
+            - card-info: Para información adicional
+         
+         6. PROGRESS BAR:
+            - Cambia style="width: XX%" según tu porcentaje
+         
+         7. CHECKLIST:
+            - class="" : ✓ Completado (verde)
+            - class="unchecked" : ☐ Pendiente (gris)
+            - class="warning" : ⚠ Advertencia (amarillo)
+            - class="error" : ✗ Error (rojo)
+         
+         8. ELIMINAR ESTAS INSTRUCCIONES:
+            - Antes de compartir el documento final, elimina este comentario HTML
+         
+         ======================================== -->
+</body>
+</html>

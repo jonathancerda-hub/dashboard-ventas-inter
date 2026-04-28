@@ -1365,10 +1365,45 @@ def dashboard():
                 facturado_por_cliente[cliente_nombre] = facturado_por_cliente.get(cliente_nombre, 0) + sale.get('amount_currency', 0)
 
         pendiente_por_cliente = {}
+        # CAMBIO: Almacenar TODAS las fechas de entrega por cliente, CONSOLIDADAS por fecha única
+        # Estructura: { 'cliente': [ {'commitment_date': ..., 'fecha_confirmacion': ..., 'monto': ...}, ... ] }
+        fechas_por_cliente = {}
+        
+        # Estados válidos para cálculo de tiempo esperado (gráfico V2)
+        estados_pedido_validos = ['sale', 'credit', 'done']  # Ordenes de venta, En créditos, En logística
+        
         for pending in pending_data:
             cliente_nombre = pending.get('cliente')
             if cliente_nombre:
+                # Mapear cliente_id también desde pending_data (para clientes sin facturado)
+                partner = pending.get('partner_id')
+                if partner and isinstance(partner, list) and len(partner) > 0:
+                    cliente_id = str(partner[0])
+                    if cliente_nombre not in cliente_id_map:
+                        cliente_id_map[cliente_nombre] = cliente_id
+                
                 pendiente_por_cliente[cliente_nombre] = pendiente_por_cliente.get(cliente_nombre, 0) + pending.get('total_pendiente', 0)
+                
+                # Extraer fechas SOLO si el pedido está en estado válido (no cotización, no cancelado)
+                order_state = pending.get('order_state', '')
+                commitment_date_str = pending.get('commitment_date', '')
+                fecha_confirmacion_str = pending.get('fecha_confirmacion', '')
+                total_pendiente = pending.get('total_pendiente', 0)
+                
+                # Filtrar: solo pedidos en estados activos con fechas válidas
+                if order_state in estados_pedido_validos and commitment_date_str and fecha_confirmacion_str:
+                    if cliente_nombre not in fechas_por_cliente:
+                        fechas_por_cliente[cliente_nombre] = {}
+                    
+                    # Consolidar por fecha única: si ya existe la fecha, sumar monto
+                    fecha_key = commitment_date_str.split(' ')[0]  # Solo YYYY-MM-DD
+                    if fecha_key not in fechas_por_cliente[cliente_nombre]:
+                        fechas_por_cliente[cliente_nombre][fecha_key] = {
+                            'commitment_date': commitment_date_str,
+                            'fecha_confirmacion': fecha_confirmacion_str,
+                            'monto_pendiente': 0
+                        }
+                    fechas_por_cliente[cliente_nombre][fecha_key]['monto_pendiente'] += total_pendiente
 
         # Unir todos los clientes que tienen datos facturados o pendientes
         all_clients = set(facturado_por_cliente.keys()) | set(pendiente_por_cliente.keys())
@@ -1389,13 +1424,63 @@ def dashboard():
             # en caso contrario usar la suma facturado + pendiente (fallback)
             total_cliente = total_meta_cliente if total_meta_cliente > 0 else (facturado + pendiente)
 
+            # Calcular tiempo esperado para Versión 2 del gráfico de bullet
+            # CAMBIO: Enviar TODAS las fechas ÚNICAS (consolidadas), no solo la más próxima
+            todas_fechas = []
+            commitment_date = None  # Para compatibilidad con código existente, guardar la más próxima
+            fecha_confirmacion = None
+            dias_transcurridos = None
+            dias_totales = None
+            tiempo_esperado_pct = None
+            
+            if cliente in fechas_por_cliente and len(fechas_por_cliente[cliente]) > 0:
+                from datetime import datetime
+                # Convertir dict de fechas a lista y ordenar por commitment_date (más próxima primero)
+                fechas_list = list(fechas_por_cliente[cliente].values())
+                fechas_ordenadas = sorted(fechas_list, key=lambda x: x['commitment_date'])
+                todas_fechas = fechas_ordenadas
+                
+                # Para compatibilidad, calcular valores de la fecha más próxima
+                try:
+                    commitment_date = fechas_ordenadas[0]['commitment_date']
+                    fecha_confirmacion = fechas_ordenadas[0]['fecha_confirmacion']
+                    
+                    # Parsear fechas
+                    fecha_entrega_obj = datetime.strptime(commitment_date.split(' ')[0], '%Y-%m-%d')
+                    fecha_conf_obj = datetime.strptime(fecha_confirmacion.split(' ')[0], '%Y-%m-%d')
+                    fecha_hoy = datetime.now()
+                    
+                    # Calcular días transcurridos desde confirmación hasta hoy
+                    dias_transcurridos = (fecha_hoy - fecha_conf_obj).days
+                    
+                    # Calcular días totales desde confirmación hasta entrega
+                    dias_totales = (fecha_entrega_obj - fecha_conf_obj).days
+                    
+                    # Calcular % de tiempo esperado (cuánto tiempo debería llevar facturado según el calendario)
+                    if dias_totales > 0:
+                        tiempo_esperado_pct = round((dias_transcurridos / dias_totales) * 100, 1)
+                    else:
+                        tiempo_esperado_pct = 100  # Si ya pasó la fecha o es el mismo día
+                except Exception as e:
+                    # Si hay error en parsing, dejar valores None
+                    pass
+
             if total_cliente > 0:
                 bullet_chart_data.append({
                     'total_cliente_meta': total_cliente,
                     'cliente': cliente,
                     'facturado': facturado,
                     'pendiente': pendiente,
-                    'cliente_id': cliente_id
+                    'cliente_id': cliente_id,
+                    # Campos para Versión 2 (compatibilidad - fecha más próxima)
+                    'commitment_date': commitment_date,
+                    'fecha_confirmacion': fecha_confirmacion,
+                    'dias_transcurridos': dias_transcurridos,
+                    'dias_totales': dias_totales,
+                    'tiempo_esperado_pct': tiempo_esperado_pct,
+                    # NUEVO: Todas las fechas de entrega del cliente
+                    'todas_fechas': todas_fechas,
+                    'num_fechas': len(todas_fechas)
                 })
         
         # Variables para el template
@@ -1420,11 +1505,14 @@ def dashboard():
             if len(bullet_chart_data) == 1:
                 data = bullet_chart_data[0]
                 total_cliente_meta_val = data.get('total_cliente_meta', 0)
+                facturado_val = data.get('facturado', 0)
+                pendiente_val = data.get('pendiente', 0)
                 avance_cliente_seleccionado = {
                     'nombre': data.get('cliente', nombre_cliente_seleccionado), # Usar el nombre de los datos, o el del filtro como fallback
-                    'facturado': data.get('facturado', 0),
+                    'facturado': facturado_val,
+                    'pendiente': pendiente_val,
                     'total_cliente_meta': total_cliente_meta_val,
-                    'porcentaje': (data.get('facturado', 0) / total_cliente_meta_val * 100) if total_cliente_meta_val > 0 else 0
+                    'porcentaje': (facturado_val / total_cliente_meta_val * 100) if total_cliente_meta_val > 0 else 0
                 }
         
         # --- NUEVO: GRÁFICO DE AVANCE POR PRODUCTO (DOS VERSIONES) ---

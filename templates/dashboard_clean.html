@@ -546,7 +546,7 @@
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-top: 12px; font-size: 0.9rem;">
                     <div>
                         <strong style="color: #666;">¿Cómo leerlo?</strong><br/>
-                        La barra muestra % facturado (color) vs % esperado (línea vertical). El color combina tiempo restante + brecha de avance.
+                        Vista consolidada: cada cliente muestra el % facturado respecto al total anual (todas las fechas de entrega). El color indica la urgencia de la próxima entrega pendiente.
                     </div>
                     <div>
                         <strong>Lógica híbrida:</strong> Color base por días restantes. Si vas muy adelantado (+20%) mejora, si vas muy atrasado (-20%) empeora.
@@ -3597,6 +3597,154 @@ function crearVistaHitosCliente(clienteId, container) {
 }
 
 // ==================== VERSIÓN 2: Gráfico Bullet con Tiempo Esperado (commitment_date) ====================
+// Variable global para filtro activo en vista general V2
+let filtroEstadoActivoV2 = 'todos';
+
+// Función auxiliar para calcular estado de un cliente (CONSOLIDADO ANUAL)
+function calcularEstadoClienteV2(data) {
+    const facturado = data.facturado || 0;
+    const meta = data.total_cliente_meta || 0;
+    const pctFacturado = meta > 0 ? (facturado / meta * 100) : 0;
+    const diasEstandar = 120;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    
+    // Obtener todas las fechas de entrega del cliente
+    const todasFechas = data.todas_fechas || [];
+    const numFechas = todasFechas.length;
+    
+    // Si no hay fechas, usar valores por defecto
+    if (numFechas === 0) {
+        return {
+            diasRestantes: 0,
+            pctFacturado,
+            tiempoEsperado: 0,
+            gap: pctFacturado,
+            estadoCategoria: 'en_ritmo',
+            barColor: '#2ecc71',
+            estadoTexto: 'Sin fechas',
+            estadoColor: '#6b7280',
+            numFechas: 0,
+            numVencidas: 0,
+            fechaMasUrgente: null
+        };
+    }
+    
+    // Clasificar fechas en vencidas y futuras
+    const fechasVencidas = [];
+    const fechasFuturas = [];
+    
+    todasFechas.forEach(f => {
+        try {
+            const fechaEntrega = new Date(f.commitment_date.split(' ')[0]);
+            const dias = (fechaEntrega - hoy) / (1000 * 60 * 60 * 24);
+            
+            if (dias < 0) {
+                fechasVencidas.push({ ...f, diasRestantes: dias });
+            } else {
+                fechasFuturas.push({ ...f, diasRestantes: dias });
+            }
+        } catch (e) {
+            // Error parseando fecha
+        }
+    });
+    
+    // Determinar fecha a usar para calcular estado:
+    // 1. Si hay fechas futuras, usar la más urgente (menor días restantes)
+    // 2. Si todas están vencidas, usar la más reciente (menos vencida)
+    let fechaReferencia = null;
+    let diasRestantes = 0;
+    
+    if (fechasFuturas.length > 0) {
+        // Ordenar futuras por urgencia (menor días primero)
+        fechasFuturas.sort((a, b) => a.diasRestantes - b.diasRestantes);
+        fechaReferencia = fechasFuturas[0];
+        diasRestantes = fechaReferencia.diasRestantes;
+    } else if (fechasVencidas.length > 0) {
+        // Ordenar vencidas por más reciente (menos negativo = más reciente)
+        fechasVencidas.sort((a, b) => b.diasRestantes - a.diasRestantes);
+        fechaReferencia = fechasVencidas[0];
+        diasRestantes = fechaReferencia.diasRestantes;
+    }
+    
+    // Calcular tiempo esperado sin fecha confirmación (período estándar 120 días)
+    const tiempoEsperado = Math.max(0, Math.min(100, ((diasEstandar - diasRestantes) / diasEstandar) * 100));
+    const gap = pctFacturado - tiempoEsperado;
+    
+    // Lógica híbrida para determinar estado
+    let estadoCategoria = 'en_ritmo';
+    let barColor = '#2ecc71';
+    let estadoTexto = 'En ritmo';
+    let estadoColor = '#2ecc71';
+    
+    if (diasRestantes < 0) {
+        estadoCategoria = 'vencido';
+        barColor = '#8b0000';
+        estadoTexto = 'Vencido';
+        estadoColor = '#8b0000';
+    } else if (diasRestantes < 30) {
+        // Base: ROJO
+        estadoCategoria = 'riesgo';
+        barColor = '#e74c3c';
+        estadoTexto = 'Riesgo';
+        estadoColor = '#e74c3c';
+        // Ajuste: muy adelantado → leve
+        if (gap >= 20) {
+            estadoCategoria = 'leve';
+            barColor = '#f1c40f';
+            estadoTexto = 'Leve retraso';
+            estadoColor = '#d97706';
+        }
+    } else if (diasRestantes < 90) {
+        // Base: AMARILLO
+        estadoCategoria = 'leve';
+        barColor = '#f1c40f';
+        estadoTexto = 'Leve retraso';
+        estadoColor = '#d97706';
+        // Ajuste: muy adelantado → verde
+        if (gap >= 20) {
+            estadoCategoria = 'en_ritmo';
+            barColor = '#2ecc71';
+            estadoTexto = 'En ritmo';
+            estadoColor = '#2ecc71';
+        }
+        // Ajuste: muy atrasado → rojo
+        else if (gap <= -20) {
+            estadoCategoria = 'riesgo';
+            barColor = '#e74c3c';
+            estadoTexto = 'Riesgo';
+            estadoColor = '#e74c3c';
+        }
+    } else {
+        // Base: VERDE
+        estadoCategoria = 'en_ritmo';
+        barColor = '#2ecc71';
+        estadoTexto = 'En ritmo';
+        estadoColor = '#2ecc71';
+        // Ajuste: muy atrasado → amarillo
+        if (gap <= -20) {
+            estadoCategoria = 'leve';
+            barColor = '#f1c40f';
+            estadoTexto = 'Leve retraso';
+            estadoColor = '#d97706';
+        }
+    }
+    
+    return {
+        diasRestantes,
+        pctFacturado,
+        tiempoEsperado,
+        gap,
+        estadoCategoria,
+        barColor,
+        estadoTexto,
+        estadoColor,
+        numFechas,
+        numVencidas: fechasVencidas.length,
+        fechaMasUrgente: fechaReferencia
+    };
+}
+
 function crearGraficoBulletV2(clienteId = null) {
     const container = document.getElementById('grafico-bullet-clientes-v2');
     if (!container) return;
@@ -3616,157 +3764,212 @@ function crearGraficoBulletV2(clienteId = null) {
         return;
     }
 
-    // Ordenar alfabéticamente
-    dataConTiempo.sort((a, b) => {
-        const nombreA = (a.cliente || '').toString().toLowerCase();
-        const nombreB = (b.cliente || '').toString().toLowerCase();
-        return nombreA.localeCompare(nombreB);
+    // Calcular estado de cada cliente y agrupar
+    const clientesConEstado = dataConTiempo.map(data => {
+        const estado = calcularEstadoClienteV2(data);
+        return { ...data, ...estado };
     });
 
-    // Generar HTML para cada cliente
-    let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
-    
-    dataConTiempo.forEach(data => {
-        const cliente = data.cliente || 'Sin nombre';
-        const facturado = data.facturado || 0;
-        const meta = data.total_cliente_meta || 0;
-        const pctFacturado = meta > 0 ? (facturado / meta * 100) : 0;
-        const tiempoEsperado = data.tiempo_esperado_pct || 0;
-        const fechaEntrega = data.commitment_date ? data.commitment_date.split(' ')[0] : 'N/A';
+    // Agrupar por estado
+    const grupos = {
+        vencido: clientesConEstado.filter(c => c.estadoCategoria === 'vencido'),
+        riesgo: clientesConEstado.filter(c => c.estadoCategoria === 'riesgo'),
+        leve: clientesConEstado.filter(c => c.estadoCategoria === 'leve'),
+        en_ritmo: clientesConEstado.filter(c => c.estadoCategoria === 'en_ritmo')
+    };
+
+    // Ordenar cada grupo por días restantes (ascendente = más urgente primero)
+    Object.keys(grupos).forEach(key => {
+        grupos[key].sort((a, b) => a.diasRestantes - b.diasRestantes);
+    });
+
+    // Contadores
+    const contadores = {
+        vencido: grupos.vencido.length,
+        riesgo: grupos.riesgo.length,
+        leve: grupos.leve.length,
+        en_ritmo: grupos.en_ritmo.length,
+        total: clientesConEstado.length
+    };
+
+    // HTML: Filtros rápidos
+    let html = `
+    <div style="margin-bottom: 16px;">
+        <!-- Contadores resumen -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 10px; background: #f9fafb; border-radius: 6px; flex-wrap: wrap;">
+            <span style="font-weight: 600; color: #6b7280;">Total: ${contadores.total} clientes</span>
+            <span style="color: #d1d5db;">|</span>
+            <span style="color: #8b0000; font-weight: 500;">●  ${contadores.vencido} vencido${contadores.vencido !== 1 ? 's' : ''}</span>
+            <span style="color: #e74c3c; font-weight: 500;">●  ${contadores.riesgo} en riesgo</span>
+            <span style="color: #d97706; font-weight: 500;">●  ${contadores.leve} leve retraso</span>
+            <span style="color: #2ecc71; font-weight: 500;">●  ${contadores.en_ritmo} en ritmo</span>
+        </div>
         
-        // Calcular días restantes hasta la entrega
-        let diasRestantes = 0;
-        if (data.commitment_date) {
-            try {
-                const fechaEntregaObj = new Date(data.commitment_date.split(' ')[0]);
-                const hoy = new Date();
-                hoy.setHours(0, 0, 0, 0);
-                diasRestantes = (fechaEntregaObj - hoy) / (1000 * 60 * 60 * 24);
-            } catch (e) {
-                diasRestantes = 0;
-            }
-        }
+        <!-- Botones de filtro -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="filtroEstadoActivoV2 = 'todos'; crearGraficoBulletV2();" 
+                style="padding: 6px 14px; border: 2px solid ${filtroEstadoActivoV2 === 'todos' ? '#875A7B' : '#d1d5db'}; background: ${filtroEstadoActivoV2 === 'todos' ? '#875A7B' : 'white'}; color: ${filtroEstadoActivoV2 === 'todos' ? 'white' : '#6b7280'}; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;">
+                Todos (${contadores.total})
+            </button>
+            <button onclick="filtroEstadoActivoV2 = 'vencido'; crearGraficoBulletV2();" 
+                style="padding: 6px 14px; border: 2px solid ${filtroEstadoActivoV2 === 'vencido' ? '#8b0000' : '#d1d5db'}; background: ${filtroEstadoActivoV2 === 'vencido' ? '#8b0000' : 'white'}; color: ${filtroEstadoActivoV2 === 'vencido' ? 'white' : '#6b7280'}; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;">
+                Vencidos (${contadores.vencido})
+            </button>
+            <button onclick="filtroEstadoActivoV2 = 'riesgo'; crearGraficoBulletV2();" 
+                style="padding: 6px 14px; border: 2px solid ${filtroEstadoActivoV2 === 'riesgo' ? '#e74c3c' : '#d1d5db'}; background: ${filtroEstadoActivoV2 === 'riesgo' ? '#e74c3c' : 'white'}; color: ${filtroEstadoActivoV2 === 'riesgo' ? 'white' : '#6b7280'}; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;">
+                Riesgo (${contadores.riesgo})
+            </button>
+            <button onclick="filtroEstadoActivoV2 = 'leve'; crearGraficoBulletV2();" 
+                style="padding: 6px 14px; border: 2px solid ${filtroEstadoActivoV2 === 'leve' ? '#d97706' : '#d1d5db'}; background: ${filtroEstadoActivoV2 === 'leve' ? '#d97706' : 'white'}; color: ${filtroEstadoActivoV2 === 'leve' ? 'white' : '#6b7280'}; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;">
+                Leve (${contadores.leve})
+            </button>
+            <button onclick="filtroEstadoActivoV2 = 'en_ritmo'; crearGraficoBulletV2();" 
+                style="padding: 6px 14px; border: 2px solid ${filtroEstadoActivoV2 === 'en_ritmo' ? '#2ecc71' : '#d1d5db'}; background: ${filtroEstadoActivoV2 === 'en_ritmo' ? '#2ecc71' : 'white'}; color: ${filtroEstadoActivoV2 === 'en_ritmo' ? 'white' : '#6b7280'}; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s;">
+                En ritmo (${contadores.en_ritmo})
+            </button>
+        </div>
+    </div>
+    `;
+
+    // Función para renderizar clientes de un grupo
+    const renderizarClientes = (clientes) => {
+        let clientesHtml = '';
         
-        // Formatear fecha de entrega para mostrar
-        let fechaDisplay = 'N/A';
-        if (fechaEntrega !== 'N/A') {
-            try {
-                const fecha = new Date(fechaEntrega);
-                const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                fechaDisplay = `${meses[fecha.getMonth()]} ${fecha.getFullYear()}`;
-            } catch (e) {
-                fechaDisplay = fechaEntrega;
-            }
-        }
-        
-        // LÓGICA HÍBRIDA: Tiempo restante + Brecha facturado vs esperado
-        const gap = pctFacturado - tiempoEsperado;
-        let barColor = '#2ecc71';
-        let estadoTexto = 'En ritmo';
-        let estadoColor = '#2ecc71';
-        
-        if (diasRestantes < 0) {
-            barColor = '#8b0000';
-            estadoTexto = 'Vencido';
-            estadoColor = '#8b0000';
-        } else if (diasRestantes < 30) {
-            // Base: ROJO
-            barColor = '#e74c3c';
-            estadoTexto = `Riesgo (${Math.ceil(diasRestantes)} días)`;
-            estadoColor = '#e74c3c';
-            // Ajuste: muy adelantado → amarillo
-            if (gap >= 20) {
-                barColor = '#f1c40f';
-                estadoTexto = `Leve retraso (${Math.ceil(diasRestantes)} días)`;
-                estadoColor = '#d97706';
-            }
-        } else if (diasRestantes < 90) {
-            // Base: AMARILLO
-            barColor = '#f1c40f';
-            estadoTexto = `Leve retraso (${Math.ceil(diasRestantes)} días)`;
-            estadoColor = '#d97706';
-            // Ajuste: muy adelantado → verde
-            if (gap >= 20) {
-                barColor = '#2ecc71';
-                estadoTexto = 'En ritmo';
-                estadoColor = '#2ecc71';
-            }
-            // Ajuste: muy atrasado → rojo
-            else if (gap <= -20) {
-                barColor = '#e74c3c';
-                estadoTexto = `Riesgo (${Math.ceil(diasRestantes)} días)`;
-                estadoColor = '#e74c3c';
-            }
-        } else {
-            // Base: VERDE
-            barColor = '#2ecc71';
-            estadoTexto = 'En ritmo';
-            estadoColor = '#2ecc71';
-            // Ajuste: muy atrasado → amarillo
-            if (gap <= -20) {
-                barColor = '#f1c40f';
-                estadoTexto = `Leve retraso (${Math.ceil(diasRestantes)} días)`;
-                estadoColor = '#d97706';
-            }
-        }
-        
-        // Agregar referencia de % esperado vs real
-        const pctEsperado = Math.round(tiempoEsperado);
-        const pctReal = Math.round(pctFacturado);
-        if (diasRestantes >= 0 && tiempoEsperado > 0) {
-            estadoTexto += ` · ${pctReal}% vs ${pctEsperado}% esperado`;
-        }
-        
-        html += `
-        <div style="border-bottom: 1px solid #e5e7eb; padding-bottom: 12px;">
-            <!-- Nombre del cliente y datos -->
-            <div style="margin-bottom: 4px;">
-                <div style="font-weight: 600; font-size: 0.95rem; color: #1f2937; margin-bottom: 2px;">
-                    ${cliente}
-                </div>
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #6b7280;">
-                    <span style="color: #3b82f6;">📅</span>
-                    <span>Entrega: ${fechaDisplay}</span>
-                    <span>·</span>
-                    <span>$${Math.round(facturado).toLocaleString('en-US')} / $${Math.round(meta).toLocaleString('en-US')}</span>
-                </div>
-            </div>
+        clientes.forEach(data => {
+            const cliente = data.cliente || 'Sin nombre';
+            const clienteId = data.cliente_id || null;
+            const facturado = data.facturado || 0;
+            const meta = data.total_cliente_meta || 0;
+            const numFechas = data.numFechas || 0;
+            const numVencidas = data.numVencidas || 0;
             
-            <!-- Barra de progreso -->
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="min-width: 70px; text-align: right; font-size: 0.8rem; color: #6b7280;">
-                    Facturado
+            // Formatear info de fechas
+            let infoFechas = '';
+            if (numFechas > 1) {
+                if (numVencidas > 0) {
+                    infoFechas = `${numFechas} entregas (${numVencidas} vencida${numVencidas > 1 ? 's' : ''})`;
+                } else {
+                    infoFechas = `${numFechas} entregas`;
+                }
+            } else if (numFechas === 1) {
+                // Formatear fecha única
+                const fechaEntrega = data.fechaMasUrgente?.commitment_date;
+                if (fechaEntrega) {
+                    try {
+                        const fecha = new Date(fechaEntrega.split(' ')[0]);
+                        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                        infoFechas = `${meses[fecha.getMonth()]} ${fecha.getFullYear()}`;
+                    } catch (e) {
+                        infoFechas = fechaEntrega.split(' ')[0];
+                    }
+                }
+            }
+            
+            clientesHtml += `
+            <div style="border-bottom: 1px solid #e5e7eb; padding: 8px 0; display: flex; align-items: center; gap: 12px;">
+                <!-- Días restantes (prominente) -->
+                <div style="min-width: 60px; text-align: center;">
+                    <div style="font-size: 1.4rem; font-weight: 700; color: ${data.estadoColor}; line-height: 1;">
+                        ${data.diasRestantes < 0 ? Math.abs(Math.floor(data.diasRestantes)) : Math.ceil(data.diasRestantes)}
+                    </div>
+                    <div style="font-size: 0.65rem; color: #6b7280; font-weight: 500; margin-top: 2px;">
+                        ${data.diasRestantes < 0 ? 'vencido' : 'días'}
+                    </div>
                 </div>
                 
-                <!-- Contenedor de la barra -->
-                <div style="flex: 1; position: relative; height: 22px; background: #f3f4f6; border-radius: 4px; overflow: visible;">
-                    <!-- Barra de progreso facturado -->
-                    <div style="position: absolute; left: 0; top: 0; height: 100%; width: ${Math.min(pctFacturado, 100)}%; background: ${barColor}; border-radius: 4px; transition: width 0.3s ease;"></div>
+                <!-- Información del cliente -->
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.9rem; color: #1f2937; margin-bottom: 2px;">
+                        ${cliente}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #6b7280; flex-wrap: wrap;">
+                        ${infoFechas ? `<span>📅 ${infoFechas}</span>` : ''}
+                        ${infoFechas ? '<span>·</span>' : ''}
+                        <span>$${Math.round(facturado).toLocaleString('en-US')} / $${Math.round(meta).toLocaleString('en-US')}</span>
+                        ${numFechas > 0 ? `<span style="color: #9ca3af; font-size: 0.7rem;">(Total año)</span>` : ''}
+                    </div>
                     
-                    <!-- Línea vertical del tiempo esperado -->
-                    <div style="position: absolute; left: ${Math.min(tiempoEsperado, 100)}%; top: -2px; height: calc(100% + 4px); width: 2px; background: #1a1a1a; z-index: 10;">
-                        <!-- Etiqueta del tiempo esperado -->
-                        <div style="position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; color: #1a1a1a; white-space: nowrap; font-weight: 500;">
-                            esperado ${Math.round(tiempoEsperado)}%
+                    <!-- Barra de progreso compacta -->
+                    <div style="margin-top: 4px; position: relative; height: 16px; background: #f3f4f6; border-radius: 3px;">
+                        <div style="position: absolute; left: 0; top: 0; height: 100%; width: ${Math.min(data.pctFacturado, 100)}%; background: ${data.barColor}; border-radius: 3px;"></div>
+                        <!-- Línea esperado -->
+                        ${data.tiempoEsperado >= 0 && data.tiempoEsperado <= 100 ? `
+                        <div style="position: absolute; left: ${data.tiempoEsperado}%; top: 0; bottom: 0; width: 2px; background: #1f2937; z-index: 10;"></div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <!-- Estado y porcentaje -->
+                <div style="min-width: 70px; text-align: right;">
+                    <div style="font-weight: 600; font-size: 0.95rem; color: ${data.estadoColor};">
+                        ${data.pctFacturado.toFixed(1)}%
+                    </div>
+                    <div style="font-size: 0.65rem; color: #6b7280;">
+                        ${data.tiempoEsperado >= 0 ? `Esp: ${Math.round(data.tiempoEsperado)}%` : ''}
+                    </div>
+                </div>
+                
+                <!-- Botón Detalle -->
+                ${clienteId ? `
+                <div style="min-width: 70px;">
+                    <button onclick="filtrarPorCliente(${clienteId}); event.stopPropagation();" 
+                            style="padding: 6px 12px; background-color: #875A7B; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 500; white-space: nowrap; transition: background-color 0.2s;"
+                            onmouseover="this.style.backgroundColor='#6d4862'" 
+                            onmouseout="this.style.backgroundColor='#875A7B'">
+                        📊 Detalle
+                    </button>
+                </div>
+                ` : ''}
+            </div>
+            `;
+        });
+        
+        return clientesHtml;
+    };
+
+    // Renderizar según filtro activo
+    if (filtroEstadoActivoV2 === 'todos') {
+        // Mostrar todos los grupos (en orden de urgencia)
+        const ordenGrupos = [
+            { key: 'vencido', titulo: 'Vencidos', color: '#8b0000', icono: '🔴' },
+            { key: 'riesgo', titulo: 'Riesgo Real', color: '#e74c3c', icono: '⚠️' },
+            { key: 'leve', titulo: 'Leve Retraso', color: '#d97706', icono: '🟡' },
+            { key: 'en_ritmo', titulo: 'En Ritmo', color: '#2ecc71', icono: '🟢' }
+        ];
+        
+        html += '<div style="display: flex; flex-direction: column; gap: 16px;">';
+        ordenGrupos.forEach(({ key, titulo, color, icono }) => {
+            if (grupos[key].length > 0) {
+                html += `
+                <div style="border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+                    <!-- Header del grupo -->
+                    <div style="background: ${color}10; padding: 10px 14px; border-bottom: 2px solid ${color};">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 600; font-size: 0.9rem; color: ${color};">
+                                ${icono} ${titulo}
+                            </span>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: ${color};">
+                                ${grupos[key].length} cliente${grupos[key].length !== 1 ? 's' : ''}
+                            </span>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Porcentaje y estado -->
-                <div style="min-width: 90px; text-align: left;">
-                    <div style="font-weight: 600; font-size: 1rem; color: ${estadoColor};">
-                        ${pctFacturado.toFixed(1)}%
-                    </div>
-                    <div style="font-size: 0.75rem; color: ${estadoColor};">
-                        ${estadoTexto}
+                    <!-- Clientes del grupo -->
+                    <div style="padding: 6px 14px;">
+                        ${renderizarClientes(grupos[key])}
                     </div>
                 </div>
-            </div>
-        </div>
-        `;
-    });
+                `;
+            }
+        });
+        html += '</div>';
+    } else {
+        // Mostrar solo el grupo filtrado
+        const grupoFiltrado = grupos[filtroEstadoActivoV2] || [];
+        html += '<div style="border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 14px;">';
+        html += renderizarClientes(grupoFiltrado);
+        html += '</div>';
+    }
     
-    html += '</div>';
     container.innerHTML = html;
 }
 

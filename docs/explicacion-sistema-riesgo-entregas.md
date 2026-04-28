@@ -6,6 +6,14 @@ El gráfico "Avance de Facturación por Cliente (Versión 2)" evalúa el **riesg
 1. **Tiempo restante** (urgencia)
 2. **Avance de facturación** (rendimiento)
 
+**Vista Consolidada Anual:**
+- Cada cliente muestra el **% facturado respecto al total anual** (suma de todas las fechas de entrega)
+- Las **"entregas"** se refieren a **fechas únicas** de compromiso de entrega (commitment_date)
+  - Si un cliente tiene 5 pedidos con la misma fecha → cuenta como **1 entrega**
+  - Si un cliente tiene 3 pedidos el 30-Jun + 2 pedidos el 15-Sep → cuenta como **2 entregas**
+- El **estado del cliente** se calcula usando la **próxima entrega NO vencida** (más urgente)
+- Si todas las entregas están vencidas, se usa la **más reciente** (menos vencida)
+
 ---
 
 ## 🎯 Concepto Clave
@@ -74,6 +82,23 @@ Gap = % Facturado Real - % Esperado
 ---
 
 ## 💡 Ejemplos Prácticos
+
+### Ejemplo de Consolidación por Fecha Única
+
+**Cliente VETERMED ANIMAL HEALTH HONDURAS SA:**
+- Pedido S01234: Fecha entrega 30-Jun-2026, Monto: $50,000
+- Pedido S01235: Fecha entrega 30-Jun-2026, Monto: $75,000
+- Pedido S01236: Fecha entrega 15-Sep-2026, Monto: $100,000
+
+**Vista Dashboard:**
+- **"2 entregas"** (NO 3 pedidos)
+  - Entrega 1: 30-Jun-2026 = $125,000 (suma de S01234 + S01235)
+  - Entrega 2: 15-Sep-2026 = $100,000
+- **Total año:** $225,000
+- **% Facturado:** Se calcula sobre $225,000 (total año)
+- **Estado:** Se determina por la entrega más urgente NO vencida (30-Jun si hoy < 30-Jun)
+
+---
 
 ### Caso 1: Pedido Urgente Muy Atrasado 🔴
 
@@ -187,34 +212,41 @@ Paso 2: Gap = -38% (≤ -20% = muy atrasado) → EMPEORA a ROJO
 
 ## 🔍 Puntos Clave para Recordar
 
-1. **El color combina urgencia (tiempo) + rendimiento (avance)**
+1. **Vista consolidada anual:**
+   - El % facturado se calcula sobre el **total año** (suma de todas las entregas)
+   - Las "entregas" = **fechas únicas** de compromiso (NO número de pedidos)
+   - Varios pedidos con la misma fecha = 1 sola entrega consolidada
+   - El estado se determina por la **próxima entrega NO vencida** más urgente
+
+2. **El color combina urgencia (tiempo) + rendimiento (avance)**
    - No es solo tiempo, ni solo % facturado
    - Es una evaluación híbrida inteligente
 
-2. **Umbrales de ajuste: ±20%**
+3. **Umbrales de ajuste: ±20%**
    - Muy adelantado (+20%): Mejora un nivel
    - Muy atrasado (-20%): Empeora un nivel
    - Entre -19% y +19%: Sin cambio
 
-3. **% Esperado calculado con período estándar de 120 días:**
+4. **% Esperado calculado con período estándar de 120 días:**
    - Fórmula: `(120 - días restantes) / 120 × 100`
    - Si faltan 60 días → 50% esperado
    - Si faltan 90 días → 25% esperado
    - Si faltan más de 120 días → 0% esperado (sin urgencia)
 
-4. **Ejemplos de lógica híbrida:**
+5. **Ejemplos de lógica híbrida:**
    - 63 días (amarillo) + 90% facturado vs 48% esperado (+42%) = 🟢 VERDE
    - 63 días (amarillo) + 10% facturado vs 48% esperado (-38%) = 🔴 ROJO
    - 148 días (verde) + 5% facturado vs 0% esperado (+5%) = 🟢 VERDE (sin ajuste)
 
-5. **Vencidos nunca mejoran:** Si la fecha pasó, siempre es granate independiente del avance
+6. **Vencidos nunca mejoran:** Si la fecha pasó, siempre es granate independiente del avance
 
-6. **La línea vertical "|" es clave:** Muestra visualmente dónde deberías estar. Si la barra de color está muy lejos de la línea, el gap es grande.
+7. **La línea vertical "|" es clave:** Muestra visualmente dónde deberías estar. Si la barra de color está muy lejos de la línea, el gap es grande.
 
-7. **Beneficios de esta lógica:**
+8. **Beneficios de esta lógica:**
    - ✅ Reconoce pedidos bien gestionados (adelantados) aunque tengan poco tiempo
    - ✅ Alerta sobre pedidos con mucho tiempo pero muy atrasados
    - ✅ Balance entre urgencia y rendimiento real
+   - ✅ Vista consolidada anual evita penalizar por entregas vencidas aisladas
 
 ---
 
